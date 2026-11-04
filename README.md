@@ -1,80 +1,99 @@
 # Zotero Cover Grid 📚✨
 
+**English** | [한국어](README.ko.md)
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Zotero: 10.0+](https://img.shields.io/badge/Zotero-10.0%2B-red.svg)](https://www.zotero.org/)
-[![Runtime: Gecko 140 ESR](https://img.shields.io/badge/Runtime-Gecko%20140%20ESR-orange.svg)]()
 
-> A modern, seamless **Visual APA 7 Cover Grid & Card View** extension for **Zotero 10**.  
-> Transform your text-heavy library into an intuitive visual bookcase with PDF first-page covers, smart caching, and 60fps virtual scrolling.
-
----
-
-## 🌟 Key Features
-
-- **📖 APA 7 Paper Cards**: Displays high-fidelity PDF first-page covers alongside formatted author citations (`Kim et al. (2026)`), item types, and interactive reading status badges.
-- **⚡ Zero-Freeze Smart Pipeline**:
-  - **Skeleton Loading**: Smooth pulse placeholders while thumbnails render.
-  - **Idle Prefetching**: Automatically pre-renders the next 20 adjacent cards during idle time.
-  - **Smart Splash Detection**: Automatically detects publisher cover sheets (JSTOR, Elsevier, etc.) and renders Page 2 as the true cover!
-- **🔄 Seamless 0-second View Switching**: Toggle between standard List view (`≡`) and Cover Grid (`⊞`) with zero state loss or scroll jumps.
-- **🔍 Realtime Zoom Slider**: Freely resize card thumbnails from compact (8 columns) to large (3 columns) in real-time.
-- **🌙 Native Theme Harmony**: Respects Zotero's system font size settings, dark mode tone-down filters, and native deletion policies.
-- **🏷️ Two-way Reading Status**: Cycle between `Unread ➔ Reading ➔ Read` with one click; automatically syncs with Zotero tags (`#unread`, `#reading`, `#read`).
+> A visual bookcase extension for **Zotero 10** that turns text-heavy lists into an intuitive, high-fidelity **paper cover grid**.  
+> Browse PDF covers, glance at APA 7 citations, and track your reading progress with one click.
 
 ---
 
-## 🛠️ Architecture & Specifications
+## 📸 Screenshots
 
-For the complete enterprise specification, see [PRD.md](./PRD.md).
+<!-- Main Preview Placeholder -->
+> 💡 *Screenshot placeholder: Full cover grid view*  
+> `![Zotero Cover Grid Preview](docs/images/preview.png)`
 
-- **Runtime**: Mozilla Gecko 140.0 ESR (Firefox 140 codebase)
-- **Language**: TypeScript 5+ & Modern Web Components
-- **Bundler**: esbuild with XPCOM lifecycle export hooks
-- **Test Suite**: Vitest (Headless CLI verification)
+<br>
+
+<div align="center">
+  <table style="border: none;">
+    <tr>
+      <td align="center" width="50%">
+        <!-- Screenshot 1: View Toggle & Zoom Slider -->
+        <b>[ ≡ List | ⊞ Grid ] Toggle & Zoom Slider</b><br><br>
+        <i>(Screenshot placeholder: Toolbar buttons & card resizing)</i>
+      </td>
+      <td align="center" width="50%">
+        <!-- Screenshot 2: Paper Card & Reading Status Badge -->
+        <b>Paper Card & Reading Status Badges</b><br><br>
+        <i>(Screenshot placeholder: APA 7 citation & Unread/Reading/Read tags)</i>
+      </td>
+    </tr>
+  </table>
+</div>
 
 ---
 
-## 🚀 Development & Build
+## ✨ Features
 
-```bash
-# Install dependencies
-npm install
-
-# Type-check
-npm run type-check
-
-# Run unit tests
-npm run test
-
-# Build & Package .xpi for Zotero 10
-npm run package
-```
-
-The compiled extension package will be generated at `build/zotero-cover-grid.xpi`.
+- **🖼️ First-Page PDF Bookcase**: Automatically turns the first page of attached PDFs into crisp paper covers.
+- **🧠 Smart Publisher Cover Detection**: Automatically identifies splash sheets from JSTOR, Elsevier, etc., and uses **Page 2 as the true cover**.
+- **📖 Clean APA 7 Citations**: Smart author formatting (`Kim et al. (2026)`) so you can quickly identify papers at a glance.
+- **🚦 One-Click Traffic Light Badges**: Click card badges to cycle through `UNREAD ➔ READING ➔ READ`; instantly synchronizes with native Zotero tags (`#unread`, `#reading`, `#read`).
+- **🔄 Instant View Switcher**: A segmented button `[ ≡ | ⊞ ]` right next to the search bar for zero-second toggling between list and grid views.
+- **🔍 Adjustable Card Zoom**: Smoothly scale cards from a compact 8-column bookcase down to a large 3-column view.
+- **⚡ Smooth 60fps Scrolling**: Intelligent viewport management keeps browsing fast and responsive even with thousands of papers.
+- **🌙 Native Theme Harmony**: Supports dark mode dimming filters, respects Zotero font size scaling, and follows native trash/deletion policies.
 
 ---
 
 ## 📦 Installation in Zotero 10
 
-1. Download `zotero-cover-grid.xpi` from the [Releases](https://github.com/JuKang80/zotero-cover-grid/releases) page (or build locally using `npm run package`).
+1. Download `zotero-cover-grid.xpi` from the [Releases](https://github.com/JuKang80/zotero-cover-grid/releases) page.
 2. Open Zotero 10.
-3. In the top menu, navigate to **Tools** ➔ **Plugins** (or **Add-ons**).
+3. In the top menu, go to **Tools** ➔ **Plugins** (or **Add-ons**).
 4. Click the gear icon (⚙️) in the top-right corner and select **Install Add-on From File...**.
-5. Select `zotero-cover-grid.xpi` and confirm the installation.
-6. The `[ ≡ | ⊞ ]` view switcher and zoom slider will instantly appear next to the library search bar!
+5. Select the downloaded `zotero-cover-grid.xpi` file and confirm.
+6. The `[ ≡ | ⊞ ]` switcher will appear immediately next to the search bar!
 
 ---
 
-## 🎮 Keyboard Shortcuts & Interaction
+## 🎮 Navigation & Shortcuts
 
-- **Click**: Inspect paper metadata in the native right-hand sidebar.
-- **Double-click / Enter**: Open PDF in Zotero's built-in tabbed reader or system default viewer.
-- **Arrow Keys (↑, ↓, ←, →)**: Seamless mouse-less grid navigation with auto-tracking viewport scroll (`scrollIntoView`).
+- **Click**: Inspect paper metadata in Zotero's right-hand sidebar.
+- **Double-click / Enter**: Open PDF in the built-in reader tab or system viewer.
+- **Arrow Keys (↑, ↓, ←, →)**: Mouse-less card navigation with automatic viewport scrolling (`scrollIntoView`).
+- **Badge Click**: Cycle reading status (`UNREAD` ➔ `READING` ➔ `READ`).
 - **Cmd/Ctrl + Click**: Multi-select individual items.
 - **Shift + Click**: Select contiguous range of items.
-- **Delete / Backspace**: Native item removal (respects collection removal vs library trash).
-- **Badge Click**: Cycle reading status (`UNREAD` ➔ `READING` ➔ `READ`) with two-way Zotero tag sync (`#unread`, `#reading`, `#read`).
-- **Search (150ms Debounce / 0ms Fast-path)**: Real-time search with fast reset on `ESC` or empty query.
+- **Delete / Backspace**: Remove item (collection remove vs library trash).
+- **Search**: Instant, freeze-free filtering as you type (`ESC` to instantly reset).
+
+---
+
+## 🛠️ Development & Build
+
+<details>
+<summary><b>Click to expand developer build instructions</b></summary>
+
+```bash
+# Install dependencies
+npm install
+
+# Type-check and run tests
+npm run type-check
+npm run test
+
+# Package .xpi for Zotero 10
+npm run package
+# Output generated at: build/zotero-cover-grid.xpi
+```
+
+- For complete architectural specifications and internal design, see [PRD.md](./PRD.md).
+</details>
 
 ---
 
