@@ -26,6 +26,9 @@ await esbuild.build({
     'resource://*',
     'chrome://*'
   ],
+  loader: {
+    '.css': 'text'
+  },
   logLevel: 'info',
 });
 

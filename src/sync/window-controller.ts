@@ -97,8 +97,9 @@ export class WindowCoverGridController {
 
     // 2. Fetch items from current collection / ZoteroPane
     let rawItems: any[] = [];
-    if (typeof ZoteroPane !== 'undefined' && ZoteroPane.itemsView?.rowProvider?.items) {
-      rawItems = ZoteroPane.itemsView.rowProvider.items;
+    const zp = this.win?.ZoteroPane || (typeof ZoteroPane !== 'undefined' ? ZoteroPane : null);
+    if (zp?.itemsView?.rowProvider?.items) {
+      rawItems = zp.itemsView.rowProvider.items;
     }
 
     this.allItems = rawItems.map(extractPaperCardData);

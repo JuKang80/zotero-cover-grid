@@ -54,6 +54,30 @@ The compiled extension package will be generated at `build/zotero-cover-grid.xpi
 
 ---
 
+## 📦 Installation in Zotero 10
+
+1. Download `zotero-cover-grid.xpi` from the [Releases](https://github.com/JuKang80/zotero-cover-grid/releases) page (or build locally using `npm run package`).
+2. Open Zotero 10.
+3. In the top menu, navigate to **Tools** ➔ **Plugins** (or **Add-ons**).
+4. Click the gear icon (⚙️) in the top-right corner and select **Install Add-on From File...**.
+5. Select `zotero-cover-grid.xpi` and confirm the installation.
+6. The `[ ≡ | ⊞ ]` view switcher and zoom slider will instantly appear next to the library search bar!
+
+---
+
+## 🎮 Keyboard Shortcuts & Interaction
+
+- **Click**: Inspect paper metadata in the native right-hand sidebar.
+- **Double-click / Enter**: Open PDF in Zotero's built-in tabbed reader or system default viewer.
+- **Arrow Keys (↑, ↓, ←, →)**: Seamless mouse-less grid navigation with auto-tracking viewport scroll (`scrollIntoView`).
+- **Cmd/Ctrl + Click**: Multi-select individual items.
+- **Shift + Click**: Select contiguous range of items.
+- **Delete / Backspace**: Native item removal (respects collection removal vs library trash).
+- **Badge Click**: Cycle reading status (`UNREAD` ➔ `READING` ➔ `READ`) with two-way Zotero tag sync (`#unread`, `#reading`, `#read`).
+- **Search (150ms Debounce / 0ms Fast-path)**: Real-time search with fast reset on `ESC` or empty query.
+
+---
+
 ## 📄 License
 
 This project is licensed under the [MIT License](LICENSE).

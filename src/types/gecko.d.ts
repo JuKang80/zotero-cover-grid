@@ -17,3 +17,8 @@ declare const PathUtils: {
   join(...parts: string[]): string;
   profileDir: string;
 };
+
+declare module '*.css' {
+  const content: string;
+  export default content;
+}
