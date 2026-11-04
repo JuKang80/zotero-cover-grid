@@ -3,10 +3,10 @@
 > **프로젝트명**: `zotero-cover-grid`  
 > **초기 릴리즈 버전**: `v0.1.0`  
 > **라이선스**: MIT License  
-> **문서 상태**: Production Ready (v5.0 Audited & Unattended /goal Certified)  
+> **문서 상태**: Production Ready (v6.0 Extreme Audited & Unattended /goal Certified)  
 > **타깃 플랫폼**: macOS Zotero 10.0+ (`Gecko 140.15.0 ESR`, XUL+XHTML 런타임 단일 타깃)  
 > **개발 스택**: TypeScript 5+, esbuild, Web Components, PDF.js v5.7, Vitest (happy-dom), Gecko 140 Web APIs  
-> **목적**: 자율 에이전트(`/goal` 모드)가 무인(Unattended) 상태에서 런타임 충돌 및 타입 에러 없이 100% 빌드, 패키징, 테스트를 완주할 수 있는 최종 구현 명세.
+> **목적**: 자율 에이전트(`/goal` 모드)가 무인(Unattended) 상태에서 런타임 충돌, DOM 0px 붕괴, 언로드 찌꺼기 없이 100% 빌드, 패키징, 테스트를 완주할 수 있는 최종 구현 명세.
 
 ---
 
@@ -17,31 +17,67 @@
 
 ![APA 7 Paper Card Reference](/Users/user/.gemini/antigravity/brain/710e112f-7579-4a2e-850b-b37fe036e0be/.user_uploaded/media_1793804554286_3bf010ce.jpg)
 
-### 1.2 핵심 UI 레이아웃 사양
+### 1.2 핵심 UI 레이아웃 & Gecko XUL 컨테이너 엄격 CSS
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
 │ [Zotero 툴바] [검색창...] [🔍 줌 슬라이더] [목록뷰 [≡] | 그리드뷰 [⊞] (Active)]  │
 ├────────────────────────────────────────────────────────────────────────┤
-│ [#zotero-items-pane 컨테이너 (flex=1)]                                  │
+│ [#zotero-items-pane 컨테이너 (<hbox flex="1">)]                        │
 │  ├── <html:div id="zotero-items-tree" hidden="true">...</html:div>     │
 │  └── <html:zotero-cover-grid id="zotero-cover-grid">                   │
-│                                                                        │
-│       ┌──────────────────────┐    ┌──────────────────────┐             │
-│       │ ┌──────────────────┐ │    │ ┌──────────────────┐ │             │
-│       │ │  PDF First Page  │ │    │ │  PDF First Page  │ │             │
-│       │ │  Cover Thumbnail │ │    │ │  Cover Thumbnail │ │             │
-│       │ │  (3:4 Aspect)    │ │    │ │  (3:4 Aspect)    │ │             │
-│       │ └──────────────────┘ │    │ └──────────────────┘ │             │
-│       │ Kim et al. (2026)    │    │ Lee et al. (2025)    │             │
-│       │ APA 7 · Article      │    │ APA 7 · Article      │             │
-│       │ [ Reading ] (Click)  │    │ [ Read ]    (Click)  │             │
-│       └──────────────────────┘    └──────────────────────┘             │
+│       │                                                                │
+│       ├── .grid-viewport (overflow-y: auto, flex: 1 1 0%)              │
+│       │    ┌──────────────────────┐    ┌──────────────────────┐        │
+│       │    │ ┌──────────────────┐ │    │ ┌──────────────────┐ │        │
+│       │    │ │  PDF First Page  │ │    │ │  PDF First Page  │ │        │
+│       │    │ │  Cover Thumbnail │ │    │ │  Cover Thumbnail │ │        │
+│       │    │ │  (3:4 Aspect)    │ │    │ │  (3:4 Aspect)    │ │        │
+│       │    │ └──────────────────┘ │    │ └──────────────────┘ │        │
+│       │    │ Kim et al. (2026)    │    │ Lee et al. (2025)    │        │
+│       │    │ APA 7 · Article      │    │ APA 7 · Article      │        │
+│       │    │ [ Reading ] (Click)  │    │ [ Read ]    (Click)  │        │
+│       │    └──────────────────────┘    └──────────────────────┘        │
 │                                                                        │
 │  </html:zotero-cover-grid>                                             │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
+- **[필수] Gecko XUL `<hbox>` 하위 0px 높이 붕괴 방지 엄격 CSS**:
+  ```css
+  /* Gecko XUL 하위 HTML 커스텀 엘리먼트 0px 붕괴 방지 엄격 룰 */
+  #zotero-cover-grid,
+  zotero-cover-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 1 0% !important;
+    height: 100% !important;
+    width: 100% !important;
+    min-height: 0 !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+    position: relative !important;
+    overflow: hidden !important;
+  }
+
+  /* 내부 가상 스크롤러 뷰포트 */
+  #zotero-cover-grid .grid-viewport {
+    flex: 1 1 0% !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    position: relative !important;
+  }
+  ```
+
 - **XHTML 네임스페이스 엄수**: `document.createElementNS("http://www.w3.org/1999/xhtml", "zotero-cover-grid")` 사용.
+- **Custom Element 중복 등록 방지 가드**:
+  ```typescript
+  if (!win.customElements.get("zotero-cover-grid")) {
+    win.customElements.define("zotero-cover-grid", ZoteroCoverGrid);
+  }
+  ```
 - **2D 반응형 그리드 & 줌 슬라이더**:
   - `ResizeObserver`로 컨테이너 너비를 감지하여 `columns = Math.floor(width / cardWidth)` 동적 계산.
   - 상단 툴바의 줌 슬라이더로 카드 크기(140px ~ 320px) 실시간 조절.
@@ -133,11 +169,103 @@ flowchart TD
 
 ---
 
-## 4. 빌드 시스템 & 무인 자율 실행(`/goal`) 필수 명세
+## 4. 빌드 시스템 & 무인 부트스트랩 라이프사이클 명세
 
-자율 에이전트가 `/goal` 실행 시 단 한 번의 에러 없이 통과할 수 있도록 고정된 표준 환경 설정입니다.
+### 4.1 `bootstrap.ts` 라이프사이클 & 윈도우 리스너 패턴
+Gecko XPCOM 전역 스코프에는 `window`나 `document`가 없으므로 `Services.wm`을 사용하고, `ZoteroPane.loadedPromise`를 대기해야 합니다.
 
-### 4.1 `package.json`
+```typescript
+// src/bootstrap.ts
+declare const Services: any;
+
+let windowListener: any = null;
+
+async function initWindow(win: any) {
+  if (win.location?.href !== "chrome://zotero/content/standalone/zoteroPane.xhtml") {
+    return;
+  }
+  // [필수] ZoteroPane 비동기 로딩 완료 대기 가드
+  if (win.ZoteroPane?.loadedPromise) {
+    await win.ZoteroPane.loadedPromise;
+  } else {
+    await new Promise<void>((resolve) => {
+      const check = () => {
+        if (win.ZoteroPane?.loadedPromise) {
+          win.ZoteroPane.loadedPromise.then(() => resolve());
+        } else {
+          win.setTimeout(check, 10);
+        }
+      };
+      check();
+    });
+  }
+
+  // 안전하게 UI 주입 및 이벤트 바인딩
+  const { injectCoverGridUI } = await ChromeUtils.importESModule("chrome://zotero-cover-grid/content/index.mjs");
+  injectCoverGridUI(win);
+}
+
+function destroyWindow(win: any) {
+  const doc = win.document;
+  if (!doc) return;
+
+  // 1. 주입된 커스텀 엘리먼트 제거
+  doc.getElementById('zotero-cover-grid')?.remove();
+
+  // 2. 툴바 UI 제거
+  doc.getElementById('zotero-cover-grid-view-switcher')?.remove();
+  doc.getElementById('zotero-cover-grid-zoom-container')?.remove();
+
+  // 3. [최우선] 기존 Zotero 리스트 목록 100% 원상복구
+  const itemsTree = doc.getElementById('zotero-items-tree');
+  if (itemsTree) {
+    itemsTree.hidden = false;
+    itemsTree.removeAttribute('hidden');
+  }
+
+  // 4. 주입 스타일 제거
+  doc.getElementById('zotero-cover-grid-styles')?.remove();
+
+  // 5. 인스턴스 정리
+  win.__zoteroCoverGridInstance?.cleanup();
+  delete win.__zoteroCoverGridInstance;
+}
+
+export function startup({ id, version, rootURI }: any, reason: number) {
+  // 열려 있는 모든 윈도우에 주입
+  const windows = Services.wm.getEnumerator("navigator:browser");
+  while (windows.hasMoreElements()) {
+    initWindow(windows.getNext());
+  }
+
+  // 새로 열리는 윈도우 리스닝
+  windowListener = {
+    onOpenWindow(xulWin: any) {
+      const domWin = xulWin.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindow);
+      domWin.addEventListener("DOMContentLoaded", () => initWindow(domWin), { once: true });
+    },
+    onCloseWindow() {},
+    onWindowTitleChange() {}
+  };
+  Services.wm.addListener(windowListener);
+}
+
+export function shutdown(data: any, reason: number) {
+  if (windowListener) {
+    Services.wm.removeListener(windowListener);
+    windowListener = null;
+  }
+  const windows = Services.wm.getEnumerator("navigator:browser");
+  while (windows.hasMoreElements()) {
+    destroyWindow(windows.getNext());
+  }
+}
+
+export function install() {}
+export function uninstall() {}
+```
+
+### 4.2 `package.json`
 ```json
 {
   "name": "zotero-cover-grid",
@@ -165,9 +293,7 @@ flowchart TD
 }
 ```
 
-### 4.2 `scripts/build.mjs` (XPCOM Scope Trapping 방지 필수 번들러)
-> **중요 주의사항**: 소스 코드(`src/`) 내에서 `import ... from 'resource://...'`를 정적으로 사용하면 esbuild IIFE 빌드가 터집니다. 반드시 Gecko 네이티브 동적 임포트인 `ChromeUtils.importESModule()`을 사용해야 합니다.
-
+### 4.3 `scripts/build.mjs` (XPCOM Scope Trapping 방지 필수 번들러)
 ```javascript
 import esbuild from 'esbuild';
 import fs from 'node:fs';
@@ -204,55 +330,7 @@ await esbuild.build({
 console.log(`[build.mjs] Compiled bootstrap.js (${isProd ? 'prod' : 'dev'})`);
 ```
 
-### 4.3 `addon/manifest.json` & `scripts/make-xpi.mjs`
-```json
-{
-  "manifest_version": 2,
-  "name": "Zotero Cover Grid",
-  "version": "0.1.0",
-  "description": "Visual APA 7 Cover Grid view with smart PDF caching for Zotero 10",
-  "icons": {
-    "48": "icons/icon-48.png"
-  },
-  "browser_specific_settings": {
-    "zotero": {
-      "id": "zotero-cover-grid@antigravity.user",
-      "strict_min_version": "10.0",
-      "strict_max_version": "10.*"
-    }
-  }
-}
-```
-
-```javascript
-// scripts/make-xpi.mjs
-import fs from 'node:fs';
-import path from 'node:path';
-import archiver from 'archiver';
-
-const sourceDir = 'build/addon';
-const distDir = 'build';
-const outPath = path.join(distDir, 'zotero-cover-grid.xpi');
-
-if (!fs.existsSync(path.join(sourceDir, 'manifest.json')) || !fs.existsSync(path.join(sourceDir, 'bootstrap.js'))) {
-  throw new Error('[make-xpi] CRITICAL: manifest.json or bootstrap.js missing in build/addon!');
-}
-
-const output = fs.createWriteStream(outPath);
-const archive = archiver('zip', { zlib: { level: 9 } });
-
-output.on('close', () => {
-  console.log(`[make-xpi] Generated XPI: ${outPath} (${(archive.pointer() / 1024).toFixed(1)} KB)`);
-});
-
-archive.on('error', (err) => { throw err; });
-archive.pipe(output);
-// 아카이브 최상위 루트(/)에 파일 압축
-archive.directory(sourceDir, false);
-await archive.finalize();
-```
-
-### 4.4 `vitest.config.ts` & `tests/setup.ts` (헤드리스 테스트 무인 환경)
+### 4.4 `vitest.config.ts` & `tests/setup.ts` (Gecko 140 전역 모의 객체)
 ```typescript
 // vitest.config.ts
 import { defineConfig } from 'vitest/config';
@@ -272,7 +350,6 @@ export default defineConfig({
 // tests/setup.ts
 import { vi } from 'vitest';
 
-// 1. Gecko IOUtils 모킹
 globalThis.IOUtils = {
   read: vi.fn().mockResolvedValue(new Uint8Array([0, 1, 2, 3])),
   write: vi.fn().mockResolvedValue(undefined),
@@ -281,13 +358,11 @@ globalThis.IOUtils = {
   exists: vi.fn().mockResolvedValue(true)
 } as any;
 
-// 2. Gecko PathUtils 모킹
 globalThis.PathUtils = {
   join: (...args: string[]) => args.join('/'),
   profileDir: '/mock/zotero/profile'
 } as any;
 
-// 3. Gecko ChromeUtils 모킹
 globalThis.ChromeUtils = {
   importESModule: vi.fn((url: string) => {
     if (url.includes('pdf.mjs')) {
@@ -309,7 +384,15 @@ globalThis.ChromeUtils = {
   })
 } as any;
 
-// 4. Zotero & ZoteroPane 네이티브 API 모킹
+// ZoteroPane.loadedPromise 모킹 필수
+globalThis.ZoteroPane = {
+  loadedPromise: Promise.resolve(),
+  openAttachment: vi.fn(),
+  deleteSelectedItems: vi.fn(),
+  getSelectedItems: vi.fn(() => []),
+  itemsView: { rowProvider: { items: [] } }
+} as any;
+
 globalThis.Zotero = {
   Reader: { open: vi.fn().mockResolvedValue(undefined) },
   Prefs: {
@@ -326,13 +409,6 @@ globalThis.Zotero = {
   ItemFields: { getName: vi.fn((type: string) => type) },
   Notifier: { registerObserver: vi.fn(() => 'observer-id'), unregisterObserver: vi.fn() },
   Utilities: { cleanAuthor: vi.fn((author: string) => author) }
-} as any;
-
-globalThis.ZoteroPane = {
-  openAttachment: vi.fn(),
-  deleteSelectedItems: vi.fn(),
-  getSelectedItems: vi.fn(() => []),
-  itemsView: { rowProvider: { items: [] } }
 } as any;
 
 if (!globalThis.ResizeObserver) {
@@ -357,47 +433,9 @@ URL.createObjectURL = vi.fn(() => 'blob:mock-url');
 URL.revokeObjectURL = vi.fn();
 ```
 
-### 4.5 `tsconfig.json` & 앰비언트 타입 (`src/types/gecko.d.ts`)
-```json
-{
-  "compilerOptions": {
-    "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "types": ["node", "vitest/globals", "zotero-types"],
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
-  },
-  "include": ["src/**/*", "scripts/**/*", "tests/**/*"]
-}
-```
-
-```typescript
-// src/types/gecko.d.ts
-declare const Zotero: any;
-declare const ZoteroPane: any;
-declare const ChromeUtils: { importESModule(url: string): any; };
-declare const IOUtils: {
-  read(path: string): Promise<Uint8Array>;
-  write(path: string, bytes: Uint8Array): Promise<void>;
-  makeDirectory(path: string, options?: { ignoreExisting?: boolean; createAncestors?: boolean }): Promise<void>;
-  remove(path: string, options?: { ignoreAbsent?: boolean; recursive?: boolean }): Promise<void>;
-  exists(path: string): Promise<boolean>;
-};
-declare const PathUtils: {
-  join(...parts: string[]): string;
-  profileDir: string;
-};
-```
-
 ---
 
 ## 5. 단계별 태스크 & 무인 헤드리스 인수 조건 (DoD)
-
-CLI 무인 환경의 에이전트가 통과 여부를 직접 판정하는 헤드리스 커맨드 기준:
 
 ### Step 1: Scaffolding & Build System
 - [ ] 워크스테이션 규칙 준수: `feature/initial-scaffolding` 브랜치 작업 확인.
@@ -406,12 +444,14 @@ CLI 무인 환경의 에이전트가 통과 여부를 직접 판정하는 헤드
 - **인수 조건 (DoD)**:  
   `npm run type-check && npm run package` 실행 성공 및 `build/zotero-cover-grid.xpi`가 생성되고, ZIP 루트에 `manifest.json`과 `bootstrap.js`가 정상 포함됨을 자동 검증.
 
-### Step 2: XHTML 네임스페이스 UI 주입 & 무손실 스위칭
+### Step 2: XHTML 네임스페이스 UI 주입 & 무손실 스위칭 & 언로드 클린업
 - [ ] `document.createElementNS("http://www.w3.org/1999/xhtml", ...)`로 커스텀 엘리먼트 주입.
 - [ ] `#zotero-items-pane` 내부에서 `zotero-items-tree`와 `zotero-cover-grid`의 `hidden` 속성 상호 전환.
+- [ ] 0px 높이 붕괴 방지 엄격 CSS (`flex: 1 1 0% !important; height: 100% !important; min-height: 0 !important;`) 적용.
+- [ ] `shutdown()` 시 5단계 완전 롤백 로직 구현 (`#zotero-items-tree.hidden = false` 복구 필수).
 - [ ] 툴바에 [목록형 [≡] | 그리드형 [⊞]] 세그먼트 버튼 및 [🔍 줌 슬라이더] 주입.
 - **인수 조건 (DoD)**:  
-  `npx vitest run tests/dom-lifecycle.test.ts` 통과 (DOM 주입 및 무손실 스위칭 상태 머신 검증).
+  `npx vitest run tests/dom-lifecycle.test.ts tests/unload-cleanup.test.ts` 통과 (DOM 주입, 무손실 스위칭 및 shutdown 클린업 검증).
 
 ### Step 3: PDF.js 썸네일 파이프라인 & 지능형 캐시 매니저
 - [ ] `ChromeUtils.importESModule("resource://zotero/reader/pdf/build/pdf.mjs")` 기반 썸네일 생성 모듈 구현.
