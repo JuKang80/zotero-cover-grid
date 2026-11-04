@@ -1,0 +1,16 @@
+{
+  "manifest_version": 2,
+  "name": "Zotero Cover Grid",
+  "version": "0.1.0",
+  "description": "Visual APA 7 Cover Grid view with smart PDF caching for Zotero 10",
+  "icons": {
+    "48": "icons/icon-48.png"
+  },
+  "browser_specific_settings": {
+    "zotero": {
+      "id": "zotero-cover-grid@antigravity.user",
+      "strict_min_version": "10.0",
+      "strict_max_version": "10.*"
+    }
+  }
+}

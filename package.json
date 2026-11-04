@@ -1,0 +1,24 @@
+{
+  "name": "zotero-cover-grid",
+  "version": "0.1.0",
+  "description": "Visual APA 7 Cover Grid view for Zotero 10 (Gecko 140 ESR)",
+  "main": "build/addon/bootstrap.js",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "package": "node scripts/build.mjs --prod && node scripts/make-xpi.mjs",
+    "type-check": "tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "test": "vitest run",
+    "clean": "node -e \"import('node:fs').then(fs => fs.rmSync('build', { recursive: true, force: true }))\""
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "archiver": "^7.0.1",
+    "esbuild": "^0.24.0",
+    "happy-dom": "^15.0.0",
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5",
+    "zotero-types": "^1.1.20"
+  }
+}
