@@ -74,29 +74,6 @@
 
 ---
 
-## 🛠️ Development & Build
-
-<details>
-<summary><b>Click to expand developer build instructions</b></summary>
-
-```bash
-# Install dependencies
-npm install
-
-# Type-check and run tests
-npm run type-check
-npm run test
-
-# Package .xpi for Zotero 10
-npm run package
-# Output generated at: build/zotero-cover-grid.xpi
-```
-
-- For complete architectural specifications and internal design, see [PRD.md](./PRD.md).
-</details>
-
----
-
 ## 📄 License
 
 This project is licensed under the [MIT License](LICENSE).

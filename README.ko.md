@@ -73,29 +73,6 @@
 
 ---
 
-## 🛠️ 개발 및 빌드 (Developers)
-
-<details>
-<summary><b>개발자 빌드 명령어 펼치기</b></summary>
-
-```bash
-# 의존성 설치
-npm install
-
-# 타입 검사 및 테스트
-npm run type-check
-npm run test
-
-# Zotero 10 배포용 XPI 패키징
-npm run package
-# -> build/zotero-cover-grid.xpi 파일 생성
-```
-
-- 상세한 내부 아키텍처 및 기술 명세는 [PRD.md](./PRD.md)를 참고하세요.
-</details>
-
----
-
 ## 📄 라이선스 (License)
 
 이 프로젝트는 [MIT License](LICENSE)에 따라 자유롭게 사용 및 수정이 가능합니다.
