@@ -1,0 +1,242 @@
+import { PaperCardData, ReadStatus } from '../types';
+import { createPaperCardElement, updatePaperCardBadge, updatePaperCardThumbnail } from './paper-card';
+
+export interface VirtualScrollerOptions {
+  container: HTMLElement;
+  viewport: HTMLElement;
+  onSelect?: (selectedItems: PaperCardData[]) => void;
+  onOpenPdf?: (item: PaperCardData) => void;
+  onDeleteItem?: (items: PaperCardData[]) => void;
+  onStatusChange?: (item: PaperCardData, nextStatus: ReadStatus) => void;
+}
+
+export class VirtualGridScroller {
+  private container: HTMLElement;
+  private viewport: HTMLElement;
+  private items: PaperCardData[] = [];
+  private cardMap = new Map<number, HTMLElement>();
+  private selectedIds = new Set<number>();
+  private anchorIndex = 0;
+  private focusedIndex = -1;
+  private options: VirtualScrollerOptions;
+
+  constructor(options: VirtualScrollerOptions) {
+    this.container = options.container;
+    this.viewport = options.viewport;
+    this.options = options;
+
+    this.bindEvents();
+  }
+
+  private bindEvents() {
+    this.container.addEventListener('keydown', this.handleKeyDown.bind(this));
+  }
+
+  public setItems(newItems: PaperCardData[]) {
+    // 1. Scroll Anchoring Pre-calculation
+    const anchor = this.findTopVisibleItem();
+    const oldAnchorOffset = anchor ? this.getItemOffset(anchor.id) : 0;
+
+    this.items = [...newItems];
+
+    // 2. Stable Keying: Update or Create DOM cards
+    const newIdSet = new Set(this.items.map((it) => it.id));
+
+    // Remove deleted items
+    for (const [id, el] of this.cardMap.entries()) {
+      if (!newIdSet.has(id)) {
+        el.remove();
+        this.cardMap.delete(id);
+        this.selectedIds.delete(id);
+      }
+    }
+
+    // Append/Update current items
+    const doc = this.container.ownerDocument || document;
+    for (let i = 0; i < this.items.length; i++) {
+      const card = this.items[i];
+      let cardEl = this.cardMap.get(card.id);
+
+      if (!cardEl) {
+        cardEl = createPaperCardElement(
+          card,
+          {
+            onClick: (c, e) => this.handleCardClick(c, i, e),
+            onDoubleClick: (c) => this.options.onOpenPdf?.(c),
+            onStatusChange: (c, s) => this.options.onStatusChange?.(c, s)
+          },
+          doc
+        );
+        this.cardMap.set(card.id, cardEl);
+        this.container.appendChild(cardEl);
+      } else {
+        // Update mutable properties
+        updatePaperCardBadge(cardEl, card.readStatus);
+        if (card.coverThumbnailUrl) {
+          updatePaperCardThumbnail(cardEl, card.coverThumbnailUrl);
+        }
+      }
+
+      // Re-apply selection state
+      if (this.selectedIds.has(card.id)) {
+        cardEl.classList.add('selected');
+      } else {
+        cardEl.classList.remove('selected');
+      }
+    }
+
+    // 3. Scroll Anchoring Restoration
+    if (anchor && this.cardMap.has(anchor.id)) {
+      const newAnchorOffset = this.getItemOffset(anchor.id);
+      const delta = newAnchorOffset - oldAnchorOffset;
+      if (delta !== 0) {
+        this.viewport.scrollTop += delta;
+      }
+    }
+  }
+
+  private findTopVisibleItem(): PaperCardData | null {
+    if (this.items.length === 0) return null;
+    const vpTop = this.viewport.scrollTop;
+    for (const item of this.items) {
+      const el = this.cardMap.get(item.id);
+      if (el && el.offsetTop >= vpTop) {
+        return item;
+      }
+    }
+    return this.items[0] || null;
+  }
+
+  private getItemOffset(id: number): number {
+    const el = this.cardMap.get(id);
+    return el ? el.offsetTop : 0;
+  }
+
+  public handleCardClick(card: PaperCardData, index: number, event: MouseEvent) {
+    if (event.metaKey || event.ctrlKey) {
+      // Toggle single item selection
+      if (this.selectedIds.has(card.id)) {
+        this.selectedIds.delete(card.id);
+      } else {
+        this.selectedIds.add(card.id);
+      }
+      this.anchorIndex = index;
+    } else if (event.shiftKey && this.anchorIndex >= 0) {
+      // Range selection
+      const start = Math.min(this.anchorIndex, index);
+      const end = Math.max(this.anchorIndex, index);
+      this.selectedIds.clear();
+      for (let i = start; i <= end; i++) {
+        if (this.items[i]) {
+          this.selectedIds.add(this.items[i].id);
+        }
+      }
+    } else {
+      // Single selection
+      this.selectedIds.clear();
+      this.selectedIds.add(card.id);
+      this.anchorIndex = index;
+    }
+
+    this.focusedIndex = index;
+    this.updateSelectionClasses();
+    this.notifySelection();
+  }
+
+  private updateSelectionClasses() {
+    for (const [id, el] of this.cardMap.entries()) {
+      if (this.selectedIds.has(id)) {
+        el.classList.add('selected');
+      } else {
+        el.classList.remove('selected');
+      }
+    }
+  }
+
+  private notifySelection() {
+    const selected = this.items.filter((it) => this.selectedIds.has(it.id));
+    this.options.onSelect?.(selected);
+  }
+
+  public handleKeyDown(e: KeyboardEvent) {
+    if (this.items.length === 0) return;
+
+    const cols = this.getColumnCount();
+
+    switch (e.key) {
+      case 'ArrowRight':
+        e.preventDefault();
+        this.moveFocus(this.focusedIndex + 1);
+        break;
+      case 'ArrowLeft':
+        e.preventDefault();
+        this.moveFocus(this.focusedIndex - 1);
+        break;
+      case 'ArrowDown':
+        e.preventDefault();
+        this.moveFocus(this.focusedIndex + cols);
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        this.moveFocus(this.focusedIndex - 1 * cols);
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (this.focusedIndex >= 0 && this.items[this.focusedIndex]) {
+          this.options.onOpenPdf?.(this.items[this.focusedIndex]);
+        }
+        break;
+      case 'Delete':
+      case 'Backspace':
+        e.preventDefault();
+        const selected = this.items.filter((it) => this.selectedIds.has(it.id));
+        if (selected.length > 0) {
+          this.options.onDeleteItem?.(selected);
+        }
+        break;
+    }
+  }
+
+  private getColumnCount(): number {
+    const containerWidth = this.container.clientWidth || 800;
+    const cardWidth = 180 + 16; // card width + gap
+    return Math.max(1, Math.floor(containerWidth / cardWidth));
+  }
+
+  public moveFocus(newIndex: number) {
+    if (newIndex < 0) newIndex = 0;
+    if (newIndex >= this.items.length) newIndex = this.items.length - 1;
+
+    this.focusedIndex = newIndex;
+    const item = this.items[newIndex];
+    if (!item) return;
+
+    this.selectedIds.clear();
+    this.selectedIds.add(item.id);
+    this.anchorIndex = newIndex;
+
+    this.updateSelectionClasses();
+    this.notifySelection();
+
+    const el = this.cardMap.get(item.id);
+    if (el) {
+      el.focus();
+      el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    }
+  }
+
+  public getSelectedIds(): number[] {
+    return Array.from(this.selectedIds);
+  }
+
+  public getCardElement(id: number): HTMLElement | undefined {
+    return this.cardMap.get(id);
+  }
+
+  public destroy() {
+    this.cardMap.clear();
+    this.selectedIds.clear();
+    this.items = [];
+    this.container.innerHTML = '';
+  }
+}

@@ -115,9 +115,7 @@ if (!g.OffscreenCanvas) {
   };
 }
 
-if (!Element.prototype.scrollIntoView) {
-  Element.prototype.scrollIntoView = vi.fn();
-}
+Element.prototype.scrollIntoView = vi.fn();
 
 URL.createObjectURL = vi.fn(() => 'blob:mock-url');
 URL.revokeObjectURL = vi.fn();

@@ -1,4 +1,9 @@
-import { injectToolbarControls, ToolbarController } from './toolbar';
+import { injectToolbarControls } from './toolbar';
+import { VirtualGridScroller } from './virtual-scroller';
+import { WindowCoverGridController } from '../sync/window-controller';
+
+declare const ZoteroPane: any;
+declare const Zotero: any;
 
 /**
  * UI injection and teardown lifecycle for Zotero MainWindow
@@ -34,12 +39,49 @@ export function injectCoverGridUI(win: any) {
   // 툴바 주입
   const toolbar = injectToolbarControls(win);
 
+  // Window Controller & Scroller
+  const controller = new WindowCoverGridController(win);
+  const scroller = new VirtualGridScroller({
+    container: cardsContainer,
+    viewport,
+    onSelect: (selectedItems) => {
+      // Synchronize with Zotero right inspector
+      if (typeof ZoteroPane !== 'undefined' && ZoteroPane.itemsView?.selectItem) {
+        if (selectedItems.length > 0) {
+          ZoteroPane.itemsView.selectItem(selectedItems[0].id);
+        }
+      }
+    },
+    onOpenPdf: (item) => {
+      // Respect user's openPDFIn native pref
+      if (typeof ZoteroPane !== 'undefined' && ZoteroPane.openAttachment) {
+        ZoteroPane.openAttachment(item.id);
+      } else if (typeof Zotero !== 'undefined' && Zotero.Reader?.open) {
+        Zotero.Reader.open(item.id);
+      }
+    },
+    onDeleteItem: (items) => {
+      // Respect native delete policy
+      if (typeof ZoteroPane !== 'undefined' && ZoteroPane.deleteSelectedItems) {
+        ZoteroPane.deleteSelectedItems();
+      }
+    },
+    onStatusChange: (item, nextStatus) => {
+      controller.syncTagStatus(item, nextStatus);
+    }
+  });
+
+  controller.init(scroller);
+
   win.__zoteroCoverGridInstance = {
     gridElement: gridEl,
     viewportElement: viewport,
     cardsContainer,
     toolbar,
+    scroller,
+    controller,
     cleanup: () => {
+      controller.destroy();
       toolbar?.destroy();
       gridEl.remove();
     }
