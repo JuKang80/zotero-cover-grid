@@ -1,3 +1,5 @@
+import { injectToolbarControls, ToolbarController } from './toolbar';
+
 /**
  * UI injection and teardown lifecycle for Zotero MainWindow
  */
@@ -22,24 +24,46 @@ export function injectCoverGridUI(win: any) {
   viewport.className = 'grid-viewport';
   gridEl.appendChild(viewport);
 
+  // 카드 컨테이너
+  const cardsContainer = doc.createElementNS(HTML_NS, 'div');
+  cardsContainer.className = 'grid-cards-container';
+  viewport.appendChild(cardsContainer);
+
   itemsPane.appendChild(gridEl);
+
+  // 툴바 주입
+  const toolbar = injectToolbarControls(win);
 
   win.__zoteroCoverGridInstance = {
     gridElement: gridEl,
+    viewportElement: viewport,
+    cardsContainer,
+    toolbar,
     cleanup: () => {
+      toolbar?.destroy();
       gridEl.remove();
     }
   };
 }
 
+/**
+ * 5-Step complete rollback cleanup
+ */
 export function cleanupCoverGridUI(win: any) {
   const doc = win.document;
   if (!doc) return;
 
-  doc.getElementById('zotero-cover-grid')?.remove();
+  // Step 1: Remove toolbar switcher & group
+  doc.getElementById('zotero-cover-grid-toolbar-group')?.remove();
   doc.getElementById('zotero-cover-grid-view-switcher')?.remove();
+
+  // Step 2: Remove zoom container
   doc.getElementById('zotero-cover-grid-zoom-container')?.remove();
 
+  // Step 3: Remove cover grid container
+  doc.getElementById('zotero-cover-grid')?.remove();
+
+  // Step 4: Restore native items tree
   const itemsTree = doc.getElementById('zotero-items-tree');
   if (itemsTree) {
     itemsTree.hidden = false;
@@ -47,6 +71,7 @@ export function cleanupCoverGridUI(win: any) {
     if (itemsTree.style) itemsTree.style.display = '';
   }
 
+  // Step 5: Tear down instance controller and clear window reference
   win.__zoteroCoverGridInstance?.cleanup?.();
   delete win.__zoteroCoverGridInstance;
 }

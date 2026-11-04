@@ -1,0 +1,194 @@
+/* Gecko XUL 하위 HTML 커스텀 엘리먼트 0px 붕괴 방지 엄격 룰 */
+#zotero-cover-grid,
+zotero-cover-grid,
+.zotero-cover-grid-root {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 0% !important;
+  height: 100% !important;
+  width: 100% !important;
+  min-height: 0 !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+  position: relative !important;
+  overflow: hidden !important;
+  background-color: var(--material-background, #ffffff);
+}
+
+/* hidden 활성화 시 display: flex 우선순위를 덮어쓰고 완벽 숨김 */
+#zotero-cover-grid[hidden],
+zotero-cover-grid[hidden],
+.zotero-cover-grid-root[hidden] {
+  display: none !important;
+}
+
+/* 내부 가상 스크롤러 뷰포트 */
+#zotero-cover-grid .grid-viewport,
+.zotero-cover-grid-root .grid-viewport {
+  flex: 1 1 0% !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  position: relative !important;
+  box-sizing: border-box !important;
+  padding: 16px !important;
+}
+
+/* 카드 그리드 컨테이너 */
+.grid-cards-container {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(var(--card-width, 180px), 1fr)) !important;
+  gap: 16px !important;
+  width: 100% !important;
+}
+
+/* 개별 논문 카드 */
+.paper-card {
+  display: flex !important;
+  flex-direction: column !important;
+  background: var(--card-bg, #ffffff) !important;
+  border-radius: 6px !important;
+  box-sizing: border-box !important;
+  padding: 8px !important;
+  cursor: pointer !important;
+  user-select: none !important;
+  transition: transform 0.15s ease-out, box-shadow 0.15s ease-out !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06) !important;
+  border: 1px solid var(--border-color, #e5e7eb) !important;
+}
+
+.paper-card:hover {
+  transform: translateY(-4px) !important;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
+}
+
+.paper-card.selected {
+  outline: 2px solid var(--accent-color, #0a84ff) !important;
+  outline-offset: 1px !important;
+}
+
+/* 카드 표지 래퍼 */
+.paper-card .card-cover-wrapper {
+  position: relative !important;
+  width: 100% !important;
+  aspect-ratio: 3 / 4 !important;
+  overflow: hidden !important;
+  border-radius: 4px !important;
+  background-color: var(--card-cover-bg, rgba(0, 0, 0, 0.04)) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin-bottom: 8px !important;
+}
+
+/* 썸네일 이미지: 가로형 및 회전 대응 */
+.paper-card .card-cover-img {
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: contain !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12) !important;
+}
+
+/* 다크 모드 톤다운 필터 */
+@media (prefers-color-scheme: dark) {
+  .paper-card .card-cover-img {
+    filter: brightness(0.9) contrast(1.05) !important;
+  }
+}
+
+/* 140px 말줄임 보장 */
+.paper-card .card-author {
+  font-size: var(--author-font-size, 13px) !important;
+  font-weight: 600 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  line-height: 1.3 !important;
+  color: var(--text-color, #111827) !important;
+}
+
+.paper-card .card-meta {
+  font-size: 11px !important;
+  color: var(--text-muted, #6b7280) !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  margin-top: 2px !important;
+}
+
+.paper-card .card-badge-container {
+  display: flex !important;
+  align-items: center !important;
+  margin-top: 6px !important;
+}
+
+.paper-card .card-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+  font-size: 10px !important;
+  padding: 2px 6px !important;
+  border-radius: 4px !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+}
+
+/* 신호등 읽기 상태 배지 색상 */
+.card-badge.unread {
+  background: #f3f4f6 !important;
+  color: #4b5563 !important;
+}
+.card-badge.reading {
+  background: #fef3c7 !important;
+  color: #d97706 !important;
+}
+.card-badge.read {
+  background: #d1fae5 !important;
+  color: #059669 !important;
+}
+
+/* 툴바 스위처 & 줌 슬라이더 컨테이너 */
+.cover-grid-toolbar-group {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  margin-left: 8px !important;
+}
+
+.view-segmented-toggle {
+  display: inline-flex !important;
+  border-radius: 6px !important;
+  background: rgba(0, 0, 0, 0.06) !important;
+  padding: 2px !important;
+}
+
+.view-toggle-btn {
+  border: none !important;
+  background: transparent !important;
+  padding: 3px 8px !important;
+  border-radius: 4px !important;
+  cursor: pointer !important;
+  font-size: 12px !important;
+  line-height: 1 !important;
+  color: var(--text-muted, #6b7280) !important;
+}
+
+.view-toggle-btn.active {
+  background: #ffffff !important;
+  color: var(--text-color, #111827) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1) !important;
+}
+
+.zoom-slider-container {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+}
+
+.zoom-slider-container input[type="range"] {
+  width: 80px !important;
+  cursor: pointer !important;
+}
