@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Build outputs
+build/
+*.xpi
+
+# IDE and OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Vitest coverage & temp
+coverage/
+*.log
