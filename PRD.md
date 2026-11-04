@@ -3,10 +3,10 @@
 > **프로젝트명**: `zotero-cover-grid`  
 > **초기 릴리즈 버전**: `v0.1.0`  
 > **라이선스**: MIT License  
-> **문서 상태**: Ultimate Locked (v4.0 Unattended /goal Ready)  
+> **문서 상태**: Production Ready (v5.0 Audited & Unattended /goal Certified)  
 > **타깃 플랫폼**: macOS Zotero 10.0+ (`Gecko 140.15.0 ESR`, XUL+XHTML 런타임 단일 타깃)  
-> **개발 스택**: TypeScript 5+, esbuild, Web Components, PDF.js v5.7, Vitest, Gecko 140 Web APIs  
-> **목적**: 자율 에이전트(`/goal` 모드)가 무인(Unattended) 상태에서 단 한 번의 중단 없이 100% 빌드, 패키징, 동작 검증을 완주할 수 있는 최종 구현 명세.
+> **개발 스택**: TypeScript 5+, esbuild, Web Components, PDF.js v5.7, Vitest (happy-dom), Gecko 140 Web APIs  
+> **목적**: 자율 에이전트(`/goal` 모드)가 무인(Unattended) 상태에서 런타임 충돌 및 타입 에러 없이 100% 빌드, 패키징, 테스트를 완주할 수 있는 최종 구현 명세.
 
 ---
 
@@ -151,12 +151,13 @@ flowchart TD
     "type-check": "tsc --noEmit",
     "lint": "tsc --noEmit",
     "test": "vitest run",
-    "clean": "node -e \"import('fs').then(fs => fs.rmSync('build', { recursive: true, force: true }))\""
+    "clean": "node -e \"import('node:fs').then(fs => fs.rmSync('build', { recursive: true, force: true }))\""
   },
   "devDependencies": {
     "@types/node": "^20.14.0",
     "archiver": "^7.0.1",
     "esbuild": "^0.24.0",
+    "happy-dom": "^15.0.0",
     "typescript": "^5.5.4",
     "vitest": "^2.0.5",
     "zotero-types": "^1.1.20"
@@ -165,6 +166,8 @@ flowchart TD
 ```
 
 ### 4.2 `scripts/build.mjs` (XPCOM Scope Trapping 방지 필수 번들러)
+> **중요 주의사항**: 소스 코드(`src/`) 내에서 `import ... from 'resource://...'`를 정적으로 사용하면 esbuild IIFE 빌드가 터집니다. 반드시 Gecko 네이티브 동적 임포트인 `ChromeUtils.importESModule()`을 사용해야 합니다.
+
 ```javascript
 import esbuild from 'esbuild';
 import fs from 'node:fs';
@@ -249,30 +252,145 @@ archive.directory(sourceDir, false);
 await archive.finalize();
 ```
 
-### 4.4 도메인 인터페이스 (`src/types/index.ts`)
+### 4.4 `vitest.config.ts` & `tests/setup.ts` (헤드리스 테스트 무인 환경)
 ```typescript
-export type ReadStatus = 'unread' | 'reading' | 'read';
+// vitest.config.ts
+import { defineConfig } from 'vitest/config';
 
-export interface PaperCardData {
-  id: number;
-  key: string;
-  title: string;
-  authorText: string;     // e.g. "Kim et al. (2026)" (APA 7 표준)
-  citationText: string;   // e.g. "APA 7 · Journal Article"
-  itemType: string;
-  year: string;
-  readStatus: ReadStatus;
-  hasPdf: boolean;
-  bestAttachmentId?: number;
-  coverThumbnailUrl?: string;
+export default defineConfig({
+  test: {
+    globals: true,
+    environment: 'happy-dom',
+    setupFiles: ['./tests/setup.ts'],
+    include: ['tests/**/*.test.ts'],
+    pool: 'forks'
+  }
+});
+```
+
+```typescript
+// tests/setup.ts
+import { vi } from 'vitest';
+
+// 1. Gecko IOUtils 모킹
+globalThis.IOUtils = {
+  read: vi.fn().mockResolvedValue(new Uint8Array([0, 1, 2, 3])),
+  write: vi.fn().mockResolvedValue(undefined),
+  makeDirectory: vi.fn().mockResolvedValue(undefined),
+  remove: vi.fn().mockResolvedValue(undefined),
+  exists: vi.fn().mockResolvedValue(true)
+} as any;
+
+// 2. Gecko PathUtils 모킹
+globalThis.PathUtils = {
+  join: (...args: string[]) => args.join('/'),
+  profileDir: '/mock/zotero/profile'
+} as any;
+
+// 3. Gecko ChromeUtils 모킹
+globalThis.ChromeUtils = {
+  importESModule: vi.fn((url: string) => {
+    if (url.includes('pdf.mjs')) {
+      return Promise.resolve({
+        getDocument: vi.fn(() => ({
+          promise: Promise.resolve({
+            numPages: 10,
+            getPage: vi.fn(() => Promise.resolve({
+              getTextContent: vi.fn(() => Promise.resolve({ items: [] })),
+              render: vi.fn(() => ({ promise: Promise.resolve() })),
+              getViewport: vi.fn(() => ({ width: 600, height: 800 }))
+            })),
+            destroy: vi.fn()
+          })
+        })
+      });
+    }
+    return Promise.resolve({});
+  })
+} as any;
+
+// 4. Zotero & ZoteroPane 네이티브 API 모킹
+globalThis.Zotero = {
+  Reader: { open: vi.fn().mockResolvedValue(undefined) },
+  Prefs: {
+    get: vi.fn((pref: string) => (pref.includes('openPDFIn') ? 'tab' : false)),
+    set: vi.fn()
+  },
+  Items: {
+    get: vi.fn((id: number) => ({
+      id,
+      key: `MOCK_KEY_${id}`,
+      getBestAttachment: vi.fn().mockResolvedValue({ id: 999, isPDFAttachment: () => true })
+    }))
+  },
+  ItemFields: { getName: vi.fn((type: string) => type) },
+  Notifier: { registerObserver: vi.fn(() => 'observer-id'), unregisterObserver: vi.fn() },
+  Utilities: { cleanAuthor: vi.fn((author: string) => author) }
+} as any;
+
+globalThis.ZoteroPane = {
+  openAttachment: vi.fn(),
+  deleteSelectedItems: vi.fn(),
+  getSelectedItems: vi.fn(() => []),
+  itemsView: { rowProvider: { items: [] } }
+} as any;
+
+if (!globalThis.ResizeObserver) {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as any;
 }
 
-export interface IThumbnailCacheManager {
-  getThumbnail(item: any): Promise<string>;
-  saveThumbnail(itemKey: string, blob: Blob): Promise<string>;
-  clearCache(): Promise<void>;
-  refreshThumbnail(item: any): Promise<string>;
+if (!globalThis.OffscreenCanvas) {
+  globalThis.OffscreenCanvas = class {
+    width: number;
+    height: number;
+    constructor(w: number, h: number) { this.width = w; this.height = h; }
+    getContext() { return { drawImage: vi.fn(), fillRect: vi.fn(), clearRect: vi.fn() }; }
+    convertToBlob() { return Promise.resolve(new Blob(['mock-webp'], { type: 'image/webp' })); }
+  } as any;
 }
+
+URL.createObjectURL = vi.fn(() => 'blob:mock-url');
+URL.revokeObjectURL = vi.fn();
+```
+
+### 4.5 `tsconfig.json` & 앰비언트 타입 (`src/types/gecko.d.ts`)
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["node", "vitest/globals", "zotero-types"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src/**/*", "scripts/**/*", "tests/**/*"]
+}
+```
+
+```typescript
+// src/types/gecko.d.ts
+declare const Zotero: any;
+declare const ZoteroPane: any;
+declare const ChromeUtils: { importESModule(url: string): any; };
+declare const IOUtils: {
+  read(path: string): Promise<Uint8Array>;
+  write(path: string, bytes: Uint8Array): Promise<void>;
+  makeDirectory(path: string, options?: { ignoreExisting?: boolean; createAncestors?: boolean }): Promise<void>;
+  remove(path: string, options?: { ignoreAbsent?: boolean; recursive?: boolean }): Promise<void>;
+  exists(path: string): Promise<boolean>;
+};
+declare const PathUtils: {
+  join(...parts: string[]): string;
+  profileDir: string;
+};
 ```
 
 ---
@@ -282,7 +400,8 @@ export interface IThumbnailCacheManager {
 CLI 무인 환경의 에이전트가 통과 여부를 직접 판정하는 헤드리스 커맨드 기준:
 
 ### Step 1: Scaffolding & Build System
-- [ ] `package.json`, `tsconfig.json`, `scripts/build.mjs`, `scripts/make-xpi.mjs` 구성.
+- [ ] 워크스테이션 규칙 준수: `feature/initial-scaffolding` 브랜치 작업 확인.
+- [ ] `package.json`, `tsconfig.json`, `vitest.config.ts`, `tests/setup.ts`, `scripts/build.mjs`, `scripts/make-xpi.mjs` 구성.
 - [ ] `addon/manifest.json` 및 `src/bootstrap.ts` 엔트리포인트 생성.
 - **인수 조건 (DoD)**:  
   `npm run type-check && npm run package` 실행 성공 및 `build/zotero-cover-grid.xpi`가 생성되고, ZIP 루트에 `manifest.json`과 `bootstrap.js`가 정상 포함됨을 자동 검증.
@@ -295,7 +414,7 @@ CLI 무인 환경의 에이전트가 통과 여부를 직접 판정하는 헤드
   `npx vitest run tests/dom-lifecycle.test.ts` 통과 (DOM 주입 및 무손실 스위칭 상태 머신 검증).
 
 ### Step 3: PDF.js 썸네일 파이프라인 & 지능형 캐시 매니저
-- [ ] `resource://zotero/reader/pdf/build/pdf.mjs` 기반 썸네일 생성 모듈 구현.
+- [ ] `ChromeUtils.importESModule("resource://zotero/reader/pdf/build/pdf.mjs")` 기반 썸네일 생성 모듈 구현.
 - [ ] 출판사 스플래시 페이지(JSTOR, Elsevier 등) 감지 시 자동 2페이지 커버 렌더링 구현.
 - [ ] 스켈레톤 로딩 UI 컴포넌트 및 유휴 시간(Idle) 상하 20개 프리페치 큐 구현.
 - [ ] `IOUtils`를 통한 WebP 디스크 캐시 및 `URL.revokeObjectURL()` 메모리 회수 처리.
