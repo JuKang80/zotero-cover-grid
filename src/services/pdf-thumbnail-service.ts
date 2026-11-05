@@ -246,6 +246,9 @@ export async function renderPdfThumbnail(
     // Pass raw byte array directly to avoid file URI resolution and permission issues
     const loadingTask = pdfjs.getDocument({
       data: bytes,
+      cMapUrl: 'resource://zotero/reader/pdf/web/cmaps/',
+      cMapPacked: true,
+      standardFontDataUrl: 'resource://zotero/reader/pdf/web/standard_fonts/',
       onPassword: (updatePassword: (pw: string) => void) => {
         updatePassword('');
       }

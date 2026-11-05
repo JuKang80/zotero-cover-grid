@@ -16,6 +16,7 @@ export class WindowCoverGridController {
   private filteredItems: PaperCardData[] = [];
   private isDestroyed = false;
   private searchBoxCleanup: (() => void) | null = null;
+  private refreshListener: (() => void) | null = null;
 
   constructor(win: any) {
     this.win = win;
@@ -25,6 +26,15 @@ export class WindowCoverGridController {
     this.scroller = scroller;
     this.registerNotifier();
     this.bindSearchBox();
+
+    const zp = this.win?.ZoteroPane || (typeof ZoteroPane !== 'undefined' ? ZoteroPane : null);
+    if (zp?.itemsView?.onRefresh?.addListener) {
+      this.refreshListener = () => {
+        if (this.isDestroyed) return;
+        this.reloadCurrentCollection();
+      };
+      zp.itemsView.onRefresh.addListener(this.refreshListener);
+    }
   }
 
   private registerNotifier() {
@@ -103,13 +113,13 @@ export class WindowCoverGridController {
     const signal = this.abortController.signal;
 
     // 2. Fetch items from current collection / ZoteroPane
-    let rawItems: any[] = [];
+    let rawItems: any[] | null = null;
     const zp = this.win?.ZoteroPane || (typeof ZoteroPane !== 'undefined' ? ZoteroPane : null);
     try {
-      if (typeof zp?.getSortedItems === 'function') {
-        rawItems = zp.getSortedItems();
-      } else if (zp?.itemsView?.getSortedItems) {
+      if (typeof zp?.itemsView?.getSortedItems === 'function') {
         rawItems = zp.itemsView.getSortedItems();
+      } else if (typeof zp?.getSortedItems === 'function') {
+        rawItems = zp.getSortedItems();
       } else if (typeof zp?.getUnfilteredItems === 'function') {
         rawItems = await zp.getUnfilteredItems();
       } else if (zp?.itemsView?.rowProvider?.items) {
@@ -119,7 +129,10 @@ export class WindowCoverGridController {
       // Ignore
     }
 
-    if (!rawItems || rawItems.length === 0) {
+    // Fallback to Zotero.Items.getAll() ONLY if rawItems == null (strictly null or undefined),
+    // NEVER when rawItems is an empty array (rawItems.length === 0), to avoid dumping the whole
+    // library when an empty collection is selected or in dedicated tab mode.
+    if (rawItems == null) {
       if (typeof Zotero !== 'undefined' && Zotero.Items?.getAll) {
         try {
           rawItems = Zotero.Items.getAll();
@@ -291,6 +304,13 @@ export class WindowCoverGridController {
     }
     if (this.abortController) {
       this.abortController.abort();
+    }
+    if (this.refreshListener) {
+      const zp = this.win?.ZoteroPane || (typeof ZoteroPane !== 'undefined' ? ZoteroPane : null);
+      if (zp?.itemsView?.onRefresh?.removeListener) {
+        zp.itemsView.onRefresh.removeListener(this.refreshListener);
+      }
+      this.refreshListener = null;
     }
     if (this.observerId && typeof Zotero !== 'undefined' && Zotero.Notifier) {
       Zotero.Notifier.unregisterObserver(this.observerId);

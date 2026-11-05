@@ -90,23 +90,27 @@ export function injectCoverGridUI(win: any) {
       const zp = win.ZoteroPane || (typeof ZoteroPane !== 'undefined' ? ZoteroPane : null);
       const z = win.Zotero || (typeof Zotero !== 'undefined' ? Zotero : null);
       if (zp && typeof zp.viewItems === 'function') {
-        zp.viewItems([item.id]);
-      } else if (zp?.openAttachment) {
-        zp.openAttachment(item.id);
-      } else if (z) {
+        try {
+          await zp.viewItems([item.id]);
+          return;
+        } catch {
+          // Fall through to Reader.open
+        }
+      }
+      if (z) {
         try {
           const zItem = z.Items?.get?.(item.id);
           const attachment = await zItem?.getBestAttachment?.();
           if (attachment && z.Reader?.open) {
-            z.Reader.open(attachment.id);
-          } else if (z.Reader?.open) {
-            z.Reader.open(item.id);
+            await z.Reader.open(attachment.id);
+            return;
           }
         } catch {
-          if (z?.Reader?.open) {
-            z.Reader.open(item.id);
-          }
+          // Fall through
         }
+      }
+      if (typeof zp?.openAttachment === 'function') {
+        zp.openAttachment(item.id);
       }
     },
     onDeleteItem: (items) => {

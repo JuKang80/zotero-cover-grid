@@ -227,6 +227,9 @@ export function injectToolbarControls(win: any): ToolbarController | null {
     setZoom(val);
   });
 
+  // Initialize card width zoom level
+  setZoom(initialCardWidth);
+
   return {
     setView,
     getView: () => currentView,

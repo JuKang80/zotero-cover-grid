@@ -165,13 +165,32 @@ export function openCoverGridTab(win: any) {
         }
       }
     },
-    onOpenPdf: (item) => {
+    onOpenPdf: async (item) => {
+      // Respect user's openPDFIn native pref and Zotero 10 API contracts
       const zp = win.ZoteroPane || (typeof ZoteroPane !== 'undefined' ? ZoteroPane : null);
       const z = win.Zotero || (typeof Zotero !== 'undefined' ? Zotero : null);
-      if (zp?.openAttachment) {
+      if (zp && typeof zp.viewItems === 'function') {
+        try {
+          await zp.viewItems([item.id]);
+          return;
+        } catch {
+          // Fall through to Reader.open
+        }
+      }
+      if (z) {
+        try {
+          const zItem = z.Items?.get?.(item.id);
+          const attachment = await zItem?.getBestAttachment?.();
+          if (attachment && z.Reader?.open) {
+            await z.Reader.open(attachment.id);
+            return;
+          }
+        } catch {
+          // Fall through
+        }
+      }
+      if (typeof zp?.openAttachment === 'function') {
         zp.openAttachment(item.id);
-      } else if (z?.Reader?.open) {
-        z.Reader.open(item.id);
       }
     },
     onDeleteItem: () => {
