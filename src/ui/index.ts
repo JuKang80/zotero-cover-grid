@@ -3,6 +3,9 @@ import { injectToolbarControls } from './toolbar';
 import { VirtualGridScroller } from './virtual-scroller';
 import { WindowCoverGridController } from '../sync/window-controller';
 import { selectItemInZotero, openItemInZotero } from './item-actions';
+import { showPaperCardContextMenu } from './context-menu';
+import { formatFullApa7Bibliography, copyTextToClipboard } from '../utils/apa-formatter';
+import { cycleReadStatus } from './paper-card';
 
 declare const ZoteroPane: any;
 declare const Zotero: any;
@@ -138,6 +141,35 @@ export function injectCoverGridUI(win: any) {
     },
     onStatusChange: (item, nextStatus) => {
       controller.syncTagStatus(item, nextStatus);
+    },
+    onToggleColorTag: (item, position) => {
+      controller.toggleColorTag(item, position);
+    },
+    onContextMenu: (item, event) => {
+      showPaperCardContextMenu({
+        event,
+        card: item,
+        win,
+        actions: {
+          onOpenPdf: async (card) => {
+            await openItemInZotero(win, card.id);
+          },
+          onToggleRead: (card) => {
+            const nextStatus = cycleReadStatus(card.readStatus);
+            card.readStatus = nextStatus;
+            controller.syncTagStatus(card, nextStatus);
+          },
+          onCopyCitation: async (card) => {
+            const z = win.Zotero || (typeof Zotero !== 'undefined' ? Zotero : null);
+            const zItem = z?.Items?.get ? z.Items.get(card.id) : null;
+            const citation = formatFullApa7Bibliography(card, zItem);
+            await copyTextToClipboard(citation, win);
+          },
+          onRegenerateCover: async (card) => {
+            await controller.regenerateCover(card);
+          }
+        }
+      });
     }
   });
 

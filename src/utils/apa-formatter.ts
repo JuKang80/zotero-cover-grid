@@ -147,3 +147,91 @@ export function extractPaperCardData(item: any): PaperCardData {
     };
   }
 }
+
+/**
+ * Formats full APA 7 bibliographic reference entry
+ * Example: Author, A. (2026). Title of paper. Journal Name, 12(3), 45-56. https://doi.org/...
+ */
+export function formatFullApa7Bibliography(card: PaperCardData, rawItem?: any): string {
+  const authorPart = card.authorText || 'Unknown Author';
+  const yearPart = card.year ? `(${card.year}).` : '(n.d.).';
+  const titlePart = card.title ? (card.title.endsWith('.') ? card.title : `${card.title}.`) : 'Untitled.';
+
+  let publication = '';
+  let volume = '';
+  let issue = '';
+  let pages = '';
+  let doi = '';
+
+  if (rawItem && typeof rawItem.getField === 'function') {
+    try {
+      publication = rawItem.getField('publicationTitle') || rawItem.getField('publisher') || '';
+      volume = rawItem.getField('volume') || '';
+      issue = rawItem.getField('issue') || '';
+      pages = rawItem.getField('pages') || '';
+      doi = rawItem.getField('DOI') || '';
+    } catch {}
+  }
+
+  let journalPart = '';
+  if (publication) {
+    journalPart = `${publication}`;
+    if (volume) {
+      journalPart += `, ${volume}`;
+      if (issue) journalPart += `(${issue})`;
+    }
+    if (pages) journalPart += `, ${pages}`;
+    journalPart += '.';
+  }
+
+  let doiPart = '';
+  if (doi) {
+    doiPart = doi.startsWith('http') ? doi : `https://doi.org/${doi}`;
+  }
+
+  const parts = [authorPart, yearPart, titlePart, journalPart, doiPart].filter(Boolean);
+  return parts.join(' ');
+}
+
+/**
+ * Robust cross-environment clipboard writer
+ */
+export async function copyTextToClipboard(text: string, win?: any): Promise<boolean> {
+  const targetWin = win || (typeof window !== 'undefined' ? window : (globalThis as any).Zotero?.getMainWindow?.());
+  // 1. Try modern navigator.clipboard
+  try {
+    if (targetWin?.navigator?.clipboard?.writeText) {
+      await targetWin.navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {}
+
+  // 2. Try Gecko XPCOM clipboard helper
+  try {
+    const Cc = (globalThis as any).Components?.classes;
+    const Ci = (globalThis as any).Components?.interfaces;
+    if (Cc && Ci) {
+      const helper = Cc['@mozilla.org/widget/clipboardhelper;1'].getService(Ci.nsIClipboardHelper);
+      helper.copyString(text);
+      return true;
+    }
+  } catch {}
+
+  // 3. Fallback: textarea execCommand
+  try {
+    const doc = targetWin?.document || (typeof document !== 'undefined' ? document : null);
+    if (doc) {
+      const textarea = doc.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      doc.body.appendChild(textarea);
+      textarea.select();
+      doc.execCommand('copy');
+      textarea.remove();
+      return true;
+    }
+  } catch {}
+
+  return false;
+}

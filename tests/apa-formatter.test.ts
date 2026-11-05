@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { formatApa7Citation, extractReadStatusFromTags, extractPaperCardData } from '../src/utils/apa-formatter';
+import {
+  formatApa7Citation,
+  extractReadStatusFromTags,
+  extractPaperCardData,
+  formatFullApa7Bibliography,
+  copyTextToClipboard
+} from '../src/utils/apa-formatter';
 
 describe('APA 7th Edition Citation Formatter', () => {
   it('should format 1 author: Kim (2026)', () => {
@@ -70,5 +76,50 @@ describe('Read Status & Card Data Extraction', () => {
     expect(card.year).toBe('2025');
     expect(card.citationText).toBe('He (2025)');
     expect(card.readStatus).toBe('reading');
+  });
+
+  it('formats full APA 7 bibliographic reference correctly', () => {
+    const card = {
+      id: 88,
+      key: 'KEY88',
+      title: 'Attention Is All You Need',
+      citationText: 'Vaswani et al. (2017)',
+      authorText: 'Vaswani, A., Shazeer, N., & Parmar, N.',
+      year: '2017',
+      itemType: 'journalArticle',
+      readStatus: 'read' as const,
+      hasPdf: true
+    };
+
+    const mockItem = {
+      getField: (field: string) => {
+        if (field === 'publicationTitle') return 'Advances in Neural Information Processing Systems';
+        if (field === 'volume') return '30';
+        if (field === 'pages') return '5998-6008';
+        if (field === 'DOI') return '10.5555/3295222.3295349';
+        return '';
+      }
+    };
+
+    const fullBib = formatFullApa7Bibliography(card, mockItem);
+    expect(fullBib).toContain('Vaswani, A., Shazeer, N., & Parmar, N.');
+    expect(fullBib).toContain('(2017).');
+    expect(fullBib).toContain('Attention Is All You Need.');
+    expect(fullBib).toContain('Advances in Neural Information Processing Systems, 30, 5998-6008.');
+    expect(fullBib).toContain('https://doi.org/10.5555/3295222.3295349');
+  });
+
+  it('copies citation to clipboard with fallbacks', async () => {
+    const mockWin = {
+      navigator: {
+        clipboard: {
+          writeText: vi.fn().mockResolvedValue(undefined)
+        }
+      }
+    };
+
+    const success = await copyTextToClipboard('Test Citation (2026)', mockWin);
+    expect(success).toBe(true);
+    expect(mockWin.navigator.clipboard.writeText).toHaveBeenCalledWith('Test Citation (2026)');
   });
 });

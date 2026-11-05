@@ -573,3 +573,46 @@ tab-content#zotero-cover-grid-tab:not([hidden]),
 .inspector-open-pdf-btn:hover {
   background: #1d4ed8 !important;
 }
+
+/* 우클릭 컨텍스트 메뉴 */
+.cover-grid-context-menu {
+  position: fixed !important;
+  z-index: 10000 !important;
+  min-width: 220px !important;
+  background: var(--material-side, #ffffff) !important;
+  border: 1px solid rgba(0, 0, 0, 0.12) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+  padding: 6px 0 !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+  font-size: 13px !important;
+  color: var(--text-color, #1e293b) !important;
+  backdrop-filter: blur(12px) !important;
+  animation: contextMenuFade 0.1s ease-out !important;
+}
+
+@keyframes contextMenuFade {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.context-menu-item {
+  padding: 8px 14px !important;
+  display: flex !important;
+  align-items: center !important;
+  cursor: pointer !important;
+  user-select: none !important;
+  transition: background 0.1s ease !important;
+  white-space: nowrap !important;
+}
+
+.context-menu-item:hover {
+  background: rgba(37, 99, 235, 0.08) !important;
+  color: #2563eb !important;
+}
+
+.context-menu-item.disabled {
+  opacity: 0.4 !important;
+  cursor: not-allowed !important;
+  pointer-events: none !important;
+}

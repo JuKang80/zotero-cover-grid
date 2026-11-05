@@ -270,6 +270,28 @@ export class ThumbnailCacheManager implements IThumbnailCacheManager {
     }
   }
 
+  public async deleteThumbnail(key: string, mtime: string | number): Promise<void> {
+    const url = this.memoryCache.get(key);
+    if (url && typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') {
+      try {
+        URL.revokeObjectURL(url);
+      } catch {}
+    }
+    this.memoryCache.delete(key);
+    const idx = this.lruKeys.indexOf(key);
+    if (idx !== -1) {
+      this.lruKeys.splice(idx, 1);
+    }
+
+    const dir = this.getCacheDirectory();
+    const diskPath = this.getDiskCachePath(dir, key, mtime);
+    if (typeof IOUtils !== 'undefined') {
+      try {
+        await IOUtils.remove(diskPath, { ignoreAbsent: true });
+      } catch {}
+    }
+  }
+
   public getMemoryCacheSize(): number {
     return this.memoryCache.size;
   }

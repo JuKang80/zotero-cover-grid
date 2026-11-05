@@ -718,6 +718,50 @@ export class WindowCoverGridController {
     }
   }
 
+  public async toggleColorTag(card: PaperCardData, position: number) {
+    const z = this.win?.Zotero || (typeof Zotero !== 'undefined' ? Zotero : null);
+    if (!z?.Items || !z?.Tags) return;
+    try {
+      let zItem: any = null;
+      try {
+        zItem = z.Items.get(card.id);
+      } catch {
+        if (z.Items.getAsync) {
+          zItem = await z.Items.getAsync(card.id);
+        }
+      }
+      if (!zItem) return;
+
+      const colors = typeof z.Tags.getColors === 'function' ? z.Tags.getColors(zItem.libraryID) : [];
+      const targetColor = Array.isArray(colors) ? colors.find((c: any) => c.position === position) : null;
+      if (!targetColor || !targetColor.tag) return;
+
+      if (typeof zItem.hasTag === 'function' && zItem.hasTag(targetColor.tag)) {
+        zItem.removeTag?.(targetColor.tag);
+      } else {
+        zItem.addTag?.(targetColor.tag, 1);
+      }
+
+      if (typeof zItem.saveTx === 'function') {
+        await zItem.saveTx();
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
+  public async regenerateCover(card: PaperCardData) {
+    try {
+      await thumbnailCacheManager.deleteThumbnail(card.key, '');
+      const ctrl = this.abortController;
+      if (ctrl) {
+        await this.loadThumbnailForCard(card, ctrl.signal);
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
   public destroy() {
     this.isDestroyed = true;
     this.searchBoxCleanup?.();

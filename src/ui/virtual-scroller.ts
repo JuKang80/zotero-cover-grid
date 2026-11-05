@@ -3,7 +3,8 @@ import {
   createPaperCardElement,
   updatePaperCardBadge,
   updatePaperCardThumbnail,
-  updatePaperCardColorTags
+  updatePaperCardColorTags,
+  cycleReadStatus
 } from './paper-card';
 
 export interface VirtualScrollerOptions {
@@ -13,6 +14,8 @@ export interface VirtualScrollerOptions {
   onOpenPdf?: (item: PaperCardData) => void;
   onDeleteItem?: (items: PaperCardData[]) => void;
   onStatusChange?: (item: PaperCardData, nextStatus: ReadStatus) => void;
+  onToggleColorTag?: (item: PaperCardData, position: number) => void;
+  onContextMenu?: (item: PaperCardData, event: MouseEvent) => void;
 }
 
 export class VirtualGridScroller {
@@ -98,6 +101,7 @@ export class VirtualGridScroller {
               this.handleCardClick(c, curIdx !== -1 ? curIdx : 0, e);
             },
             onDoubleClick: (c) => this.options.onOpenPdf?.(c),
+            onContextMenu: (c, e) => this.options.onContextMenu?.(c, e),
             onStatusChange: (c, s) => this.options.onStatusChange?.(c, s)
           },
           doc
@@ -230,9 +234,40 @@ export class VirtualGridScroller {
         this.moveFocus(this.focusedIndex - 1 * cols);
         break;
       case 'Enter':
+      case ' ':
+      case 'Space':
         e.preventDefault();
         if (this.focusedIndex >= 0 && this.items[this.focusedIndex]) {
           this.options.onOpenPdf?.(this.items[this.focusedIndex]);
+        }
+        break;
+      case 'r':
+      case 'R':
+        e.preventDefault();
+        if (this.focusedIndex >= 0 && this.items[this.focusedIndex]) {
+          const curItem = this.items[this.focusedIndex];
+          const nextStatus = cycleReadStatus(curItem.readStatus);
+          curItem.readStatus = nextStatus;
+          const cardEl = this.cardMap.get(curItem.id);
+          if (cardEl) {
+            updatePaperCardBadge(cardEl, nextStatus);
+          }
+          this.options.onStatusChange?.(curItem, nextStatus);
+        }
+        break;
+      case '1':
+      case '2':
+      case '3':
+      case '4':
+      case '5':
+      case '6':
+      case '7':
+      case '8':
+      case '9':
+        e.preventDefault();
+        if (this.focusedIndex >= 0 && this.items[this.focusedIndex]) {
+          const pos = parseInt(e.key, 10);
+          this.options.onToggleColorTag?.(this.items[this.focusedIndex], pos);
         }
         break;
       case 'Delete':
