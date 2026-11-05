@@ -1,4 +1,4 @@
-import { injectCoverGridUI, cleanupCoverGridUI } from './ui/index';
+import { injectCoverGridUI, cleanupCoverGridUI, ensureMainWindowStability } from './ui/index';
 import { thumbnailCacheManager } from './services/cache-manager';
 
 declare const Cc: any;
@@ -8,16 +8,35 @@ declare const Zotero: any;
 
 let windowListener: any = null;
 const PREF_PANE_ID = 'zotero-cover-grid-preferences-pane';
+let origGetContents: ((url: string) => string) | null = null;
+
+/**
+ * Register default preferences on the root default branch so Zotero 10 preferences UI
+ * and Zotero.Prefs can reliably read and synchronize extension settings.
+ */
+function setDefaultPreferences() {
+  if (typeof Services !== 'undefined' && Services.prefs) {
+    try {
+      const branch = Services.prefs.getDefaultBranch('');
+      branch.setIntPref('extensions.zotero.covergrid.cardWidth', 180);
+      branch.setBoolPref('extensions.zotero.covergrid.splashDetect', true);
+    } catch {
+      // Ignore if default branch is inaccessible in test/sandboxed environment
+    }
+  }
+}
 
 /**
  * Patch Zotero.File.getContentsFromURL to gracefully handle jar: URIs containing '@'
  * in their authority/path without throwing NS_ERROR_MALFORMED_URI in XMLHttpRequest.
+ * Gecko 140 ESR requires allowDeprecatedSystemRequests = true on system principal channels.
  */
 function patchFileGetContentsIfNeeded() {
   if (typeof Zotero === 'undefined' || !Zotero.File || (Zotero.File as any).__coverGridPatched) {
     return;
   }
-  const orig = Zotero.File.getContentsFromURL;
+  const orig: (url: string) => string = Zotero.File.getContentsFromURL;
+  origGetContents = orig;
   Zotero.File.getContentsFromURL = function (url: string) {
     try {
       return orig.call(this, url);
@@ -33,6 +52,9 @@ function patchFileGetContentsIfNeeded() {
             Ci.nsILoadInfo.SEC_ALLOW_CROSS_ORIGIN_SEC_CONTEXT_IS_NULL,
             Ci.nsIContentPolicy.TYPE_OTHER
           );
+          if (channel.loadInfo) {
+            channel.loadInfo.allowDeprecatedSystemRequests = true;
+          }
           const inputStream = channel.open();
           const cstream = Cc['@mozilla.org/intl/converter-input-stream;1'].createInstance(
             Ci.nsIConverterInputStream
@@ -55,14 +77,24 @@ function patchFileGetContentsIfNeeded() {
   (Zotero.File as any).__coverGridPatched = true;
 }
 
+const initializingWindows = new WeakSet<any>();
+
 async function initWindow(win: any) {
   if (!win?.location?.href?.includes('zoteroPane.xhtml')) {
     return;
   }
-  if (win.__zoteroCoverGridInitializing || win.__zoteroCoverGridInstance) {
+  // Deduplicate window initialization against concurrent calls / race conditions
+  if (
+    win.__zoteroCoverGridInitializing ||
+    win.__zoteroCoverGridInitialized ||
+    win.__zoteroCoverGridInstance ||
+    initializingWindows.has(win)
+  ) {
     return;
   }
   win.__zoteroCoverGridInitializing = true;
+  initializingWindows.add(win);
+
   try {
     if (win.ZoteroPane?.loadedPromise) {
       await win.ZoteroPane.loadedPromise;
@@ -82,38 +114,48 @@ async function initWindow(win: any) {
       });
     }
 
-    // Ensure white tab cover overlay is hidden and deck index is valid
     const doc = win.document;
     if (doc) {
-      const tabCover = doc.getElementById('zotero-tab-cover');
-      if (tabCover && !tabCover.classList.contains('hidden')) {
-        tabCover.classList.add('hidden');
-      }
-      const tabsDeck = doc.getElementById('tabs-deck');
-      if (tabsDeck && (tabsDeck.selectedIndex === -1 || tabsDeck.selectedIndex === undefined)) {
-        tabsDeck.selectedIndex = 0;
-      }
+      // Ensure tab cover overlay is dismissed and deck index is restored
+      ensureMainWindowStability(doc);
     }
 
-    // Clean any leftover elements from earlier loads before injecting
-    cleanupCoverGridUI(win);
-    injectCoverGridUI(win);
+    // Clean any orphaned DOM leftover before injecting without closing dedicated tabs
+    if (!win.__zoteroCoverGridInstance) {
+      if (doc?.getElementById('zotero-cover-grid')) {
+        doc.getElementById('zotero-cover-grid')?.remove();
+      }
+      injectCoverGridUI(win);
+    }
+
+    if (doc) {
+      ensureMainWindowStability(doc);
+    }
+
+    win.__zoteroCoverGridInitialized = true;
   } finally {
     win.__zoteroCoverGridInitializing = false;
+    initializingWindows.delete(win);
   }
 }
 
 function destroyWindow(win: any) {
   cleanupCoverGridUI(win);
+  delete win.__zoteroCoverGridInitialized;
+  delete win.__zoteroCoverGridInitializing;
+  initializingWindows.delete(win);
 }
 
 export function startup({ id, version, rootURI }: any, reason: number) {
   const pluginID = id || 'zotero-cover-grid@antigravity.user';
 
-  // Safeguard synchronous file reading for preference pane
+  // 1. Initialize default preferences on root default branch
+  setDefaultPreferences();
+
+  // 2. Safeguard synchronous file reading for preference pane
   patchFileGetContentsIfNeeded();
 
-  // 1. Clean up duplicate preference panes from previous installs and register a single pane
+  // 3. Clean up duplicate preference panes from previous installs and register a single pane
   if (typeof Zotero !== 'undefined' && Zotero.PreferencePanes) {
     try {
       if (Array.isArray(Zotero.PreferencePanes.pluginPanes)) {
@@ -128,13 +170,13 @@ export function startup({ id, version, rootURI }: any, reason: number) {
         src: `${cleanRoot}preferences.xhtml`,
         label: 'Cover Grid',
         image: `${cleanRoot}icons/icon-48.png`
-      });
+      }).catch?.(() => {});
     } catch {
       // Ignore registration error
     }
   }
 
-  // 2. Enumerate currently open windows
+  // 4. Enumerate currently open windows
   if (typeof Services !== 'undefined' && Services.wm) {
     const windows = Services.wm.getEnumerator('navigator:browser');
     while (windows.hasMoreElements()) {
@@ -191,13 +233,24 @@ export function shutdown(data: any, reason: number) {
     }
   }
 
-  // 3. Remove window listener
+  // 3. Restore original Zotero.File.getContentsFromURL to prevent monkeypatch leak
+  if (origGetContents && typeof Zotero !== 'undefined' && Zotero.File) {
+    try {
+      Zotero.File.getContentsFromURL = origGetContents;
+      delete (Zotero.File as any).__coverGridPatched;
+      origGetContents = null;
+    } catch {
+      // Ignore
+    }
+  }
+
+  // 4. Remove window listener
   if (windowListener && typeof Services !== 'undefined' && Services.wm) {
     Services.wm.removeListener(windowListener);
     windowListener = null;
   }
 
-  // 4. Clean all browser windows
+  // 5. Clean all browser windows
   if (typeof Services !== 'undefined' && Services.wm) {
     const windows = Services.wm.getEnumerator('navigator:browser');
     while (windows.hasMoreElements()) {

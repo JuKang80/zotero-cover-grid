@@ -1,4 +1,8 @@
-/* Gecko XUL 하위 HTML 커스텀 엘리먼트 0px 붕괴 방지 엄격 룰 */
+/* Gecko 140 ESR XUL Layout Rules: Enforce strict flexbox and prevent 0px height/width collapse */
+[hidden] {
+  display: none !important;
+}
+
 #zotero-cover-grid,
 zotero-cover-grid,
 .zotero-cover-grid-root {
@@ -15,7 +19,8 @@ zotero-cover-grid,
   background-color: var(--material-background, #ffffff);
 }
 
-/* hidden 활성화 시 display: flex 우선순위를 덮어쓰고 완벽 숨김 */
+/* Enforce hidden state overriding display: flex !important in Gecko 140 XUL */
+[hidden],
 #zotero-cover-grid[hidden],
 zotero-cover-grid[hidden],
 .zotero-cover-grid-root[hidden] {
@@ -204,6 +209,9 @@ tab-content#zotero-cover-grid-tab,
 #zotero-cover-grid-tab {
   display: flex !important;
   flex-direction: column !important;
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  min-width: 0 !important;
   width: 100% !important;
   height: 100% !important;
   margin: 0 !important;
@@ -215,6 +223,9 @@ tab-content#zotero-cover-grid-tab,
 .cover-grid-tab-root {
   display: flex !important;
   flex-direction: column !important;
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  min-width: 0 !important;
   width: 100% !important;
   height: 100% !important;
   box-sizing: border-box !important;

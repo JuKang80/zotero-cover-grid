@@ -7,11 +7,33 @@ declare const ZoteroPane: any;
 declare const Zotero: any;
 
 /**
+ * Safeguard against blank white screen:
+ * 1. Dismiss #zotero-tab-cover overlay (.classList.add('hidden'))
+ * 2. Restore #tabs-deck selectedIndex to 0 if -1 or undefined
+ */
+export function ensureMainWindowStability(doc: any): void {
+  if (!doc || typeof doc.getElementById !== 'function') return;
+
+  const tabCover = doc.getElementById('zotero-tab-cover');
+  if (tabCover && !tabCover.classList.contains('hidden')) {
+    tabCover.classList.add('hidden');
+  }
+
+  const tabsDeck = doc.getElementById('tabs-deck');
+  if (tabsDeck && (tabsDeck.selectedIndex === -1 || tabsDeck.selectedIndex === undefined)) {
+    tabsDeck.selectedIndex = 0;
+  }
+}
+
+/**
  * UI injection and teardown lifecycle for Zotero MainWindow
  */
 export function injectCoverGridUI(win: any) {
   const doc = win.document;
   if (!doc) return;
+
+  // Safeguard against white screen before injection
+  ensureMainWindowStability(doc);
 
   const itemsPane = doc.getElementById('zotero-items-pane');
   if (!itemsPane) return;
@@ -63,14 +85,28 @@ export function injectCoverGridUI(win: any) {
         }
       }
     },
-    onOpenPdf: (item) => {
-      // Respect user's openPDFIn native pref
+    onOpenPdf: async (item) => {
+      // Respect user's openPDFIn native pref and Zotero 10 API contracts
       const zp = win.ZoteroPane || (typeof ZoteroPane !== 'undefined' ? ZoteroPane : null);
       const z = win.Zotero || (typeof Zotero !== 'undefined' ? Zotero : null);
-      if (zp?.openAttachment) {
+      if (zp && typeof zp.viewItems === 'function') {
+        zp.viewItems([item.id]);
+      } else if (zp?.openAttachment) {
         zp.openAttachment(item.id);
-      } else if (z?.Reader?.open) {
-        z.Reader.open(item.id);
+      } else if (z) {
+        try {
+          const zItem = z.Items?.get?.(item.id);
+          const attachment = await zItem?.getBestAttachment?.();
+          if (attachment && z.Reader?.open) {
+            z.Reader.open(attachment.id);
+          } else if (z.Reader?.open) {
+            z.Reader.open(item.id);
+          }
+        } catch {
+          if (z?.Reader?.open) {
+            z.Reader.open(item.id);
+          }
+        }
       }
     },
     onDeleteItem: (items) => {
@@ -101,6 +137,9 @@ export function injectCoverGridUI(win: any) {
       doc.getElementById('zotero-cover-grid-style')?.remove();
     }
   };
+
+  // Safeguard against white screen after injection
+  ensureMainWindowStability(doc);
 }
 
 /**
@@ -149,12 +188,5 @@ export function cleanupCoverGridUI(win: any) {
   delete win.__zoteroCoverGridTabInstance;
 
   // Step 7: Safeguard against white screen desynchronization
-  const tabCover = doc.getElementById('zotero-tab-cover');
-  if (tabCover && !tabCover.classList.contains('hidden')) {
-    tabCover.classList.add('hidden');
-  }
-  const tabsDeck = doc.getElementById('tabs-deck');
-  if (tabsDeck && (tabsDeck.selectedIndex === -1 || tabsDeck.selectedIndex === undefined)) {
-    tabsDeck.selectedIndex = 0;
-  }
+  ensureMainWindowStability(doc);
 }

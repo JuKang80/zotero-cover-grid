@@ -79,17 +79,33 @@ export function injectToolbarControls(win: any): ToolbarController | null {
   zoomContainer.id = 'zotero-cover-grid-zoom-container';
   zoomContainer.className = 'zoom-slider-container';
   zoomContainer.style.display = 'none'; // Only visible in grid mode
+  zoomContainer.hidden = true;
+  zoomContainer.setAttribute('hidden', 'true');
 
   const zoomLabel = doc.createElementNS(HTML_NS, 'span');
   zoomLabel.className = 'zoom-slider-label';
   zoomLabel.textContent = '🔍';
+
+  // Read initial card width from preferences if present
+  let initialCardWidth = 180;
+  try {
+    const z = win.Zotero || (typeof Zotero !== 'undefined' ? Zotero : null);
+    if (z?.Prefs?.get) {
+      const prefVal = z.Prefs.get('extensions.zotero.covergrid.cardWidth', true);
+      if (typeof prefVal === 'number' && !isNaN(prefVal)) {
+        initialCardWidth = Math.min(340, Math.max(140, prefVal));
+      }
+    }
+  } catch {
+    // Ignore and use default 180
+  }
 
   const zoomSlider = doc.createElementNS(HTML_NS, 'input') as HTMLInputElement;
   zoomSlider.id = 'zotero-cover-grid-zoom-slider';
   zoomSlider.type = 'range';
   zoomSlider.min = '140';
   zoomSlider.max = '340';
-  zoomSlider.value = '180';
+  zoomSlider.value = String(initialCardWidth);
   zoomSlider.title = 'Card Zoom (140px - 340px)';
 
   zoomContainer.appendChild(zoomLabel);
@@ -117,17 +133,34 @@ export function injectToolbarControls(win: any): ToolbarController | null {
       btnList.setAttribute('aria-pressed', 'false');
       btnGrid.classList.add('active');
       btnGrid.setAttribute('aria-pressed', 'true');
+
+      // Zoom container visible
+      zoomContainer.hidden = false;
+      zoomContainer.removeAttribute('hidden');
       zoomContainer.style.display = 'inline-flex';
 
+      // Items tree completely hidden
       if (itemsTree) {
         itemsTree.hidden = true;
         itemsTree.setAttribute('hidden', 'true');
         itemsTree.style.setProperty('display', 'none', 'important');
       }
+
+      // Cover grid visible with flex layout
       if (coverGrid) {
         coverGrid.hidden = false;
         coverGrid.removeAttribute('hidden');
         coverGrid.style.setProperty('display', 'flex', 'important');
+      }
+
+      // Ensure main window stability on view switch
+      const tabCover = doc.getElementById('zotero-tab-cover');
+      if (tabCover && !tabCover.classList.contains('hidden')) {
+        tabCover.classList.add('hidden');
+      }
+      const tabsDeck = doc.getElementById('tabs-deck');
+      if (tabsDeck && (tabsDeck.selectedIndex === -1 || tabsDeck.selectedIndex === undefined)) {
+        tabsDeck.selectedIndex = 0;
       }
 
       // Trigger collection reload!
@@ -139,17 +172,25 @@ export function injectToolbarControls(win: any): ToolbarController | null {
       btnGrid.setAttribute('aria-pressed', 'false');
       btnList.classList.add('active');
       btnList.setAttribute('aria-pressed', 'true');
+
+      // Zoom container hidden
+      zoomContainer.hidden = true;
+      zoomContainer.setAttribute('hidden', 'true');
       zoomContainer.style.display = 'none';
 
+      // Cover grid hidden
       if (coverGrid) {
         coverGrid.hidden = true;
         coverGrid.setAttribute('hidden', 'true');
         coverGrid.style.setProperty('display', 'none', 'important');
       }
+
+      // Items tree restored to natural layout
       if (itemsTree) {
         itemsTree.hidden = false;
         itemsTree.removeAttribute('hidden');
         itemsTree.style.removeProperty('display');
+        itemsTree.style.display = '';
       }
     }
   };
@@ -161,10 +202,26 @@ export function injectToolbarControls(win: any): ToolbarController | null {
     if (coverGrid) {
       coverGrid.style.setProperty('--card-width', `${clamped}px`);
     }
+    try {
+      const z = win.Zotero || (typeof Zotero !== 'undefined' ? Zotero : null);
+      if (z?.Prefs?.set) {
+        z.Prefs.set('extensions.zotero.covergrid.cardWidth', clamped, true);
+      }
+    } catch {
+      // Ignore
+    }
   };
 
-  btnList.addEventListener('click', () => setView('list'));
-  btnGrid.addEventListener('click', () => setView('grid'));
+  btnList.addEventListener('click', (e: Event) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setView('list');
+  });
+  btnGrid.addEventListener('click', (e: Event) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setView('grid');
+  });
   zoomSlider.addEventListener('input', (e: Event) => {
     const val = Number((e.target as HTMLInputElement).value);
     setZoom(val);
