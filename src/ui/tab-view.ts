@@ -70,6 +70,7 @@ export function openCoverGridTab(win: any) {
     select: true,
     onClose: () => {
       if (win.__zoteroCoverGridTabInstance) {
+        win.__zoteroCoverGridTabInstance.cleanup?.();
         win.__zoteroCoverGridTabInstance.controller?.destroy();
         win.__zoteroCoverGridTabInstance.scroller?.destroy();
         win.__zoteroCoverGridTabInstance = null;
@@ -115,7 +116,10 @@ export function openCoverGridTab(win: any) {
   try {
     const zp = win.ZoteroPane || (typeof ZoteroPane !== 'undefined' ? ZoteroPane : null);
     const cols = zp?.getSelectedCollections ? zp.getSelectedCollections() : (zp?.getSelectedCollection ? [zp.getSelectedCollection()] : []);
-    if (cols?.[0]?.name) colName = cols[0].name;
+    const firstCol = cols?.[0];
+    if (firstCol) {
+      colName = firstCol.name || (typeof firstCol.getName === 'function' ? firstCol.getName() : 'My Library');
+    }
   } catch {
     // Ignore
   }
@@ -300,6 +304,14 @@ export function openCoverGridTab(win: any) {
   zoomSlider.addEventListener('input', (e: Event) => {
     const val = (e.target as HTMLInputElement).value;
     root.style.setProperty('--card-width', `${val}px`);
+    try {
+      const z = win.Zotero || (typeof Zotero !== 'undefined' ? Zotero : null);
+      if (z?.Prefs?.set) {
+        z.Prefs.set('extensions.zotero.covergrid.cardWidth', parseInt(val, 10), true);
+      }
+    } catch {
+      // Ignore
+    }
   });
 
   // Wire refresh button

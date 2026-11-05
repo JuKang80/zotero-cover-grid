@@ -71,6 +71,12 @@ export function createPaperCardElement(
   const imgEl = doc.createElementNS(HTML_NS, 'img') as HTMLImageElement;
   imgEl.className = 'card-cover-img';
   imgEl.alt = card.title;
+  imgEl.addEventListener('error', () => {
+    imgEl.style.display = 'none';
+  });
+  imgEl.addEventListener('load', () => {
+    imgEl.style.display = '';
+  });
   if (card.coverThumbnailUrl) {
     imgEl.src = card.coverThumbnailUrl;
   }

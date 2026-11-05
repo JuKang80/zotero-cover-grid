@@ -27,8 +27,10 @@ export class WindowCoverGridController {
     const zp = this.win?.ZoteroPane || (typeof ZoteroPane !== 'undefined' ? ZoteroPane : null);
     try {
       const cols = zp?.getSelectedCollections ? zp.getSelectedCollections() : (zp?.getSelectedCollection ? [zp.getSelectedCollection()] : []);
-      if (Array.isArray(cols) && cols.length > 0 && cols[0]?.name) {
-        return cols[0].name;
+      if (Array.isArray(cols) && cols.length > 0 && cols[0]) {
+        const firstCol = cols[0];
+        if (firstCol.name) return firstCol.name;
+        if (typeof firstCol.getName === 'function') return firstCol.getName();
       }
 
       const rows = zp?.getCollectionTreeRows?.();
@@ -87,7 +89,7 @@ export class WindowCoverGridController {
 
   public handleNotifierEvent(event: string, type: string, ids: string[] | number[], extraData: any) {
     if (type === 'tab' && event === 'select') {
-      const tabId = String(ids[0]);
+      const tabId = Array.isArray(ids) && ids.length > 0 ? String(ids[0]) : '';
       if (tabId === 'zotero-cover-grid-tab') {
         this.reloadCurrentCollection();
       }
@@ -99,7 +101,7 @@ export class WindowCoverGridController {
       return;
     }
 
-    const numIds = ids.map(Number);
+    const numIds = Array.isArray(ids) ? ids.map(Number) : (ids ? [Number(ids)] : []);
 
     if (type === 'item') {
       if (event === 'modify') {
@@ -116,14 +118,22 @@ export class WindowCoverGridController {
     }
   }
 
-  private patchItems(ids: number[]) {
-    if (typeof Zotero === 'undefined' || !Zotero.Items) return;
+  private async patchItems(ids: number[]) {
+    const z = this.win?.Zotero || (typeof Zotero !== 'undefined' ? Zotero : null);
+    if (!z?.Items) return;
     const idSet = new Set(ids);
 
     for (let i = 0; i < this.allItems.length; i++) {
       if (idSet.has(this.allItems[i].id)) {
         try {
-          const zItem = Zotero.Items.get(this.allItems[i].id);
+          let zItem: any = null;
+          try {
+            zItem = z.Items.get(this.allItems[i].id);
+          } catch {
+            if (z.Items.getAsync) {
+              zItem = await z.Items.getAsync(this.allItems[i].id);
+            }
+          }
           if (zItem) {
             const prevThumbnailUrl = this.allItems[i].coverThumbnailUrl;
             const prevHasPdf = this.allItems[i].hasPdf;
@@ -194,7 +204,10 @@ export class WindowCoverGridController {
         // Try getChildItems(true) - Passing true returns numeric item IDs without throwing UnloadedDataException
         if (typeof selectedCol.getChildItems === 'function') {
           try {
-            const colItemsOrIDs = selectedCol.getChildItems(true);
+            let colItemsOrIDs = selectedCol.getChildItems(true);
+            if (colItemsOrIDs instanceof Promise) {
+              colItemsOrIDs = await colItemsOrIDs;
+            }
             if (Array.isArray(colItemsOrIDs)) {
               const hasObjects = colItemsOrIDs.some((it: any) => typeof it === 'object' && it !== null);
               if (hasObjects) {
@@ -301,7 +314,10 @@ export class WindowCoverGridController {
             if (col) {
               if (typeof col.getChildItems === 'function') {
                 try {
-                  const cItems = col.getChildItems(true);
+                  let cItems = col.getChildItems(true);
+                  if (cItems instanceof Promise) {
+                    cItems = await cItems;
+                  }
                   if (Array.isArray(cItems) && cItems.length > 0) {
                     const loadedItems = z?.Items?.getAsync ? await z.Items.getAsync(cItems) : cItems;
                     for (const it of loadedItems) {
@@ -486,14 +502,15 @@ export class WindowCoverGridController {
   }
 
   private async loadThumbnailForCard(card: PaperCardData, signal: AbortSignal) {
-    if (typeof Zotero === 'undefined' || !Zotero.Items) return;
+    const z = this.win?.Zotero || (typeof Zotero !== 'undefined' ? Zotero : null);
+    if (!z?.Items) return;
     try {
       let zItem: any = null;
       try {
-        zItem = Zotero.Items.get(card.id);
+        zItem = z.Items.get(card.id);
       } catch {
-        if (Zotero.Items.getAsync) {
-          zItem = await Zotero.Items.getAsync(card.id);
+        if (z.Items.getAsync) {
+          zItem = await z.Items.getAsync(card.id);
         }
       }
       if (!zItem) return;
@@ -597,9 +614,17 @@ export class WindowCoverGridController {
   }
 
   public async syncTagStatus(card: PaperCardData, nextStatus: ReadStatus) {
-    if (typeof Zotero === 'undefined' || !Zotero.Items) return;
+    const z = this.win?.Zotero || (typeof Zotero !== 'undefined' ? Zotero : null);
+    if (!z?.Items) return;
     try {
-      const zItem = Zotero.Items.get(card.id);
+      let zItem: any = null;
+      try {
+        zItem = z.Items.get(card.id);
+      } catch {
+        if (z.Items.getAsync) {
+          zItem = await z.Items.getAsync(card.id);
+        }
+      }
       if (!zItem) return;
 
       const readingTags = ['#unread', '#reading', '#read', 'unread', 'reading', 'read'];

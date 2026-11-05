@@ -21,6 +21,16 @@ export function ensureMainWindowStability(doc: any, win?: any): void {
     tabCover.classList.add('hidden');
   }
 
+  // Dismiss context pane loading spinner if active
+  const contextPane = win?.ZoteroContextPane || doc.defaultView?.ZoteroContextPane;
+  if (contextPane?.showLoadingMessage) {
+    try {
+      contextPane.showLoadingMessage(false);
+    } catch {
+      // Ignore
+    }
+  }
+
   // Sanitize any existing tabs in Zotero_Tabs memory
   const tabs = win?.Zotero_Tabs || doc.defaultView?.Zotero_Tabs;
   if (tabs && Array.isArray(tabs._tabs)) {
@@ -121,7 +131,7 @@ export function injectCoverGridUI(win: any) {
           return;
         } catch {
           try {
-            const zItem = z?.Items?.get?.(item.id);
+            const zItem = z?.Items?.getAsync ? await z.Items.getAsync(item.id) : z?.Items?.get?.(item.id);
             if (zItem && typeof zItem.isRegularItem === 'function') {
               await zp.viewItems([zItem]);
               return;
@@ -133,7 +143,7 @@ export function injectCoverGridUI(win: any) {
       }
       if (z) {
         try {
-          const zItem = z.Items?.get?.(item.id);
+          const zItem = z.Items?.getAsync ? await z.Items.getAsync(item.id) : z.Items?.get?.(item.id);
           const attachment = await zItem?.getBestAttachment?.();
           if (attachment && z.Reader?.open) {
             await z.Reader.open(attachment.id);

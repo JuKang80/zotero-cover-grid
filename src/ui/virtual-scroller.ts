@@ -56,6 +56,8 @@ export class VirtualGridScroller {
     const doc = this.container.ownerDocument || document;
     const HTML_NS = 'http://www.w3.org/1999/xhtml';
     if (this.items.length === 0) {
+      this.focusedIndex = -1;
+      this.anchorIndex = 0;
       if (!this.container.querySelector('.grid-empty-placeholder')) {
         const emptyEl = doc.createElementNS(HTML_NS, 'div');
         emptyEl.className = 'grid-empty-placeholder';
@@ -65,6 +67,13 @@ export class VirtualGridScroller {
       return;
     }
     this.container.querySelector('.grid-empty-placeholder')?.remove();
+
+    if (this.focusedIndex >= this.items.length) {
+      this.focusedIndex = -1;
+    }
+    if (this.anchorIndex >= this.items.length) {
+      this.anchorIndex = Math.max(0, this.items.length - 1);
+    }
 
     for (let i = 0; i < this.items.length; i++) {
       const card = this.items[i];
@@ -115,7 +124,7 @@ export class VirtualGridScroller {
 
   private findTopVisibleItem(): PaperCardData | null {
     if (this.items.length === 0) return null;
-    const vpTop = this.viewport.scrollTop;
+    const vpTop = this.viewport?.scrollTop || 0;
     for (const item of this.items) {
       const el = this.cardMap.get(item.id);
       if (el && el.offsetTop >= vpTop) {

@@ -3,6 +3,13 @@
   display: none !important;
 }
 
+#zotero-items-pane:has(#zotero-cover-grid:not([hidden])) {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
 #zotero-cover-grid,
 zotero-cover-grid,
 .zotero-cover-grid-root {
@@ -234,6 +241,22 @@ zotero-cover-grid[hidden],
 /* ==========================================================================
    Dedicated Tab Mode (상단 독립 탭 전체 화면 모드)
    ========================================================================== */
+#tabs-deck:has(#zotero-cover-grid-tab) {
+  min-height: 0 !important;
+  height: 100% !important;
+}
+
+#tabs-deck > #zotero-cover-grid-tab,
+#tabs-deck > tab-content#zotero-cover-grid-tab,
+#tabs-deck > div#zotero-cover-grid-tab {
+  display: flex !important;
+  flex: 1 1 auto !important;
+  height: 100% !important;
+  min-height: 100% !important;
+  width: 100% !important;
+  position: relative !important;
+}
+
 tab-content#zotero-cover-grid-tab[hidden],
 #zotero-cover-grid-tab[hidden] {
   display: none !important;

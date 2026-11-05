@@ -77,6 +77,8 @@ function setDefaultPreferences() {
       const branch = Services.prefs.getDefaultBranch('');
       branch.setIntPref('extensions.zotero.covergrid.cardWidth', 180);
       branch.setBoolPref('extensions.zotero.covergrid.splashDetect', true);
+      branch.setStringPref('extensions.zotero.covergrid.openPDFIn', 'tab');
+      branch.setBoolPref('extensions.zotero.covergrid.showBadge', true);
     } catch {
       // Ignore if default branch is inaccessible in test/sandboxed environment
     }
@@ -153,10 +155,12 @@ async function initWindow(win: any) {
   initializingWindows.add(win);
 
   try {
-    if (typeof Zotero !== 'undefined') {
+    const zObj = win?.Zotero || (typeof Zotero !== 'undefined' ? Zotero : null);
+    if (zObj) {
       const waitPromises: Promise<any>[] = [];
-      if (Zotero.initializationPromise) waitPromises.push(Zotero.initializationPromise);
-      if (Zotero.unlockPromise) waitPromises.push(Zotero.unlockPromise);
+      if (zObj.initializationPromise) waitPromises.push(zObj.initializationPromise);
+      if (zObj.unlockPromise) waitPromises.push(zObj.unlockPromise);
+      if (zObj.uiReadyPromise) waitPromises.push(zObj.uiReadyPromise);
       if (waitPromises.length > 0) {
         try {
           await Promise.all(waitPromises);
@@ -280,7 +284,7 @@ export function startup({ id, version, rootURI }: any, reason: number) {
   // 4. Enumerate currently open windows
   if (typeof Zotero !== 'undefined' && typeof Zotero.getMainWindows === 'function') {
     for (const win of Zotero.getMainWindows()) {
-      if (win.document?.readyState === 'complete') {
+      if (win.document?.readyState === 'complete' || win.document?.readyState === 'interactive') {
         initWindow(win);
       } else if (win.addEventListener) {
         win.addEventListener('DOMContentLoaded', () => initWindow(win), { once: true });
@@ -290,7 +294,7 @@ export function startup({ id, version, rootURI }: any, reason: number) {
     const windows = Services.wm.getEnumerator('navigator:browser');
     while (windows.hasMoreElements()) {
       const win = windows.getNext();
-      if (win.document?.readyState === 'complete') {
+      if (win.document?.readyState === 'complete' || win.document?.readyState === 'interactive') {
         initWindow(win);
       } else if (win.addEventListener) {
         win.addEventListener('DOMContentLoaded', () => initWindow(win), { once: true });
@@ -303,7 +307,7 @@ export function startup({ id, version, rootURI }: any, reason: number) {
       onOpenWindow(xulWin: any) {
         try {
           const domWin = xulWin.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindow);
-          if (domWin.document?.readyState === 'complete') {
+          if (domWin.document?.readyState === 'complete' || domWin.document?.readyState === 'interactive') {
             initWindow(domWin);
           } else if (domWin.addEventListener) {
             domWin.addEventListener('DOMContentLoaded', () => initWindow(domWin), { once: true });
@@ -327,7 +331,7 @@ export function startup({ id, version, rootURI }: any, reason: number) {
 
 export function onMainWindowLoad({ window }: any) {
   if (window) {
-    initWindow(window);
+    return initWindow(window);
   }
 }
 
