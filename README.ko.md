@@ -1,6 +1,6 @@
 # Zotero Cover Grid 📚✨
 
-[English](README.md) | **한국어**
+[English](README.md) | **한국어** | [로드맵 & 체크리스트](ROADMAP.md)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Zotero: 10.0+](https://img.shields.io/badge/Zotero-10.0%2B-red.svg)](https://www.zotero.org/)
