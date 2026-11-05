@@ -352,17 +352,8 @@ export async function renderPdfThumbnail(
       return generateTypographyFallbackCover(cardData, 'Empty PDF');
     }
 
-    // Inspect Page 1
-    const page1 = await pdfDoc.getPage(1);
-    let targetPage = page1;
-
-    // Check publisher splash sheet (JSTOR/Elsevier)
-    if (pdfDoc.numPages > 1) {
-      const isSplash = await detectSplashPage(page1);
-      if (isSplash) {
-        targetPage = await pdfDoc.getPage(2);
-      }
-    }
+    // Always render Page 1 directly - lightweight, deterministic, fast & zero-skip
+    const targetPage = await pdfDoc.getPage(1);
 
     const viewport = getClampedViewport(targetPage);
     const canvas = createSafeCanvas(viewport.width, viewport.height);
