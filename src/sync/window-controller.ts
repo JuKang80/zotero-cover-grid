@@ -159,7 +159,7 @@ export class WindowCoverGridController {
   }
 
   public async reloadCurrentCollection() {
-    // 0. Await Zotero lifecycle readiness (database unlock and UI readiness)
+    // 0. Await Zotero lifecycle readiness (database unlock and UI readiness) with timeout safeguard
     const zObj = this.win?.Zotero || (typeof Zotero !== 'undefined' ? Zotero : null);
     if (zObj) {
       const waitPromises: Promise<any>[] = [];
@@ -168,7 +168,10 @@ export class WindowCoverGridController {
       if (zObj.uiReadyPromise) waitPromises.push(zObj.uiReadyPromise);
       if (waitPromises.length > 0) {
         try {
-          await Promise.all(waitPromises);
+          await Promise.race([
+            Promise.all(waitPromises),
+            new Promise((resolve) => setTimeout(resolve, 800))
+          ]);
         } catch {
           // Ignore
         }
@@ -230,7 +233,7 @@ export class WindowCoverGridController {
         }
 
         // Try native Zotero.Search with selected collectionID
-        if (rawItems == null && z?.Search) {
+        if ((rawItems == null || rawItems.length === 0) && z?.Search) {
           try {
             const s = new z.Search();
             s.libraryID = selectedCol.libraryID || zp?.getSelectedLibraryID?.() || z?.Libraries?.userLibraryID;
@@ -240,10 +243,10 @@ export class WindowCoverGridController {
               s.addCondition('recursive', 'true');
             }
             const itemIDs = await s.search();
-            if (Array.isArray(itemIDs)) {
-              if (itemIDs.length > 0 && z.Items?.getAsync) {
+            if (Array.isArray(itemIDs) && itemIDs.length > 0) {
+              if (z.Items?.getAsync) {
                 rawItems = await z.Items.getAsync(itemIDs);
-              } else if (itemIDs.length > 0 && z.Items?.get) {
+              } else if (z.Items?.get) {
                 try {
                   rawItems = z.Items.get(itemIDs);
                 } catch {

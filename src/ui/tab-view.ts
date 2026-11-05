@@ -90,9 +90,13 @@ export function openCoverGridTab(win: any) {
   const container = tabInfo?.container;
   if (!container) return;
 
+  container.id = COVER_GRID_TAB_ID;
+  container.style.cssText = 'display: flex !important; flex-direction: column !important; flex: 1 1 auto !important; width: 100% !important; height: 100% !important; min-height: 0 !important; overflow: hidden !important;';
+
   // 3. Create root layout
   const root = doc.createElementNS(HTML_NS, 'div');
   root.className = 'cover-grid-tab-root';
+  root.style.cssText = 'display: flex !important; flex-direction: column !important; flex: 1 1 auto !important; width: 100% !important; height: 100% !important; min-height: 0 !important; overflow: hidden !important;';
 
   // 4. Header with collection name, search, zoom, refresh
   const header = doc.createElementNS(HTML_NS, 'div');
@@ -197,9 +201,11 @@ export function openCoverGridTab(win: any) {
   // 5. Grid Viewport & Container
   const viewport = doc.createElementNS(HTML_NS, 'div');
   viewport.className = 'grid-viewport';
+  viewport.style.cssText = 'display: flex !important; flex-direction: column !important; flex: 1 1 auto !important; width: 100% !important; height: 100% !important; min-height: 0 !important; overflow-y: auto !important; overflow-x: hidden !important; padding: 16px !important; box-sizing: border-box !important;';
 
   const cardsContainer = doc.createElementNS(HTML_NS, 'div');
   cardsContainer.className = 'grid-cards-container';
+  cardsContainer.style.cssText = 'width: 100% !important; box-sizing: border-box !important; flex: 1 0 auto !important; min-height: 100px !important;';
   viewport.appendChild(cardsContainer);
   root.appendChild(viewport);
 

@@ -23,6 +23,9 @@ await new Promise((resolve, reject) => {
   archive.on('error', reject);
 
   archive.pipe(output);
-  archive.directory(sourceDir, false);
+  archive.glob('**/*', {
+    cwd: sourceDir,
+    ignore: ['updates.json']
+  });
   archive.finalize();
 });
