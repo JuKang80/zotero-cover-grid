@@ -265,7 +265,15 @@ export function startup({ id, version, rootURI }: any, reason: number) {
   }
 
   // 4. Enumerate currently open windows
-  if (typeof Services !== 'undefined' && Services.wm) {
+  if (typeof Zotero !== 'undefined' && typeof Zotero.getMainWindows === 'function') {
+    for (const win of Zotero.getMainWindows()) {
+      if (win.document?.readyState === 'complete') {
+        initWindow(win);
+      } else if (win.addEventListener) {
+        win.addEventListener('DOMContentLoaded', () => initWindow(win), { once: true });
+      }
+    }
+  } else if (typeof Services !== 'undefined' && Services.wm) {
     const windows = Services.wm.getEnumerator('navigator:browser');
     while (windows.hasMoreElements()) {
       const win = windows.getNext();
@@ -275,7 +283,9 @@ export function startup({ id, version, rootURI }: any, reason: number) {
         win.addEventListener('DOMContentLoaded', () => initWindow(win), { once: true });
       }
     }
+  }
 
+  if (typeof Services !== 'undefined' && Services.wm) {
     windowListener = {
       onOpenWindow(xulWin: any) {
         try {
@@ -348,7 +358,11 @@ export function shutdown(data: any, reason: number) {
   }
 
   // 5. Clean all browser windows
-  if (typeof Services !== 'undefined' && Services.wm) {
+  if (typeof Zotero !== 'undefined' && typeof Zotero.getMainWindows === 'function') {
+    for (const win of Zotero.getMainWindows()) {
+      destroyWindow(win);
+    }
+  } else if (typeof Services !== 'undefined' && Services.wm) {
     const windows = Services.wm.getEnumerator('navigator:browser');
     while (windows.hasMoreElements()) {
       destroyWindow(windows.getNext());

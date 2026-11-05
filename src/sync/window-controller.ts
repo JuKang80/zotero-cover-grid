@@ -26,10 +26,7 @@ export class WindowCoverGridController {
   public getCurrentCollectionName(): string {
     const zp = this.win?.ZoteroPane || (typeof ZoteroPane !== 'undefined' ? ZoteroPane : null);
     try {
-      const col = zp?.getSelectedCollection?.();
-      if (col?.name) return col.name;
-
-      const cols = zp?.getSelectedCollections?.();
+      const cols = zp?.getSelectedCollections ? zp.getSelectedCollections() : (zp?.getSelectedCollection ? [zp.getSelectedCollection()] : []);
       if (Array.isArray(cols) && cols.length > 0 && cols[0]?.name) {
         return cols[0].name;
       }
@@ -83,12 +80,25 @@ export class WindowCoverGridController {
 
     this.observerId = Zotero.Notifier.registerObserver(
       observer,
-      ['item', 'item-tag', 'collection-item'],
+      ['item', 'item-tag', 'collection-item', 'collection', 'tab'],
       'ZoteroCoverGrid'
     );
   }
 
   public handleNotifierEvent(event: string, type: string, ids: string[] | number[], extraData: any) {
+    if (type === 'tab' && event === 'select') {
+      const tabId = String(ids[0]);
+      if (tabId === 'zotero-cover-grid-tab') {
+        this.reloadCurrentCollection();
+      }
+      return;
+    }
+
+    if (type === 'collection') {
+      this.reloadCurrentCollection();
+      return;
+    }
+
     const numIds = ids.map(Number);
 
     if (type === 'item') {
@@ -162,17 +172,31 @@ export class WindowCoverGridController {
 
     try {
       // Step A: Priority 1 - Selected collection row or direct collection items
-      const selectedCol = zp?.getSelectedCollection?.();
+      const selectedCols = zp?.getSelectedCollections ? zp.getSelectedCollections() : (zp?.getSelectedCollection ? [zp.getSelectedCollection()] : []);
+      const selectedCol = Array.isArray(selectedCols) && selectedCols.length > 0 ? selectedCols[0] : null;
       if (selectedCol) {
-        // Try getChildItems directly if present
+        // Try getChildItems(true) - Passing true returns numeric item IDs without throwing UnloadedDataException
         if (typeof selectedCol.getChildItems === 'function') {
           try {
-            const colItems = selectedCol.getChildItems();
-            if (Array.isArray(colItems)) {
-              rawItems = colItems;
+            const colItemsOrIDs = selectedCol.getChildItems(true);
+            if (Array.isArray(colItemsOrIDs)) {
+              const hasObjects = colItemsOrIDs.some((it: any) => typeof it === 'object' && it !== null);
+              if (hasObjects) {
+                rawItems = colItemsOrIDs;
+              } else if (colItemsOrIDs.length > 0 && z?.Items?.getAsync) {
+                rawItems = await z.Items.getAsync(colItemsOrIDs);
+              } else if (colItemsOrIDs.length > 0 && z?.Items?.get) {
+                try {
+                  rawItems = z.Items.get(colItemsOrIDs);
+                } catch {
+                  rawItems = colItemsOrIDs;
+                }
+              } else {
+                rawItems = colItemsOrIDs;
+              }
             }
           } catch {
-            // UnloadedDataException: fall through to Search / getAsync
+            // Fall through to Search / getAsync
           }
         }
 
@@ -180,7 +204,7 @@ export class WindowCoverGridController {
         if (rawItems == null && z?.Search) {
           try {
             const s = new z.Search();
-            s.libraryID = selectedCol.libraryID;
+            s.libraryID = selectedCol.libraryID || zp?.getSelectedLibraryID?.() || z?.Libraries?.userLibraryID;
             s.addCondition('collectionID', 'is', selectedCol.id);
             s.addCondition('noChildren', 'true');
             if (z.Prefs?.get?.('recursiveCollections')) {
@@ -261,10 +285,12 @@ export class WindowCoverGridController {
             if (col) {
               if (typeof col.getChildItems === 'function') {
                 try {
-                  const cItems = col.getChildItems();
-                  if (Array.isArray(cItems)) {
-                    for (const it of cItems) {
-                      if (it && it.id) itemsMap.set(it.id, it);
+                  const cItems = col.getChildItems(true);
+                  if (Array.isArray(cItems) && cItems.length > 0) {
+                    const loadedItems = z?.Items?.getAsync ? await z.Items.getAsync(cItems) : cItems;
+                    for (const it of loadedItems) {
+                      const numId = typeof it === 'object' && it?.id ? it.id : Number(it);
+                      if (numId) itemsMap.set(numId, it);
                     }
                   }
                 } catch {
@@ -406,12 +432,23 @@ export class WindowCoverGridController {
       return true;
     });
 
-    // Bulk-load data types (creators, tags) if available
-    if (z?.Items?.loadDataTypes && validItems.length > 0) {
-      try {
-        await z.Items.loadDataTypes(validItems);
-      } catch {
-        // Ignore
+    // Ensure item data is loaded safely
+    if (validItems.length > 0) {
+      if (z?.Items?.loadDataTypes) {
+        try {
+          await z.Items.loadDataTypes(validItems);
+        } catch {
+          // Ignore
+        }
+      }
+      for (const it of validItems) {
+        if (it && typeof it.loadDataType === 'function') {
+          try {
+            await it.loadDataType('primaryData');
+          } catch {
+            // Ignore
+          }
+        }
       }
     }
 

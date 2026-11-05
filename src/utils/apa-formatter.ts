@@ -54,30 +54,71 @@ export function extractReadStatusFromTags(tags: Array<{ tag: string } | string> 
  * Maps raw Zotero item to standard PaperCardData
  */
 export function extractPaperCardData(item: any): PaperCardData {
-  const id = item.id || 0;
-  const key = item.key || `KEY_${id}`;
-  const title = item.getField?.('title') || item.title || 'Untitled';
-  const creators: Creator[] = item.getCreators?.() || [];
-  const rawDate = item.getField?.('date') || item.date || '';
-  const yearMatch = String(rawDate).match(/\b\d{4}\b/);
-  const year = yearMatch ? yearMatch[0] : '';
+  try {
+    const id = item?.id || 0;
+    const key = item?.key || `KEY_${id}`;
+    let title = 'Untitled';
+    try {
+      title = item.getField?.('title') || item.title || 'Untitled';
+    } catch {
+      title = 'Untitled';
+    }
 
-  const citationText = formatApa7Citation(creators, year);
-  const authorText = creators.map((c) => c.lastName || c.name || c.firstName).filter(Boolean).join(', ') || 'Unknown Author';
+    let creators: Creator[] = [];
+    try {
+      creators = item.getCreators?.() || [];
+    } catch {
+      creators = [];
+    }
 
-  const tags = item.getTags?.() || item.tags || [];
-  const readStatus = extractReadStatusFromTags(tags);
-  const itemType = item.itemType || item.getItemType?.() || 'journalArticle';
+    let rawDate = '';
+    try {
+      rawDate = item.getField?.('date') || item.date || '';
+    } catch {
+      rawDate = '';
+    }
+    const yearMatch = String(rawDate).match(/\b\d{4}\b/);
+    const year = yearMatch ? yearMatch[0] : '';
 
-  return {
-    id,
-    key,
-    title,
-    authorText,
-    citationText,
-    itemType,
-    year,
-    readStatus,
-    hasPdf: false // Will be updated when attachment is resolved
-  };
+    const citationText = formatApa7Citation(creators, year);
+    const authorText = creators.map((c) => c.lastName || c.name || c.firstName).filter(Boolean).join(', ') || 'Unknown Author';
+
+    let tags: any[] = [];
+    try {
+      tags = item.getTags?.() || item.tags || [];
+    } catch {
+      tags = [];
+    }
+    const readStatus = extractReadStatusFromTags(tags);
+    let itemType = 'journalArticle';
+    try {
+      itemType = item.itemType || item.getItemType?.() || 'journalArticle';
+    } catch {
+      itemType = 'journalArticle';
+    }
+
+    return {
+      id,
+      key,
+      title,
+      authorText,
+      citationText,
+      itemType,
+      year,
+      readStatus,
+      hasPdf: false // Will be updated when attachment is resolved
+    };
+  } catch {
+    return {
+      id: item?.id || 0,
+      key: item?.key || 'UNKNOWN',
+      title: 'Untitled',
+      authorText: 'Unknown Author',
+      citationText: '(n.d.)',
+      itemType: 'journalArticle',
+      year: '',
+      readStatus: 'unread',
+      hasPdf: false
+    };
+  }
 }

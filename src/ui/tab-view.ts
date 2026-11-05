@@ -114,8 +114,8 @@ export function openCoverGridTab(win: any) {
   let colName = 'My Library';
   try {
     const zp = win.ZoteroPane || (typeof ZoteroPane !== 'undefined' ? ZoteroPane : null);
-    const col = zp?.getSelectedCollection?.();
-    if (col?.name) colName = col.name;
+    const cols = zp?.getSelectedCollections ? zp.getSelectedCollections() : (zp?.getSelectedCollection ? [zp.getSelectedCollection()] : []);
+    if (cols?.[0]?.name) colName = cols[0].name;
   } catch {
     // Ignore
   }
@@ -269,8 +269,8 @@ export function openCoverGridTab(win: any) {
       hideTabCover();
       try {
         const zp = win.ZoteroPane || (typeof ZoteroPane !== 'undefined' ? ZoteroPane : null);
-        const col = zp?.getSelectedCollection?.();
-        colBadge.textContent = col?.name || 'My Library';
+        const cols = zp?.getSelectedCollections ? zp.getSelectedCollections() : (zp?.getSelectedCollection ? [zp.getSelectedCollection()] : []);
+        colBadge.textContent = cols?.[0]?.name || 'My Library';
       } catch {
         // Ignore
       }
@@ -306,8 +306,8 @@ export function openCoverGridTab(win: any) {
   refreshBtn.addEventListener('click', () => {
     try {
       const zp = win.ZoteroPane || (typeof ZoteroPane !== 'undefined' ? ZoteroPane : null);
-      const col = zp?.getSelectedCollection?.();
-      colBadge.textContent = col?.name || 'My Library';
+      const cols = zp?.getSelectedCollections ? zp.getSelectedCollections() : (zp?.getSelectedCollection ? [zp.getSelectedCollection()] : []);
+      colBadge.textContent = cols?.[0]?.name || 'My Library';
     } catch {
       // Ignore
     }
