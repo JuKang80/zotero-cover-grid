@@ -149,15 +149,34 @@ export class WindowCoverGridController {
     const z = this.win?.Zotero || (typeof Zotero !== 'undefined' ? Zotero : null);
 
     try {
-      // Step A: Priority 1 - Explicitly selected collection in sidebar
+      // Step A: Priority 1 - Native Zotero.Search with selected collectionID (Identical to Zotero core tree)
       const selectedCol = zp?.getSelectedCollection?.();
-      if (selectedCol) {
+      if (selectedCol && z?.Search) {
+        try {
+          const s = new z.Search();
+          s.libraryID = selectedCol.libraryID;
+          s.addCondition('collectionID', 'is', selectedCol.id);
+          s.addCondition('noChildren', 'true');
+          if (z.Prefs?.get?.('recursiveCollections')) {
+            s.addCondition('recursive', 'true');
+          }
+          const itemIDs = await s.search();
+          if (Array.isArray(itemIDs)) {
+            rawItems = z.Items?.get ? z.Items.get(itemIDs) : itemIDs;
+          }
+        } catch {
+          // Fallback to loadDataType and getChildItems
+        }
+      }
+
+      // Step A-fallback: Direct collection child items
+      if (rawItems == null && selectedCol) {
         try {
           if (typeof selectedCol.loadDataType === 'function') {
             await selectedCol.loadDataType('childItems');
           }
         } catch {
-          // Ignore if already loaded or in test mock
+          // Ignore
         }
         if (typeof selectedCol.getChildItems === 'function') {
           const colItems = selectedCol.getChildItems();
@@ -167,7 +186,7 @@ export class WindowCoverGridController {
         }
       }
 
-      // Step B: If no collection selected, check multiple selected collections
+      // Step B: Check multiple selected collections
       if (rawItems == null) {
         const selectedCols = zp?.getSelectedCollections?.();
         if (Array.isArray(selectedCols) && selectedCols.length > 0) {
@@ -226,7 +245,20 @@ export class WindowCoverGridController {
       // ONLY when rawItems is strictly null or undefined (e.g. root library view where no collection/itemsView exists)
       if (rawItems == null) {
         const libraryID = zp?.getSelectedLibraryID?.() || z?.Libraries?.userLibraryID;
-        if (z?.Items?.getAll) {
+        if (z?.Search && libraryID) {
+          try {
+            const s = new z.Search();
+            s.libraryID = libraryID;
+            s.addCondition('noChildren', 'true');
+            const itemIDs = await s.search();
+            if (Array.isArray(itemIDs) && z.Items?.get) {
+              rawItems = z.Items.get(itemIDs);
+            }
+          } catch {
+            // Fall through
+          }
+        }
+        if (rawItems == null && z?.Items?.getAll) {
           const allRes = z.Items.getAll(libraryID, false, false);
           rawItems = allRes instanceof Promise ? await allRes : allRes;
         }
