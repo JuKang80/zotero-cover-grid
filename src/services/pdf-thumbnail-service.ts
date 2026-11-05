@@ -35,18 +35,22 @@ export const SPLASH_KEYWORDS = [
   'wiley',
   'ieee xplore',
   'downloaded from',
-  'all rights reserved',
   'terms and conditions'
 ];
 
 /**
  * Checks if a PDF page is a publisher splash/cover sheet (e.g. JSTOR, ScienceDirect cover sheet).
- * Real scientific paper first pages with title, authors, and abstract will NOT be skipped.
+ * Real scientific paper first pages with title, authors, or scan images will NOT be skipped.
  */
 export async function detectSplashPage(page: any): Promise<boolean> {
   try {
     const textContent = await page.getTextContent();
     const items = textContent.items || [];
+    // If OCR text is completely absent (e.g. classic paper scanned image without OCR), do not skip Page 1
+    if (items.length === 0) {
+      return false;
+    }
+
     const fullText = items
       .map((item: any) => (typeof item.str === 'string' ? item.str : ''))
       .join(' ')
@@ -57,7 +61,7 @@ export async function detectSplashPage(page: any): Promise<boolean> {
       return false;
     }
 
-    // 2. Only sparse cover sheets (<400 chars) matching splash keywords qualify
+    // 2. Explicit download cover sheets matching splash keywords qualify
     return SPLASH_KEYWORDS.some((kw) => fullText.includes(kw));
   } catch {
     return false;
@@ -362,8 +366,13 @@ export async function renderPdfThumbnail(
 
     const viewport = getClampedViewport(targetPage);
     const canvas = createSafeCanvas(viewport.width, viewport.height);
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, viewport.width, viewport.height);
+    }
     const renderContext = {
-      canvasContext: canvas.getContext('2d'),
+      canvasContext: ctx,
       viewport
     };
 

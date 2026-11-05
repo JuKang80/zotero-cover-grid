@@ -1,6 +1,7 @@
 import gridCss from '../styles/grid.css';
 import { VirtualGridScroller } from './virtual-scroller';
 import { WindowCoverGridController } from '../sync/window-controller';
+import { selectItemInZotero, openItemInZotero } from './item-actions';
 
 declare const Zotero_Tabs: any;
 declare const ZoteroPane: any;
@@ -217,50 +218,12 @@ export function openCoverGridTab(win: any) {
     container: cardsContainer,
     viewport,
     onSelect: (selectedItems) => {
-      const zp = win.ZoteroPane || (typeof ZoteroPane !== 'undefined' ? ZoteroPane : null);
-      if (selectedItems.length > 0 && zp?.itemsView?.selectItem) {
-        try {
-          zp.itemsView.selectItem(selectedItems[0].id);
-        } catch {
-          // Ignore
-        }
+      if (selectedItems.length > 0) {
+        selectItemInZotero(win, selectedItems[0].id);
       }
     },
     onOpenPdf: async (item) => {
-      // Respect user's openPDFIn native pref and Zotero 10 API contracts
-      const zp = win.ZoteroPane || (typeof ZoteroPane !== 'undefined' ? ZoteroPane : null);
-      const z = win.Zotero || (typeof Zotero !== 'undefined' ? Zotero : null);
-      if (zp && typeof zp.viewItems === 'function') {
-        try {
-          await zp.viewItems([item.id]);
-          return;
-        } catch {
-          try {
-            const zItem = z?.Items?.getAsync ? await z.Items.getAsync(item.id) : z?.Items?.get?.(item.id);
-            if (zItem && typeof zItem.isRegularItem === 'function') {
-              await zp.viewItems([zItem]);
-              return;
-            }
-          } catch {
-            // Fall through to Reader.open
-          }
-        }
-      }
-      if (z) {
-        try {
-          const zItem = z.Items?.getAsync ? await z.Items.getAsync(item.id) : z.Items?.get?.(item.id);
-          const attachment = await zItem?.getBestAttachment?.();
-          if (attachment && z.Reader?.open) {
-            await z.Reader.open(attachment.id);
-            return;
-          }
-        } catch {
-          // Fall through
-        }
-      }
-      if (typeof zp?.openAttachment === 'function') {
-        zp.openAttachment(item.id);
-      }
+      await openItemInZotero(win, item.id);
     },
     onDeleteItem: () => {
       const zp = win.ZoteroPane || (typeof ZoteroPane !== 'undefined' ? ZoteroPane : null);

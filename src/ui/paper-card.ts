@@ -129,9 +129,38 @@ export function createPaperCardElement(
 
   cardEl.appendChild(badgeContainer);
 
-  // Event Listeners
-  cardEl.addEventListener('click', (e) => handlers.onClick?.(card, e));
-  cardEl.addEventListener('dblclick', (e) => handlers.onDoubleClick?.(card, e));
+  // Event Listeners with Clean-room Debouncing (prevents double-click triggering single-click)
+  let clickTimeout: any = null;
+  const CLICK_DELAY_MS = 220;
+
+  cardEl.addEventListener('click', (e) => {
+    // If consecutive click (double-click sequence), cancel pending single click
+    if (e.detail > 1) {
+      if (clickTimeout) {
+        clearTimeout(clickTimeout);
+        clickTimeout = null;
+      }
+      return;
+    }
+
+    if (clickTimeout) {
+      clearTimeout(clickTimeout);
+    }
+
+    clickTimeout = setTimeout(() => {
+      clickTimeout = null;
+      handlers.onClick?.(card, e);
+    }, CLICK_DELAY_MS);
+  });
+
+  cardEl.addEventListener('dblclick', (e) => {
+    if (clickTimeout) {
+      clearTimeout(clickTimeout);
+      clickTimeout = null;
+    }
+    handlers.onDoubleClick?.(card, e);
+  });
+
   cardEl.addEventListener('contextmenu', (e) => handlers.onContextMenu?.(card, e));
 
   return cardEl;
