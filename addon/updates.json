@@ -1,0 +1,18 @@
+{
+  "addons": {
+    "zotero-cover-grid@antigravity.user": {
+      "updates": [
+        {
+          "version": "0.1.2",
+          "update_link": "https://github.com/JuKang80/zotero-cover-grid/releases/download/v0.1.2/zotero-cover-grid.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "11.*"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
