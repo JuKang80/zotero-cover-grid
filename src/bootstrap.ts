@@ -153,6 +153,19 @@ async function initWindow(win: any) {
   initializingWindows.add(win);
 
   try {
+    if (typeof Zotero !== 'undefined') {
+      const waitPromises: Promise<any>[] = [];
+      if (Zotero.initializationPromise) waitPromises.push(Zotero.initializationPromise);
+      if (Zotero.unlockPromise) waitPromises.push(Zotero.unlockPromise);
+      if (waitPromises.length > 0) {
+        try {
+          await Promise.all(waitPromises);
+        } catch {
+          // Ignore
+        }
+      }
+    }
+
     if (win.ZoteroPane?.loadedPromise) {
       await win.ZoteroPane.loadedPromise;
     } else {

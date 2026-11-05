@@ -149,6 +149,22 @@ export class WindowCoverGridController {
   }
 
   public async reloadCurrentCollection() {
+    // 0. Await Zotero lifecycle readiness (database unlock and UI readiness)
+    const zObj = this.win?.Zotero || (typeof Zotero !== 'undefined' ? Zotero : null);
+    if (zObj) {
+      const waitPromises: Promise<any>[] = [];
+      if (zObj.initializationPromise) waitPromises.push(zObj.initializationPromise);
+      if (zObj.unlockPromise) waitPromises.push(zObj.unlockPromise);
+      if (zObj.uiReadyPromise) waitPromises.push(zObj.uiReadyPromise);
+      if (waitPromises.length > 0) {
+        try {
+          await Promise.all(waitPromises);
+        } catch {
+          // Ignore
+        }
+      }
+    }
+
     // 1. Abort previous pending thumbnails and flush queue
     if (this.abortController) {
       this.abortController.abort();
