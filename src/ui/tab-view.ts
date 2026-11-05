@@ -215,7 +215,7 @@ export function openCoverGridTab(win: any) {
           return;
         } catch {
           try {
-            const zItem = z?.Items?.get?.(item.id);
+            const zItem = z?.Items?.getAsync ? await z.Items.getAsync(item.id) : z?.Items?.get?.(item.id);
             if (zItem && typeof zItem.isRegularItem === 'function') {
               await zp.viewItems([zItem]);
               return;
@@ -227,7 +227,7 @@ export function openCoverGridTab(win: any) {
       }
       if (z) {
         try {
-          const zItem = z.Items?.get?.(item.id);
+          const zItem = z.Items?.getAsync ? await z.Items.getAsync(item.id) : z.Items?.get?.(item.id);
           const attachment = await zItem?.getBestAttachment?.();
           if (attachment && z.Reader?.open) {
             await z.Reader.open(attachment.id);
@@ -251,6 +251,21 @@ export function openCoverGridTab(win: any) {
       controller.syncTagStatus(item, nextStatus);
     }
   });
+
+  // Hook selection change so switching tabs reloads active collection
+  container.onTabSelectionChanged = (selected: boolean) => {
+    if (selected) {
+      hideTabCover();
+      try {
+        const zp = win.ZoteroPane || (typeof ZoteroPane !== 'undefined' ? ZoteroPane : null);
+        const col = zp?.getSelectedCollection?.();
+        colBadge.textContent = col?.name || 'My Library';
+      } catch {
+        // Ignore
+      }
+      controller.reloadCurrentCollection();
+    }
+  };
 
   controller.onCollectionChange = (name: string) => {
     colBadge.textContent = name;

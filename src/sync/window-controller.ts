@@ -57,6 +57,18 @@ export class WindowCoverGridController {
       };
       zp.itemsView.onRefresh.addListener(this.refreshListener);
     }
+
+    // Auto-refresh when collection row is clicked in left collection tree
+    const doc = this.win?.document;
+    if (doc) {
+      const colTree = doc.getElementById('zotero-collections-tree');
+      if (colTree) {
+        colTree.addEventListener('click', () => {
+          if (this.isDestroyed) return;
+          setTimeout(() => this.reloadCurrentCollection(), 80);
+        });
+      }
+    }
   }
 
   private registerNotifier() {
@@ -149,100 +161,157 @@ export class WindowCoverGridController {
     const z = this.win?.Zotero || (typeof Zotero !== 'undefined' ? Zotero : null);
 
     try {
-      // Step A: Priority 1 - Native Zotero.Search with selected collectionID (Identical to Zotero core tree)
+      // Step A: Priority 1 - Selected collection row or direct collection items
       const selectedCol = zp?.getSelectedCollection?.();
-      if (selectedCol && z?.Search) {
-        try {
-          const s = new z.Search();
-          s.libraryID = selectedCol.libraryID;
-          s.addCondition('collectionID', 'is', selectedCol.id);
-          s.addCondition('noChildren', 'true');
-          if (z.Prefs?.get?.('recursiveCollections')) {
-            s.addCondition('recursive', 'true');
-          }
-          const itemIDs = await s.search();
-          if (Array.isArray(itemIDs)) {
-            rawItems = z.Items?.get ? z.Items.get(itemIDs) : itemIDs;
-          }
-        } catch {
-          // Fallback to loadDataType and getChildItems
-        }
-      }
-
-      // Step A-fallback: Direct collection child items
-      if (rawItems == null && selectedCol) {
-        try {
-          if (typeof selectedCol.loadDataType === 'function') {
-            await selectedCol.loadDataType('childItems');
-          }
-        } catch {
-          // Ignore
-        }
+      if (selectedCol) {
+        // Try getChildItems directly if present
         if (typeof selectedCol.getChildItems === 'function') {
-          const colItems = selectedCol.getChildItems();
-          if (Array.isArray(colItems)) {
-            rawItems = colItems;
+          try {
+            const colItems = selectedCol.getChildItems();
+            if (Array.isArray(colItems)) {
+              rawItems = colItems;
+            }
+          } catch {
+            // UnloadedDataException: fall through to Search / getAsync
+          }
+        }
+
+        // Try native Zotero.Search with selected collectionID
+        if (rawItems == null && z?.Search) {
+          try {
+            const s = new z.Search();
+            s.libraryID = selectedCol.libraryID;
+            s.addCondition('collectionID', 'is', selectedCol.id);
+            s.addCondition('noChildren', 'true');
+            if (z.Prefs?.get?.('recursiveCollections')) {
+              s.addCondition('recursive', 'true');
+            }
+            const itemIDs = await s.search();
+            if (Array.isArray(itemIDs)) {
+              if (itemIDs.length > 0 && z.Items?.getAsync) {
+                rawItems = await z.Items.getAsync(itemIDs);
+              } else if (itemIDs.length > 0 && z.Items?.get) {
+                try {
+                  rawItems = z.Items.get(itemIDs);
+                } catch {
+                  rawItems = itemIDs;
+                }
+              } else {
+                rawItems = itemIDs;
+              }
+            }
+          } catch {
+            // Fall through
           }
         }
       }
 
-      // Step B: Check multiple selected collections
+      // Step B: Priority 2 - Native collectionTreeRow.getItems()
+      if (rawItems == null) {
+        const treeRow = zp?.getCollectionTreeRow?.() || zp?.getCollectionTreeRows?.()?.[0];
+        if (treeRow && typeof treeRow.getItems === 'function') {
+          try {
+            const rowItems = await treeRow.getItems();
+            if (Array.isArray(rowItems)) {
+              rawItems = rowItems;
+            }
+          } catch {
+            // Fall through
+          }
+        }
+      }
+
+      // Step C: Priority 3 - Native itemsView or getSortedItems
+      if (rawItems == null) {
+        if (typeof zp?.itemsView?.getSortedItems === 'function') {
+          try {
+            const treeItems = zp.itemsView.getSortedItems();
+            if (Array.isArray(treeItems)) {
+              rawItems = treeItems;
+            }
+          } catch {
+            // Fall through
+          }
+        } else if (typeof zp?.getSortedItems === 'function') {
+          try {
+            const sorted = zp.getSortedItems();
+            if (Array.isArray(sorted)) {
+              rawItems = sorted;
+            }
+          } catch {
+            // Fall through
+          }
+        } else if (typeof zp?.getUnfilteredItems === 'function') {
+          try {
+            rawItems = await zp.getUnfilteredItems();
+          } catch {
+            // Fall through
+          }
+        } else if (zp?.itemsView?.rowProvider?.items) {
+          rawItems = zp.itemsView.rowProvider.items;
+        }
+      }
+
+      // Step D: Priority 4 - Multiple selected collections
       if (rawItems == null) {
         const selectedCols = zp?.getSelectedCollections?.();
         if (Array.isArray(selectedCols) && selectedCols.length > 0) {
           const itemsMap = new Map<number, any>();
           for (const col of selectedCols) {
             if (col) {
-              try {
-                if (typeof col.loadDataType === 'function') {
-                  await col.loadDataType('childItems');
-                }
-              } catch {
-                // Ignore
-              }
               if (typeof col.getChildItems === 'function') {
-                for (const it of col.getChildItems()) {
-                  if (it && it.id) itemsMap.set(it.id, it);
+                try {
+                  const cItems = col.getChildItems();
+                  if (Array.isArray(cItems)) {
+                    for (const it of cItems) {
+                      if (it && it.id) itemsMap.set(it.id, it);
+                    }
+                  }
+                } catch {
+                  // Ignore
+                }
+              }
+              if (z?.Search && col.libraryID) {
+                try {
+                  const s = new z.Search();
+                  s.libraryID = col.libraryID;
+                  s.addCondition('collectionID', 'is', col.id);
+                  s.addCondition('noChildren', 'true');
+                  const colItemIDs = await s.search();
+                  if (Array.isArray(colItemIDs) && colItemIDs.length > 0) {
+                    const colItems = z.Items?.getAsync ? await z.Items.getAsync(colItemIDs) : colItemIDs;
+                    for (const it of colItems) {
+                      if (it && it.id) itemsMap.set(it.id, it);
+                    }
+                  }
+                } catch {
+                  // Ignore
                 }
               }
             }
           }
-          rawItems = Array.from(itemsMap.values());
+          if (itemsMap.size > 0) {
+            rawItems = Array.from(itemsMap.values());
+          }
         }
       }
 
-      // Step C: Priority 2 - Check saved search (Smart Collection)
+      // Step E: Priority 5 - Saved search (Smart Collection)
       if (rawItems == null) {
         const savedSearch = zp?.getSelectedSavedSearch?.();
         if (savedSearch && typeof savedSearch.search === 'function') {
-          const searchItemIDs = await savedSearch.search(true);
-          if (Array.isArray(searchItemIDs) && z?.Items) {
-            rawItems = z.Items.get(searchItemIDs);
+          try {
+            const searchItemIDs = await savedSearch.search(true);
+            if (Array.isArray(searchItemIDs) && searchItemIDs.length > 0) {
+              rawItems = z?.Items?.getAsync ? await z.Items.getAsync(searchItemIDs) : searchItemIDs;
+            }
+          } catch {
+            // Fall through
           }
         }
       }
 
-      // Step D: Priority 3 - Native itemsView or rowProvider
-      if (rawItems == null) {
-        if (typeof zp?.itemsView?.getSortedItems === 'function') {
-          const treeItems = zp.itemsView.getSortedItems();
-          if (Array.isArray(treeItems)) {
-            rawItems = treeItems;
-          }
-        } else if (typeof zp?.getSortedItems === 'function') {
-          const sorted = zp.getSortedItems();
-          if (Array.isArray(sorted)) {
-            rawItems = sorted;
-          }
-        } else if (typeof zp?.getUnfilteredItems === 'function') {
-          rawItems = await zp.getUnfilteredItems();
-        } else if (zp?.itemsView?.rowProvider?.items) {
-          rawItems = zp.itemsView.rowProvider.items;
-        }
-      }
-
-      // Step E: Priority 4 - Library root fallback
-      // ONLY when rawItems is strictly null or undefined (e.g. root library view where no collection/itemsView exists)
+      // Step F: Priority 6 - Library root fallback
       if (rawItems == null) {
         const libraryID = zp?.getSelectedLibraryID?.() || z?.Libraries?.userLibraryID;
         if (z?.Search && libraryID) {
@@ -251,28 +320,26 @@ export class WindowCoverGridController {
             s.libraryID = libraryID;
             s.addCondition('noChildren', 'true');
             const itemIDs = await s.search();
-            if (Array.isArray(itemIDs) && z.Items?.get) {
-              rawItems = z.Items.get(itemIDs);
+            if (Array.isArray(itemIDs) && itemIDs.length > 0) {
+              rawItems = z.Items?.getAsync ? await z.Items.getAsync(itemIDs) : itemIDs;
+            } else if (Array.isArray(itemIDs)) {
+              rawItems = [];
             }
           } catch {
             // Fall through
           }
         }
         if (rawItems == null && z?.Items?.getAll) {
-          const allRes = z.Items.getAll(libraryID, false, false);
-          rawItems = allRes instanceof Promise ? await allRes : allRes;
+          try {
+            const allRes = libraryID ? z.Items.getAll(libraryID, true, false) : z.Items.getAll();
+            rawItems = allRes instanceof Promise ? await allRes : allRes;
+          } catch {
+            // Fall through
+          }
         }
       }
     } catch {
-      // Fallback to Zotero.Items.getAll() on unexpected error ONLY if rawItems == null
-      if (rawItems == null && z?.Items?.getAll) {
-        try {
-          const allRes = z.Items.getAll();
-          rawItems = allRes instanceof Promise ? await allRes : allRes;
-        } catch {
-          // Ignore
-        }
-      }
+      rawItems = [];
     }
 
     // Ensure rawItems is awaited if it is a Promise, and strictly an Array
@@ -287,10 +354,45 @@ export class WindowCoverGridController {
       rawItems = [];
     }
 
+    // Abort check: if a new reload call was issued, abort immediately before updating state
+    if (signal.aborted) return;
+
+    // Step G: Asynchronously load any numeric ID primitives into full Zotero.Item instances
+    try {
+      const numericIds = rawItems.filter((it: any) => typeof it === 'number' || typeof it === 'string').map(Number);
+      if (numericIds.length > 0 && z?.Items?.getAsync) {
+        try {
+          const loaded = await z.Items.getAsync(numericIds);
+          if (Array.isArray(loaded)) {
+            const loadedMap = new Map<number, any>();
+            for (const item of loaded) {
+              if (item?.id) loadedMap.set(item.id, item);
+            }
+            rawItems = rawItems.map((it: any) => {
+              if (typeof it === 'number' || typeof it === 'string') {
+                return loadedMap.get(Number(it)) || it;
+              }
+              return it;
+            });
+          }
+        } catch {
+          // Ignore
+        }
+      }
+    } catch {
+      // Ignore
+    }
+
+    if (signal.aborted) return;
+
     // Filter to valid displayable paper items (exclude notes, attachments, annotations)
     const validItems = (rawItems || []).map((it: any) => {
       if (typeof it === 'number' || typeof it === 'string') {
-        return z?.Items ? z.Items.get(it) : null;
+        try {
+          return z?.Items?.get ? z.Items.get(Number(it)) : null;
+        } catch {
+          return null;
+        }
       }
       return it;
     }).filter((it: any) => {
@@ -304,7 +406,23 @@ export class WindowCoverGridController {
       return true;
     });
 
-    this.allItems = validItems.map(extractPaperCardData);
+    // Bulk-load data types (creators, tags) if available
+    if (z?.Items?.loadDataTypes && validItems.length > 0) {
+      try {
+        await z.Items.loadDataTypes(validItems);
+      } catch {
+        // Ignore
+      }
+    }
+
+    if (signal.aborted) return;
+
+    try {
+      this.allItems = validItems.map(extractPaperCardData);
+    } catch {
+      this.allItems = [];
+    }
+
     this.applyFilter();
 
     // 3. Background thumbnail loading with abort check
@@ -317,7 +435,14 @@ export class WindowCoverGridController {
   private async loadThumbnailForCard(card: PaperCardData, signal: AbortSignal) {
     if (typeof Zotero === 'undefined' || !Zotero.Items) return;
     try {
-      const zItem = Zotero.Items.get(card.id);
+      let zItem: any = null;
+      try {
+        zItem = Zotero.Items.get(card.id);
+      } catch {
+        if (Zotero.Items.getAsync) {
+          zItem = await Zotero.Items.getAsync(card.id);
+        }
+      }
       if (!zItem) return;
       const attachment = await zItem.getBestAttachment?.();
       if (signal.aborted) return;
