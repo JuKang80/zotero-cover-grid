@@ -151,10 +151,19 @@ export class WindowCoverGridController {
     try {
       // Step A: Priority 1 - Explicitly selected collection in sidebar
       const selectedCol = zp?.getSelectedCollection?.();
-      if (selectedCol && typeof selectedCol.getChildItems === 'function') {
-        const colItems = selectedCol.getChildItems();
-        if (Array.isArray(colItems)) {
-          rawItems = colItems;
+      if (selectedCol) {
+        try {
+          if (typeof selectedCol.loadDataType === 'function') {
+            await selectedCol.loadDataType('childItems');
+          }
+        } catch {
+          // Ignore if already loaded or in test mock
+        }
+        if (typeof selectedCol.getChildItems === 'function') {
+          const colItems = selectedCol.getChildItems();
+          if (Array.isArray(colItems)) {
+            rawItems = colItems;
+          }
         }
       }
 
@@ -164,9 +173,18 @@ export class WindowCoverGridController {
         if (Array.isArray(selectedCols) && selectedCols.length > 0) {
           const itemsMap = new Map<number, any>();
           for (const col of selectedCols) {
-            if (col && typeof col.getChildItems === 'function') {
-              for (const it of col.getChildItems()) {
-                if (it && it.id) itemsMap.set(it.id, it);
+            if (col) {
+              try {
+                if (typeof col.loadDataType === 'function') {
+                  await col.loadDataType('childItems');
+                }
+              } catch {
+                // Ignore
+              }
+              if (typeof col.getChildItems === 'function') {
+                for (const it of col.getChildItems()) {
+                  if (it && it.id) itemsMap.set(it.id, it);
+                }
               }
             }
           }
@@ -209,18 +227,32 @@ export class WindowCoverGridController {
       if (rawItems == null) {
         const libraryID = zp?.getSelectedLibraryID?.() || z?.Libraries?.userLibraryID;
         if (z?.Items?.getAll) {
-          rawItems = z.Items.getAll(libraryID, false, false);
+          const allRes = z.Items.getAll(libraryID, false, false);
+          rawItems = allRes instanceof Promise ? await allRes : allRes;
         }
       }
     } catch {
       // Fallback to Zotero.Items.getAll() on unexpected error ONLY if rawItems == null
       if (rawItems == null && z?.Items?.getAll) {
         try {
-          rawItems = z.Items.getAll();
+          const allRes = z.Items.getAll();
+          rawItems = allRes instanceof Promise ? await allRes : allRes;
         } catch {
           // Ignore
         }
       }
+    }
+
+    // Ensure rawItems is awaited if it is a Promise, and strictly an Array
+    if (rawItems instanceof Promise) {
+      try {
+        rawItems = await rawItems;
+      } catch {
+        rawItems = [];
+      }
+    }
+    if (!Array.isArray(rawItems)) {
+      rawItems = [];
     }
 
     // Filter to valid displayable paper items (exclude notes, attachments, annotations)

@@ -1,3 +1,4 @@
+import gridCss from '../styles/grid.css';
 import { VirtualGridScroller } from './virtual-scroller';
 import { WindowCoverGridController } from '../sync/window-controller';
 
@@ -13,6 +14,16 @@ export function openCoverGridTab(win: any) {
 
   const doc = win.document;
   if (!doc) return;
+
+  const HTML_NS = 'http://www.w3.org/1999/xhtml';
+
+  // Ensure stylesheet is injected
+  if (!doc.getElementById('zotero-cover-grid-style') && gridCss) {
+    const styleEl = doc.createElementNS(HTML_NS, 'style');
+    styleEl.id = 'zotero-cover-grid-style';
+    styleEl.textContent = gridCss;
+    (doc.head || doc.documentElement).appendChild(styleEl);
+  }
 
   // Safeguard: Ensure white tab cover overlay is never left visible
   const hideTabCover = () => {
@@ -51,8 +62,6 @@ export function openCoverGridTab(win: any) {
   }
 
   // 2. Add new dedicated tab
-  const HTML_NS = 'http://www.w3.org/1999/xhtml';
-
   const tabInfo = tabs.add({
     id: COVER_GRID_TAB_ID,
     type: 'custom',
