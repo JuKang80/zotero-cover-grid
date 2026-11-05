@@ -19,6 +19,7 @@ export class VirtualGridScroller {
   private anchorIndex = 0;
   private focusedIndex = -1;
   private options: VirtualScrollerOptions;
+  private boundKeyDown = this.handleKeyDown.bind(this);
 
   constructor(options: VirtualScrollerOptions) {
     this.container = options.container;
@@ -29,7 +30,7 @@ export class VirtualGridScroller {
   }
 
   private bindEvents() {
-    this.container.addEventListener('keydown', this.handleKeyDown.bind(this));
+    this.container.addEventListener('keydown', this.boundKeyDown);
   }
 
   public setItems(newItems: PaperCardData[]) {
@@ -61,14 +62,16 @@ export class VirtualGridScroller {
         cardEl = createPaperCardElement(
           card,
           {
-            onClick: (c, e) => this.handleCardClick(c, i, e),
+            onClick: (c, e) => {
+              const curIdx = this.items.findIndex((it) => it.id === c.id);
+              this.handleCardClick(c, curIdx !== -1 ? curIdx : 0, e);
+            },
             onDoubleClick: (c) => this.options.onOpenPdf?.(c),
             onStatusChange: (c, s) => this.options.onStatusChange?.(c, s)
           },
           doc
         );
         this.cardMap.set(card.id, cardEl);
-        this.container.appendChild(cardEl);
       } else {
         // Update mutable properties
         updatePaperCardBadge(cardEl, card.readStatus);
@@ -76,6 +79,9 @@ export class VirtualGridScroller {
           updatePaperCardThumbnail(cardEl, card.coverThumbnailUrl);
         }
       }
+
+      // Ensure DOM ordering strictly matches this.items sequence
+      this.container.appendChild(cardEl);
 
       // Re-apply selection state
       if (this.selectedIds.has(card.id)) {
@@ -163,6 +169,12 @@ export class VirtualGridScroller {
 
     const cols = this.getColumnCount();
 
+    if (this.focusedIndex === -1 && ['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp'].includes(e.key)) {
+      e.preventDefault();
+      this.moveFocus(0);
+      return;
+    }
+
     switch (e.key) {
       case 'ArrowRight':
         e.preventDefault();
@@ -199,7 +211,19 @@ export class VirtualGridScroller {
 
   private getColumnCount(): number {
     const containerWidth = this.container.clientWidth || 800;
-    const cardWidth = 180 + 16; // card width + gap
+    let cardW = 180;
+    try {
+      const customWidth = getComputedStyle(this.container).getPropertyValue('--card-width');
+      if (customWidth) {
+        const parsed = parseInt(customWidth, 10);
+        if (!isNaN(parsed) && parsed > 0) {
+          cardW = parsed;
+        }
+      }
+    } catch {
+      // Ignore
+    }
+    const cardWidth = cardW + 16; // card width + gap
     return Math.max(1, Math.floor(containerWidth / cardWidth));
   }
 
@@ -234,6 +258,7 @@ export class VirtualGridScroller {
   }
 
   public destroy() {
+    this.container.removeEventListener('keydown', this.boundKeyDown);
     this.cardMap.clear();
     this.selectedIds.clear();
     this.items = [];

@@ -1,4 +1,5 @@
 import { injectCoverGridUI, cleanupCoverGridUI } from './ui/index';
+import { thumbnailCacheManager } from './services/cache-manager';
 
 declare const Services: any;
 declare const Ci: any;
@@ -11,27 +12,35 @@ async function initWindow(win: any) {
   if (!win?.location?.href?.includes('zoteroPane.xhtml')) {
     return;
   }
-  if (win.ZoteroPane?.loadedPromise) {
-    await win.ZoteroPane.loadedPromise;
-  } else {
-    await new Promise<void>((resolve) => {
-      let attempts = 0;
-      const check = () => {
-        if (win.ZoteroPane?.loadedPromise) {
-          win.ZoteroPane.loadedPromise.then(() => resolve());
-        } else if (attempts++ > 100) {
-          resolve();
-        } else {
-          win.setTimeout(check, 20);
-        }
-      };
-      check();
-    });
+  if (win.__zoteroCoverGridInitializing || win.__zoteroCoverGridInstance) {
+    return;
   }
+  win.__zoteroCoverGridInitializing = true;
+  try {
+    if (win.ZoteroPane?.loadedPromise) {
+      await win.ZoteroPane.loadedPromise;
+    } else {
+      await new Promise<void>((resolve) => {
+        let attempts = 0;
+        const check = () => {
+          if (win.ZoteroPane?.loadedPromise) {
+            win.ZoteroPane.loadedPromise.then(() => resolve());
+          } else if (attempts++ > 100) {
+            resolve();
+          } else {
+            win.setTimeout(check, 20);
+          }
+        };
+        check();
+      });
+    }
 
-  // Clean any leftover elements from earlier loads before injecting
-  cleanupCoverGridUI(win);
-  injectCoverGridUI(win);
+    // Clean any leftover elements from earlier loads before injecting
+    cleanupCoverGridUI(win);
+    injectCoverGridUI(win);
+  } finally {
+    win.__zoteroCoverGridInitializing = false;
+  }
 }
 
 function destroyWindow(win: any) {
@@ -49,12 +58,13 @@ export function startup({ id, version, rootURI }: any, reason: number) {
           (p: any) => p.pluginID !== pluginID && p.id !== PREF_PANE_ID
         );
       }
+      const cleanRoot = rootURI ? (rootURI.endsWith('/') ? rootURI : `${rootURI}/`) : '';
       Zotero.PreferencePanes.register({
         id: PREF_PANE_ID,
         pluginID: pluginID,
-        src: (rootURI || '') + 'preferences.xhtml',
+        src: `${cleanRoot}preferences.xhtml`,
         label: 'Cover Grid',
-        image: (rootURI || '') + 'icons/icon-48.png'
+        image: `${cleanRoot}icons/icon-48.png`
       });
     } catch {
       // Ignore registration error
@@ -106,7 +116,10 @@ export function onMainWindowUnload({ window }: any) {
 }
 
 export function shutdown(data: any, reason: number) {
-  // 1. Unregister Preference Pane
+  // 1. Revoke in-memory blob URLs
+  thumbnailCacheManager.clearMemoryCache();
+
+  // 2. Unregister Preference Pane
   if (typeof Zotero !== 'undefined' && Zotero.PreferencePanes?.unregister) {
     try {
       Zotero.PreferencePanes.unregister(PREF_PANE_ID);
@@ -115,13 +128,13 @@ export function shutdown(data: any, reason: number) {
     }
   }
 
-  // 2. Remove window listener
+  // 3. Remove window listener
   if (windowListener && typeof Services !== 'undefined' && Services.wm) {
     Services.wm.removeListener(windowListener);
     windowListener = null;
   }
 
-  // 3. Clean all browser windows
+  // 4. Clean all browser windows
   if (typeof Services !== 'undefined' && Services.wm) {
     const windows = Services.wm.getEnumerator('navigator:browser');
     while (windows.hasMoreElements()) {

@@ -15,6 +15,7 @@ export class WindowCoverGridController {
   private allItems: PaperCardData[] = [];
   private filteredItems: PaperCardData[] = [];
   private isDestroyed = false;
+  private searchBoxCleanup: (() => void) | null = null;
 
   constructor(win: any) {
     this.win = win;
@@ -70,7 +71,13 @@ export class WindowCoverGridController {
         try {
           const zItem = Zotero.Items.get(this.allItems[i].id);
           if (zItem) {
+            const prevThumbnailUrl = this.allItems[i].coverThumbnailUrl;
+            const prevHasPdf = this.allItems[i].hasPdf;
             this.allItems[i] = extractPaperCardData(zItem);
+            if (prevThumbnailUrl) {
+              this.allItems[i].coverThumbnailUrl = prevThumbnailUrl;
+            }
+            this.allItems[i].hasPdf = prevHasPdf;
           }
         } catch {
           // Ignore
@@ -123,7 +130,12 @@ export class WindowCoverGridController {
     }
 
     // Filter to valid displayable paper items (exclude notes, attachments, annotations)
-    const validItems = (rawItems || []).filter((it: any) => {
+    const validItems = (rawItems || []).map((it: any) => {
+      if (typeof it === 'number' || typeof it === 'string') {
+        return typeof Zotero !== 'undefined' && Zotero.Items ? Zotero.Items.get(it) : null;
+      }
+      return it;
+    }).filter((it: any) => {
       if (!it) return false;
       if (typeof it.isRegularItem === 'function') {
         return it.isRegularItem();
@@ -176,7 +188,12 @@ export class WindowCoverGridController {
     ) as any;
     if (!searchBox) return;
 
-    const inputEl = searchBox.inputField || searchBox;
+    const inputEl =
+      searchBox.inputField ||
+      searchBox.searchTextbox?.inputField ||
+      searchBox.querySelector?.('input') ||
+      doc.getElementById('zotero-tb-search-textbox')?.inputField ||
+      searchBox;
 
     const handleInput = (e: any) => {
       const query = (e.target as HTMLInputElement).value || '';
@@ -185,8 +202,8 @@ export class WindowCoverGridController {
 
     const handleKey = (e: any) => {
       if (e.key === 'Escape') {
-        inputEl.value = '';
-        if (searchBox !== inputEl) searchBox.value = '';
+        if ('value' in inputEl) inputEl.value = '';
+        if (searchBox !== inputEl && 'value' in searchBox) searchBox.value = '';
         this.handleSearchInput('', true); // 0ms fast-path
       }
     };
@@ -198,6 +215,16 @@ export class WindowCoverGridController {
       searchBox.addEventListener('input', handleInput);
       searchBox.addEventListener('keydown', handleKey);
     }
+
+    this.searchBoxCleanup = () => {
+      inputEl.removeEventListener('input', handleInput);
+      inputEl.removeEventListener('keydown', handleKey);
+      if (searchBox !== inputEl) {
+        searchBox.removeEventListener('command', handleInput);
+        searchBox.removeEventListener('input', handleInput);
+        searchBox.removeEventListener('keydown', handleKey);
+      }
+    };
   }
 
   public handleSearchInput(query: string, fastPath = false) {
@@ -239,7 +266,7 @@ export class WindowCoverGridController {
       const zItem = Zotero.Items.get(card.id);
       if (!zItem) return;
 
-      const readingTags = ['#unread', '#reading', '#read'];
+      const readingTags = ['#unread', '#reading', '#read', 'unread', 'reading', 'read'];
       for (const t of readingTags) {
         if (zItem.hasTag?.(t)) {
           zItem.removeTag?.(t);
@@ -257,6 +284,8 @@ export class WindowCoverGridController {
 
   public destroy() {
     this.isDestroyed = true;
+    this.searchBoxCleanup?.();
+    this.searchBoxCleanup = null;
     if (this.searchDebounceTimer) {
       clearTimeout(this.searchDebounceTimer);
     }

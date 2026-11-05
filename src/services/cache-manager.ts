@@ -3,6 +3,7 @@ import { renderPdfThumbnail, generateTypographyFallbackCover } from './pdf-thumb
 
 declare const IOUtils: any;
 declare const PathUtils: any;
+declare const Zotero: any;
 
 export class ThumbnailCacheManager implements IThumbnailCacheManager {
   private memoryCache = new Map<string, string>(); // key -> objectURL
@@ -16,8 +17,13 @@ export class ThumbnailCacheManager implements IThumbnailCacheManager {
   constructor() {}
 
   public getCacheDirectory(): string {
-    const profile = typeof PathUtils !== 'undefined' ? PathUtils.profileDir : '/tmp/zotero';
-    return typeof PathUtils !== 'undefined'
+    let profile = '/tmp/zotero';
+    if (typeof Zotero !== 'undefined' && Zotero.Profile?.dir) {
+      profile = Zotero.Profile.dir;
+    } else if (typeof PathUtils !== 'undefined' && (PathUtils as any).profileDir) {
+      profile = (PathUtils as any).profileDir;
+    }
+    return typeof PathUtils !== 'undefined' && typeof PathUtils.join === 'function'
       ? PathUtils.join(profile, 'cache', 'covergrid')
       : `${profile}/cache/covergrid`;
   }
@@ -34,9 +40,11 @@ export class ThumbnailCacheManager implements IThumbnailCacheManager {
     return dir;
   }
 
-  private getDiskCachePath(cacheDir: string, key: string, mtime: number): string {
-    const filename = `${key}_${mtime}.webp`;
-    return typeof PathUtils !== 'undefined'
+  private getDiskCachePath(cacheDir: string, key: string, mtime: string | number): string {
+    const safeKey = String(key).replace(/[^a-zA-Z0-9_-]/g, '_');
+    const safeMtime = String(mtime).replace(/[^a-zA-Z0-9_-]/g, '_');
+    const filename = `${safeKey}_${safeMtime}.webp`;
+    return typeof PathUtils !== 'undefined' && typeof PathUtils.join === 'function'
       ? PathUtils.join(cacheDir, filename)
       : `${cacheDir}/${filename}`;
   }
@@ -90,7 +98,7 @@ export class ThumbnailCacheManager implements IThumbnailCacheManager {
 
   public async getThumbnail(item: any, attachment?: any, cardData?: Partial<PaperCardData>): Promise<string> {
     const key = item.key || String(item.id);
-    const mtime = attachment?.mtime || 0;
+    const mtime = attachment?.mtime || attachment?.dateModified || item?.dateModified || 0;
     const cacheKey = `${key}_${mtime}`;
 
     // 1. Check in-memory cache
@@ -188,7 +196,7 @@ export class ThumbnailCacheManager implements IThumbnailCacheManager {
 
   public async refreshThumbnail(item: any, attachment?: any, cardData?: Partial<PaperCardData>): Promise<string> {
     const key = item.key || String(item.id);
-    const mtime = attachment?.mtime || 0;
+    const mtime = attachment?.mtime || attachment?.dateModified || item?.dateModified || 0;
     const cacheKey = `${key}_${mtime}`;
 
     // Evict existing
@@ -213,17 +221,25 @@ export class ThumbnailCacheManager implements IThumbnailCacheManager {
     return this.getThumbnail(item, attachment, cardData);
   }
 
-  public async clearCache(): Promise<void> {
+  public clearMemoryCache(): void {
     // Revoke memory URLs
     for (const url of this.memoryCache.values()) {
       if (typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') {
-        URL.revokeObjectURL(url);
+        try {
+          URL.revokeObjectURL(url);
+        } catch {
+          // Ignore
+        }
       }
     }
     this.memoryCache.clear();
     this.lruKeys = [];
     this.pendingRenders.clear();
     this.taskQueue = [];
+  }
+
+  public async clearCache(): Promise<void> {
+    this.clearMemoryCache();
 
     // Clear disk cache directory
     const dir = this.getCacheDirectory();

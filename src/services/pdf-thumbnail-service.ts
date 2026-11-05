@@ -85,10 +85,22 @@ export async function convertCanvasToSafeBlob(canvas: any): Promise<Blob> {
   // Fallback for HTMLCanvasElement
   return new Promise<Blob>((resolve, reject) => {
     if (typeof canvas.toBlob === 'function') {
-      canvas.toBlob((blob: Blob | null) => {
-        if (blob) resolve(blob);
-        else reject(new Error('Canvas toBlob failed'));
-      }, 'image/jpeg', 0.85);
+      try {
+        canvas.toBlob((blob: Blob | null) => {
+          if (blob) resolve(blob);
+          else {
+            canvas.toBlob((fallbackBlob: Blob | null) => {
+              if (fallbackBlob) resolve(fallbackBlob);
+              else reject(new Error('Canvas toBlob failed'));
+            }, 'image/png');
+          }
+        }, 'image/webp', 0.85);
+      } catch {
+        canvas.toBlob((fallbackBlob: Blob | null) => {
+          if (fallbackBlob) resolve(fallbackBlob);
+          else reject(new Error('Canvas toBlob failed'));
+        }, 'image/jpeg', 0.85);
+      }
     } else if (typeof canvas.toDataURL === 'function') {
       try {
         const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
@@ -222,6 +234,11 @@ export async function renderPdfThumbnail(
 
   if (!pdfjs) {
     return generateTypographyFallbackCover(cardData, 'PDF.js Not Found');
+  }
+
+  // Set workerSrc for Gecko environment to avoid fake worker warning or failures
+  if (pdfjs.GlobalWorkerOptions && !pdfjs.GlobalWorkerOptions.workerSrc) {
+    pdfjs.GlobalWorkerOptions.workerSrc = 'resource://zotero/reader/pdf/build/pdf.worker.mjs';
   }
 
   let pdfDoc: any = null;
