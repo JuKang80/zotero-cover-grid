@@ -205,19 +205,23 @@ zotero-cover-grid[hidden],
 /* ==========================================================================
    Dedicated Tab Mode (상단 독립 탭 전체 화면 모드)
    ========================================================================== */
-tab-content#zotero-cover-grid-tab,
-#zotero-cover-grid-tab {
-  display: flex !important;
-  flex-direction: column !important;
-  flex: 1 1 0% !important;
-  min-height: 0 !important;
-  min-width: 0 !important;
-  width: 100% !important;
-  height: 100% !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  overflow: hidden !important;
-  background-color: var(--material-background, #f9fafb) !important;
+tab-content#zotero-cover-grid-tab[hidden],
+#zotero-cover-grid-tab[hidden] {
+  display: none !important;
+}
+
+tab-content#zotero-cover-grid-tab:not([hidden]),
+#zotero-cover-grid-tab:not([hidden]) {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0%;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
 }
 
 .cover-grid-tab-root {

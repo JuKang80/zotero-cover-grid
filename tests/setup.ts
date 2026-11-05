@@ -58,10 +58,10 @@ g.ChromeUtils = {
 
 g.Zotero_Tabs = {
   _tabs: [{ id: 'zotero-pane', type: 'library', title: 'My Library' }],
-  add: vi.fn(({ id, type, title, onClose }: any) => {
+  add: vi.fn(({ id, type, title, data, onClose }: any) => {
     const container = document.createElement('div');
     container.id = id;
-    const tab = { id, type, title, onClose };
+    const tab = { id, type, title, data, onClose };
     g.Zotero_Tabs._tabs.push(tab);
     return { id, container };
   }),

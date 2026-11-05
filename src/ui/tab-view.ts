@@ -27,9 +27,21 @@ export function openCoverGridTab(win: any) {
     }
   };
 
+  // Ensure all existing tabs have valid data objects to prevent Zotero_Tabs._update crash
+  if (Array.isArray(tabs._tabs)) {
+    for (const t of tabs._tabs) {
+      if (t && !t.data) {
+        t.data = { icon: 'library' };
+      } else if (t && !t.data?.icon) {
+        t.data.icon = 'library';
+      }
+    }
+  }
+
   // 1. If tab already exists, simply select and refresh
   const existing = tabs._tabs?.find((t: any) => t.id === COVER_GRID_TAB_ID);
   if (existing) {
+    if (!existing.data) existing.data = { icon: 'library' };
     tabs.select(COVER_GRID_TAB_ID);
     hideTabCover();
     if (win.__zoteroCoverGridTabInstance?.controller) {
@@ -45,6 +57,7 @@ export function openCoverGridTab(win: any) {
     id: COVER_GRID_TAB_ID,
     type: 'custom',
     title: '📚 Cover Grid',
+    data: { icon: 'library' },
     select: true,
     onClose: () => {
       if (win.__zoteroCoverGridTabInstance) {
@@ -53,8 +66,11 @@ export function openCoverGridTab(win: any) {
         win.__zoteroCoverGridTabInstance = null;
       }
       hideTabCover();
-      if (tabs.deck && tabs.deck.selectedIndex === -1) {
+      if (tabs.deck && (tabs.deck.selectedIndex === -1 || tabs.deck.selectedIndex >= tabs.deck.children?.length)) {
         tabs.deck.selectedIndex = 0;
+      }
+      if (typeof tabs._update === 'function') {
+        try { tabs._update(); } catch {}
       }
     }
   });

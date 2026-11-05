@@ -9,9 +9,11 @@ declare const Zotero: any;
 /**
  * Safeguard against blank white screen:
  * 1. Dismiss #zotero-tab-cover overlay (.classList.add('hidden'))
- * 2. Restore #tabs-deck selectedIndex to 0 if -1 or undefined
+ * 2. Sanitize Zotero_Tabs._tabs to prevent tab.data.icon TypeError in Zotero internal tabs.js
+ * 3. Clean up orphaned empty #zotero-cover-grid-tab containers if uninitialized
+ * 4. Restore #tabs-deck selectedIndex to 0 if invalid
  */
-export function ensureMainWindowStability(doc: any): void {
+export function ensureMainWindowStability(doc: any, win?: any): void {
   if (!doc || typeof doc.getElementById !== 'function') return;
 
   const tabCover = doc.getElementById('zotero-tab-cover');
@@ -19,9 +21,33 @@ export function ensureMainWindowStability(doc: any): void {
     tabCover.classList.add('hidden');
   }
 
+  // Sanitize any existing tabs in Zotero_Tabs memory
+  const tabs = win?.Zotero_Tabs || doc.defaultView?.Zotero_Tabs;
+  if (tabs && Array.isArray(tabs._tabs)) {
+    for (const t of tabs._tabs) {
+      if (t && !t.data) {
+        t.data = { icon: 'library' };
+      } else if (t && !t.data?.icon) {
+        t.data.icon = 'library';
+      }
+    }
+  }
+
   const tabsDeck = doc.getElementById('tabs-deck');
-  if (tabsDeck && (tabsDeck.selectedIndex === -1 || tabsDeck.selectedIndex === undefined)) {
-    tabsDeck.selectedIndex = 0;
+  if (tabsDeck) {
+    // If an orphaned empty cover-grid tab-content exists without children or without active tab instance, remove it
+    const orphanedTabContent = doc.getElementById('zotero-cover-grid-tab');
+    if (orphanedTabContent && (!orphanedTabContent.firstElementChild || !win?.__zoteroCoverGridTabInstance)) {
+      const activeTabInList = tabs?._tabs?.some((t: any) => t.id === 'zotero-cover-grid-tab');
+      if (!activeTabInList) {
+        orphanedTabContent.remove();
+      }
+    }
+
+    const childCount = tabsDeck.children?.length || 0;
+    if (tabsDeck.selectedIndex === -1 || tabsDeck.selectedIndex === undefined || (childCount > 0 && tabsDeck.selectedIndex >= childCount)) {
+      tabsDeck.selectedIndex = 0;
+    }
   }
 }
 
@@ -33,7 +59,7 @@ export function injectCoverGridUI(win: any) {
   if (!doc) return;
 
   // Safeguard against white screen before injection
-  ensureMainWindowStability(doc);
+  ensureMainWindowStability(doc, win);
 
   const itemsPane = doc.getElementById('zotero-items-pane');
   if (!itemsPane) return;
@@ -151,7 +177,7 @@ export function injectCoverGridUI(win: any) {
   };
 
   // Safeguard against white screen after injection
-  ensureMainWindowStability(doc);
+  ensureMainWindowStability(doc, win);
 }
 
 /**
@@ -200,5 +226,5 @@ export function cleanupCoverGridUI(win: any) {
   delete win.__zoteroCoverGridTabInstance;
 
   // Step 7: Safeguard against white screen desynchronization
-  ensureMainWindowStability(doc);
+  ensureMainWindowStability(doc, win);
 }
