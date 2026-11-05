@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs",
+    "watch": "node scripts/build.mjs --watch",
     "package": "node scripts/build.mjs --prod && node scripts/make-xpi.mjs",
     "type-check": "tsc --noEmit",
     "lint": "tsc --noEmit",

@@ -173,9 +173,20 @@ export function openCoverGridTab(win: any) {
   refreshBtn.textContent = '🔄';
   refreshBtn.title = '목록 새로고침';
 
+  const reloadBtn = doc.createElementNS(HTML_NS, 'button');
+  reloadBtn.className = 'cover-grid-reload-btn';
+  reloadBtn.textContent = '⚡';
+  reloadBtn.title = '플러그인 코드 핫 리로드 (재시작 없이 즉시 반영 / 단축키: Cmd+Alt+R)';
+  reloadBtn.addEventListener('click', async () => {
+    reloadBtn.textContent = '⏳';
+    await hotReloadPlugin(win);
+    setTimeout(() => { reloadBtn.textContent = '⚡'; }, 600);
+  });
+
   controls.appendChild(searchInput);
   controls.appendChild(zoomContainer);
   controls.appendChild(refreshBtn);
+  controls.appendChild(reloadBtn);
   header.appendChild(controls);
   root.appendChild(header);
 
@@ -303,10 +314,56 @@ export function openCoverGridTab(win: any) {
     controller.reloadCurrentCollection();
   });
 
+  // Wire hotkey Cmd+Alt+R (Ctrl+Alt+R) for instant hot reload
+  const handleHotKey = (e: KeyboardEvent) => {
+    if ((e.metaKey || e.ctrlKey) && e.altKey && (e.key === 'r' || e.key === 'R' || e.code === 'KeyR')) {
+      e.preventDefault();
+      e.stopPropagation();
+      hotReloadPlugin(win);
+    }
+  };
+  if (typeof win?.addEventListener === 'function') {
+    win.addEventListener('keydown', handleHotKey);
+  } else if (typeof doc?.addEventListener === 'function') {
+    doc.addEventListener('keydown', handleHotKey);
+  }
+
   win.__zoteroCoverGridTabInstance = {
     container,
     root,
     controller,
-    scroller
+    scroller,
+    cleanup: () => {
+      win?.removeEventListener?.('keydown', handleHotKey);
+      doc?.removeEventListener?.('keydown', handleHotKey);
+    }
   };
+}
+
+export async function hotReloadPlugin(win: any) {
+  try {
+    const ChromeUtils = win?.ChromeUtils || (typeof (globalThis as any).ChromeUtils !== 'undefined' ? (globalThis as any).ChromeUtils : null);
+    if (ChromeUtils?.importESModule) {
+      const { AddonManager } = ChromeUtils.importESModule('resource://gre/modules/AddonManager.sys.mjs');
+      const addon = await AddonManager.getAddonByID('zotero-cover-grid@antigravity.user');
+      if (addon) {
+        try {
+          const Services = win?.Services || (globalThis as any).Services;
+          Services?.obs?.notifyObservers(null, 'startupcache-invalidate');
+        } catch {
+          // Ignore
+        }
+        await addon.disable();
+        await addon.enable();
+        return;
+      }
+    }
+  } catch (e) {
+    console.error('[CoverGrid] Hot reload failed:', e);
+  }
+
+  // In-memory fallback: reload current window controller and scroller in place
+  if (win?.__zoteroCoverGridTabInstance?.controller) {
+    win.__zoteroCoverGridTabInstance.controller.reloadCurrentCollection();
+  }
 }

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const isProd = process.argv.includes('--prod');
+const isWatch = process.argv.includes('--watch');
 const outDir = 'build/addon';
 
 fs.mkdirSync(outDir, { recursive: true });
@@ -10,7 +11,7 @@ if (fs.existsSync('addon')) {
   fs.cpSync('addon', outDir, { recursive: true });
 }
 
-await esbuild.build({
+const buildOptions = {
   entryPoints: ['src/bootstrap.ts'],
   bundle: true,
   format: 'iife',
@@ -30,6 +31,13 @@ await esbuild.build({
     '.css': 'text'
   },
   logLevel: 'info',
-});
+};
 
-console.log(`[build.mjs] Compiled bootstrap.js (${isProd ? 'prod' : 'dev'})`);
+if (isWatch) {
+  const ctx = await esbuild.context(buildOptions);
+  await ctx.watch();
+  console.log('[build.mjs] Watching for changes... Auto-compiling to build/addon/bootstrap.js');
+} else {
+  await esbuild.build(buildOptions);
+  console.log(`[build.mjs] Compiled bootstrap.js (${isProd ? 'prod' : 'dev'})`);
+}
