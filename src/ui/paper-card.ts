@@ -55,20 +55,25 @@ function formatItemTypeLabel(itemType: string): string {
 export function createPaperCardElement(
   card: PaperCardData,
   handlers: CardEventHandlers = {},
-  doc: Document = document
+  doc?: Document
 ): HTMLElement {
+  const targetDoc: Document =
+    doc ||
+    (typeof document !== 'undefined'
+      ? document
+      : (typeof (globalThis as any).Zotero !== 'undefined' ? (globalThis as any).Zotero.getMainWindow?.()?.document : null));
   const HTML_NS = 'http://www.w3.org/1999/xhtml';
-  const cardEl = doc.createElementNS(HTML_NS, 'div');
+  const cardEl = targetDoc.createElementNS(HTML_NS, 'div');
   cardEl.className = 'paper-card';
   cardEl.id = `paper-card-${card.id}`;
   cardEl.setAttribute('data-item-id', String(card.id));
   cardEl.setAttribute('tabindex', '0');
 
   // Cover image wrapper
-  const coverWrapper = doc.createElementNS(HTML_NS, 'div');
+  const coverWrapper = targetDoc.createElementNS(HTML_NS, 'div');
   coverWrapper.className = 'card-cover-wrapper';
 
-  const imgEl = doc.createElementNS(HTML_NS, 'img') as HTMLImageElement;
+  const imgEl = targetDoc.createElementNS(HTML_NS, 'img') as HTMLImageElement;
   imgEl.className = 'card-cover-img';
   imgEl.alt = card.title;
   imgEl.addEventListener('error', () => {
@@ -84,24 +89,24 @@ export function createPaperCardElement(
   cardEl.appendChild(coverWrapper);
 
   // Author & Citation (e.g. Kim et al. (2026))
-  const authorEl = doc.createElementNS(HTML_NS, 'div');
+  const authorEl = targetDoc.createElementNS(HTML_NS, 'div');
   authorEl.className = 'card-author';
   authorEl.textContent = card.citationText || card.authorText;
   authorEl.title = `${card.authorText} (${card.year || 'n.d.'}) - ${card.title}`;
   cardEl.appendChild(authorEl);
 
   // Title / Subtitle Meta (e.g. APA 7 · Journal Article)
-  const metaEl = doc.createElementNS(HTML_NS, 'div');
+  const metaEl = targetDoc.createElementNS(HTML_NS, 'div');
   metaEl.className = 'card-meta';
   metaEl.textContent = `APA 7 · ${formatItemTypeLabel(card.itemType)}`;
   metaEl.title = card.title;
   cardEl.appendChild(metaEl);
 
   // Badge Container
-  const badgeContainer = doc.createElementNS(HTML_NS, 'div');
+  const badgeContainer = targetDoc.createElementNS(HTML_NS, 'div');
   badgeContainer.className = 'card-badge-container';
 
-  const badgeEl = doc.createElementNS(HTML_NS, 'span');
+  const badgeEl = targetDoc.createElementNS(HTML_NS, 'span');
   badgeEl.className = `card-badge ${card.readStatus}`;
   badgeEl.textContent = formatBadgeText(card.readStatus);
   badgeEl.title = `Reading Status: ${card.readStatus} (클릭하여 상태 변경)`;

@@ -43,7 +43,7 @@ export class ThumbnailCacheManager implements IThumbnailCacheManager {
   private getDiskCachePath(cacheDir: string, key: string, mtime: string | number): string {
     const safeKey = String(key).replace(/[^a-zA-Z0-9_-]/g, '_');
     const safeMtime = String(mtime).replace(/[^a-zA-Z0-9_-]/g, '_');
-    const filename = `${safeKey}_${safeMtime}.webp`;
+    const filename = `${safeKey}_${safeMtime}_v2.webp`;
     return typeof PathUtils !== 'undefined' && typeof PathUtils.join === 'function'
       ? PathUtils.join(cacheDir, filename)
       : `${cacheDir}/${filename}`;
@@ -145,12 +145,30 @@ export class ThumbnailCacheManager implements IThumbnailCacheManager {
           // Ignore path resolution error
         }
 
-        const card: Partial<PaperCardData> = cardData || {
-          title: item.getField?.('title') || item.title || 'Untitled',
-          authorText: item.getCreators?.()?.[0]?.lastName || 'Author',
-          year: item.getField?.('year') || '',
-          itemType: item.itemType || 'journalArticle'
-        };
+        let fallbackCard: Partial<PaperCardData> = cardData || {};
+        if (!cardData) {
+          let title = 'Untitled';
+          let authorText = 'Author';
+          let year = '';
+          try {
+            title = item.getField?.('title') || item.title || 'Untitled';
+          } catch {}
+          try {
+            authorText = item.getCreators?.()?.[0]?.lastName || 'Author';
+          } catch {}
+          try {
+            const d = item.getField?.('date') || item.year || '';
+            const m = String(d).match(/\b(19|20)\d{2}\b/);
+            year = m ? m[0] : String(d);
+          } catch {}
+          fallbackCard = {
+            title,
+            authorText,
+            year,
+            itemType: item.itemType || 'journalArticle'
+          };
+        }
+        const card = fallbackCard;
 
         const isPdf = typeof attachment?.isPDFAttachment === 'function' ? attachment.isPDFAttachment() : (pdfPath && pdfPath.toLowerCase().endsWith('.pdf'));
         if (pdfPath && isPdf) {
@@ -159,8 +177,8 @@ export class ThumbnailCacheManager implements IThumbnailCacheManager {
           blob = await generateTypographyFallbackCover(card, 'No PDF Attached');
         }
 
-        // 5. Save to disk cache
-        if (typeof IOUtils !== 'undefined') {
+        // 5. Save to disk cache (skip persisting temporary fallback covers so transient failures can self-heal)
+        if (typeof IOUtils !== 'undefined' && !(blob as any)?.__isFallbackCover) {
           try {
             const arrayBuffer = await blob.arrayBuffer();
             await IOUtils.write(diskPath, new Uint8Array(arrayBuffer));

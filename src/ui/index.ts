@@ -37,7 +37,7 @@ export function ensureMainWindowStability(doc: any, win?: any): void {
     for (const t of tabs._tabs) {
       if (t && !t.data) {
         t.data = { icon: 'library' };
-      } else if (t && !t.data?.icon) {
+      } else if (t && (t.id === 'zotero-cover-grid-tab' || t.type === 'custom') && !t.data?.icon) {
         t.data.icon = 'library';
       }
     }

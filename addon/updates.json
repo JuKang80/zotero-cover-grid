@@ -3,6 +3,17 @@
     "zotero-cover-grid@antigravity.user": {
       "updates": [
         {
+          "version": "0.2.3",
+          "update_link": "https://github.com/JuKang80/zotero-cover-grid/releases/download/v0.2.3/zotero-cover-grid.xpi",
+          "update_hash": "sha256:1a587a78bdce67233f4c318fb4b83dfc9158fcbad5dd8e09e84732eeee9b4f5c",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "6.999",
+              "strict_max_version": "11.*"
+            }
+          }
+        },
+        {
           "version": "0.2.2",
           "update_link": "https://github.com/JuKang80/zotero-cover-grid/releases/download/v0.2.2/zotero-cover-grid.xpi",
           "update_hash": "sha256:c0be97cc0acec7524be638c8f976c06a74810040dc620c093643b98c1f37d839",

@@ -78,7 +78,7 @@ export function injectToolbarControls(win: any): ToolbarController | null {
   const zoomContainer = doc.createElementNS(HTML_NS, 'div');
   zoomContainer.id = 'zotero-cover-grid-zoom-container';
   zoomContainer.className = 'zoom-slider-container';
-  zoomContainer.style.display = 'none'; // Only visible in grid mode
+  zoomContainer.style.setProperty('display', 'none', 'important'); // Only visible in grid mode
   zoomContainer.hidden = true;
   zoomContainer.setAttribute('hidden', 'true');
 
@@ -137,7 +137,7 @@ export function injectToolbarControls(win: any): ToolbarController | null {
       // Zoom container visible
       zoomContainer.hidden = false;
       zoomContainer.removeAttribute('hidden');
-      zoomContainer.style.display = 'inline-flex';
+      zoomContainer.style.setProperty('display', 'inline-flex', 'important');
 
       // Ensure coverGrid is positioned right next to itemsTree if itemsTree exists
       if (itemsTree && itemsTree.parentNode && coverGrid && coverGrid.parentNode !== itemsTree.parentNode) {
@@ -181,7 +181,7 @@ export function injectToolbarControls(win: any): ToolbarController | null {
       // Zoom container hidden
       zoomContainer.hidden = true;
       zoomContainer.setAttribute('hidden', 'true');
-      zoomContainer.style.display = 'none';
+      zoomContainer.style.setProperty('display', 'none', 'important');
 
       // Cover grid hidden
       if (coverGrid) {

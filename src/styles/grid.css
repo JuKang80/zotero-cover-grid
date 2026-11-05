@@ -1,9 +1,14 @@
 /* Gecko 140 ESR XUL Layout Rules: Enforce strict flexbox and prevent 0px height/width collapse */
-[hidden] {
+#zotero-cover-grid[hidden]:not([hidden="false"]),
+zotero-cover-grid[hidden]:not([hidden="false"]),
+.zotero-cover-grid-root[hidden]:not([hidden="false"]),
+#zotero-cover-grid-zoom-container[hidden]:not([hidden="false"]),
+.zoom-slider-container[hidden]:not([hidden="false"]),
+tab-content#zotero-cover-grid-tab[hidden]:not([hidden="false"]),
+#zotero-cover-grid-tab[hidden]:not([hidden="false"]) {
   display: none !important;
 }
 
-:has(> #zotero-cover-grid:not([hidden])),
 #zotero-items-pane:has(#zotero-cover-grid:not([hidden])),
 .zotero-items-tree-container:has(#zotero-cover-grid:not([hidden])) {
   display: flex !important;
@@ -29,10 +34,9 @@ zotero-cover-grid,
 }
 
 /* Enforce hidden state overriding display: flex !important in Gecko 140 XUL */
-[hidden],
-#zotero-cover-grid[hidden],
-zotero-cover-grid[hidden],
-.zotero-cover-grid-root[hidden] {
+#zotero-cover-grid[hidden]:not([hidden="false"]),
+zotero-cover-grid[hidden]:not([hidden="false"]),
+.zotero-cover-grid-root[hidden]:not([hidden="false"]) {
   display: none !important;
 }
 
@@ -229,7 +233,7 @@ zotero-cover-grid[hidden],
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1) !important;
 }
 
-.zoom-slider-container {
+.zoom-slider-container:not([hidden]) {
   display: inline-flex !important;
   align-items: center !important;
   gap: 4px !important;

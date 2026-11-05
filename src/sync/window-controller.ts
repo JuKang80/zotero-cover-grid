@@ -52,7 +52,7 @@ export class WindowCoverGridController {
     if (zp?.itemsView?.onRefresh?.addListener) {
       this.refreshListener = () => {
         if (this.isDestroyed) return;
-        this.reloadCurrentCollection();
+        return this.reloadCurrentCollection();
       };
       zp.itemsView.onRefresh.addListener(this.refreshListener);
     }
@@ -178,12 +178,35 @@ export class WindowCoverGridController {
       }
     }
 
-    // 1. Abort previous pending thumbnails and flush queue
+    // 1. Abort previous pending thumbnails and flush queue (safe for Cu.Sandbox where AbortController may be absent)
     if (this.abortController) {
-      this.abortController.abort();
+      try {
+        this.abortController.abort();
+      } catch {
+        // Ignore
+      }
     }
-    this.abortController = new AbortController();
-    const signal = this.abortController.signal;
+    const AbortCtrl =
+      this.win?.AbortController ||
+      (typeof AbortController !== 'undefined' ? AbortController : null);
+    let ctrl: AbortController | null = null;
+    if (AbortCtrl) {
+      try {
+        ctrl = new AbortCtrl();
+      } catch {
+        // Ignore
+      }
+    }
+    if (!ctrl) {
+      ctrl = {
+        signal: { aborted: false } as AbortSignal,
+        abort() {
+          (this.signal as any).aborted = true;
+        }
+      } as AbortController;
+    }
+    this.abortController = ctrl;
+    const signal = ctrl.signal;
 
     // Notify collection name change if registered
     if (this.onCollectionChange) {
@@ -497,23 +520,42 @@ export class WindowCoverGridController {
       return true;
     });
 
-    // Ensure item data is loaded safely
+    // Ensure item data (title, creators, date, tags) is loaded safely
     if (validItems.length > 0) {
       if (z?.Items?.loadDataTypes) {
         try {
-          await z.Items.loadDataTypes(validItems);
+          await z.Items.loadDataTypes(validItems, ['primaryData', 'itemData', 'creators', 'tags']);
         } catch {
-          // Ignore
-        }
-      }
-      for (const it of validItems) {
-        if (it && typeof it.loadDataType === 'function') {
           try {
-            await it.loadDataType('primaryData');
+            await z.Items.loadDataTypes(validItems);
           } catch {
             // Ignore
           }
         }
+      }
+      const itemsNeedingLoad = validItems.filter(
+        (it: any) => it && (typeof it.loadAllData === 'function' || typeof it.loadDataType === 'function')
+      );
+      if (itemsNeedingLoad.length > 0) {
+        await Promise.all(
+          itemsNeedingLoad.map(async (it: any) => {
+            if (typeof it.loadAllData === 'function') {
+              try {
+                await it.loadAllData();
+                return;
+              } catch {
+                // Fall through
+              }
+            }
+            if (typeof it.loadDataType === 'function') {
+              try {
+                await it.loadDataType('primaryData');
+              } catch {
+                // Ignore
+              }
+            }
+          })
+        );
       }
     }
 

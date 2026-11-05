@@ -2,6 +2,28 @@ import { PaperCardData } from '../types';
 
 declare const ChromeUtils: any;
 declare const IOUtils: any;
+declare const Zotero: any;
+declare const Services: any;
+
+function getHostWindow(): any {
+  try {
+    if (typeof Zotero !== 'undefined' && typeof Zotero.getMainWindow === 'function') {
+      const w = Zotero.getMainWindow();
+      if (w) return w;
+    }
+  } catch {
+    // Ignore
+  }
+  try {
+    if (typeof Services !== 'undefined' && Services.wm?.getMostRecentWindow) {
+      const w = Services.wm.getMostRecentWindow('navigator:browser');
+      if (w) return w;
+    }
+  } catch {
+    // Ignore
+  }
+  return null;
+}
 
 export const MAX_CANVAS_WIDTH = 640;
 export const MAX_CANVAS_HEIGHT = 854;
@@ -51,18 +73,39 @@ export function getClampedViewport(page: any) {
 }
 
 /**
- * Creates an OffscreenCanvas or HTML5 Canvas compatible with Gecko environment
+ * Creates an OffscreenCanvas or HTML5 Canvas compatible with Gecko environment & Cu.Sandbox
  */
 export function createSafeCanvas(width: number, height: number): any {
+  const safeW = Math.max(1, Math.floor(width));
+  const safeH = Math.max(1, Math.floor(height));
+
   if (typeof OffscreenCanvas !== 'undefined') {
-    return new OffscreenCanvas(Math.max(1, Math.floor(width)), Math.max(1, Math.floor(height)));
+    return new OffscreenCanvas(safeW, safeH);
   }
   if (typeof document !== 'undefined' && typeof document.createElement === 'function') {
     const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.floor(width));
-    canvas.height = Math.max(1, Math.floor(height));
+    canvas.width = safeW;
+    canvas.height = safeH;
     return canvas;
   }
+
+  const win = getHostWindow();
+  if (win) {
+    if (typeof win.OffscreenCanvas !== 'undefined') {
+      return new win.OffscreenCanvas(safeW, safeH);
+    }
+    const doc = win.document;
+    if (doc) {
+      const canvas =
+        typeof doc.createElementNS === 'function'
+          ? doc.createElementNS('http://www.w3.org/1999/xhtml', 'canvas')
+          : doc.createElement('canvas');
+      canvas.width = safeW;
+      canvas.height = safeH;
+      return canvas;
+    }
+  }
+
   throw new Error('Canvas rendering context unavailable');
 }
 
@@ -189,7 +232,13 @@ export async function generateTypographyFallbackCover(
     ctx.fillText(`[ ${reason} ]`, 40, height - 40);
   }
 
-  return convertCanvasToSafeBlob(canvas);
+  const blob = await convertCanvasToSafeBlob(canvas);
+  try {
+    (blob as any).__isFallbackCover = true;
+  } catch {
+    // Ignore if immutable
+  }
+  return blob;
 }
 
 /**
@@ -218,14 +267,26 @@ export async function renderPdfThumbnail(
     return generateTypographyFallbackCover(cardData, 'Invalid File');
   }
 
-  // Load PDF.js via Gecko ChromeUtils
+  // Load PDF.js via Gecko ChromeUtils or Window ESM scope (where DOMMatrix is defined in Zotero 10)
   let pdfjs: any;
+  const hostWin = getHostWindow();
   try {
     if (typeof ChromeUtils !== 'undefined' && ChromeUtils.importESModule) {
       try {
         pdfjs = await ChromeUtils.importESModule('resource://zotero/reader/pdf/build/pdf.mjs');
       } catch {
-        pdfjs = await ChromeUtils.importESModule('resource://pdf.js/build/pdf.mjs');
+        try {
+          pdfjs = await ChromeUtils.importESModule('resource://pdf.js/build/pdf.mjs');
+        } catch {
+          // Fall through to hostWin dynamic import
+        }
+      }
+    }
+    if (!pdfjs && hostWin && typeof hostWin.eval === 'function') {
+      try {
+        pdfjs = await hostWin.eval('import("resource://zotero/reader/pdf/build/pdf.mjs")');
+      } catch {
+        pdfjs = await hostWin.eval('import("resource://pdf.js/build/pdf.mjs")');
       }
     }
   } catch (err) {
@@ -244,8 +305,7 @@ export async function renderPdfThumbnail(
   let pdfDoc: any = null;
   let loadingTask: any = null;
   try {
-    // Pass raw byte array directly to avoid file URI resolution and permission issues
-    loadingTask = pdfjs.getDocument({
+    const docOptions: any = {
       data: bytes,
       cMapUrl: 'resource://zotero/reader/pdf/web/cmaps/',
       cMapPacked: true,
@@ -253,7 +313,27 @@ export async function renderPdfThumbnail(
       onPassword: (updatePassword: (pw: string) => void) => {
         updatePassword('');
       }
-    });
+    };
+
+    // Provide XHTML ownerDocument when running inside Zotero XUL window so internal PDF.js canvas creation succeeds
+    if (typeof document === 'undefined' && hostWin?.document) {
+      const xulDoc = hostWin.document;
+      docOptions.ownerDocument = new Proxy(xulDoc, {
+        get(target, prop) {
+          if (prop === 'createElement') {
+            return (tagName: string) =>
+              typeof target.createElementNS === 'function'
+                ? target.createElementNS('http://www.w3.org/1999/xhtml', tagName)
+                : target.createElement(tagName);
+          }
+          const val = target[prop];
+          return typeof val === 'function' ? val.bind(target) : val;
+        }
+      });
+    }
+
+    // Pass raw byte array directly to avoid file URI resolution and permission issues
+    loadingTask = pdfjs.getDocument(docOptions);
 
     pdfDoc = await loadingTask.promise;
     if (!pdfDoc || pdfDoc.numPages < 1) {

@@ -5,6 +5,9 @@ import { WindowCoverGridController } from '../src/sync/window-controller';
 import { VirtualGridScroller } from '../src/ui/virtual-scroller';
 import { createPaperCardElement } from '../src/ui/paper-card';
 import { ensureMainWindowStability } from '../src/ui/index';
+import { createSafeCanvas } from '../src/services/pdf-thumbnail-service';
+import fs from 'node:fs';
+import path from 'node:path';
 
 declare const Zotero: any;
 declare const Services: any;
@@ -276,6 +279,74 @@ describe('Lead Runtime Code Auditor Safeguards (Zotero 10 Gecko 140 ESR)', () =>
     it('should ensure main window stability and dismiss context pane loading messages', () => {
       ensureMainWindowStability(document, mockWin);
       expect(mockWin.ZoteroContextPane.showLoadingMessage).toHaveBeenCalledWith(false);
+    });
+  });
+
+  describe('5. Cu.Sandbox & XUL CSS Safeguards (v0.2.3)', () => {
+    it('should complete reloadCurrentCollection without throwing when AbortController is undefined in Cu.Sandbox', async () => {
+      const origAbortController = globalThis.AbortController;
+      try {
+        delete (globalThis as any).AbortController;
+        delete mockWin.AbortController;
+
+        const container = document.createElement('div');
+        const viewport = document.createElement('div');
+        const scroller = new VirtualGridScroller({ container, viewport });
+        const controller = new WindowCoverGridController(mockWin);
+        controller.init(scroller);
+
+        mockWin.ZoteroPane.itemsView.getSortedItems = vi.fn(() => [
+          {
+            id: 701,
+            key: 'K701',
+            isRegularItem: () => true,
+            getField: (f: string) => (f === 'title' ? 'Sandbox Safe Paper' : '2026'),
+            getCreators: () => [{ lastName: 'Kim' }],
+            getTags: () => []
+          }
+        ]);
+
+        await expect(controller.reloadCurrentCollection()).resolves.toBeUndefined();
+        expect(container.querySelectorAll('.paper-card').length).toBe(1);
+
+        controller.destroy();
+        scroller.destroy();
+      } finally {
+        globalThis.AbortController = origAbortController;
+      }
+    });
+
+    it('should create an XHTML canvas via Zotero.getMainWindow().document.createElementNS when OffscreenCanvas and global document are unavailable', () => {
+      const origOffscreen = (globalThis as any).OffscreenCanvas;
+      const origDoc = (globalThis as any).document;
+      try {
+        delete (globalThis as any).OffscreenCanvas;
+        const createElementNSSpy = vi.fn((ns: string, tag: string) => origDoc.createElementNS(ns, tag));
+        (Zotero as any).getMainWindow = vi.fn(() => ({
+          document: {
+            createElementNS: createElementNSSpy
+          }
+        }));
+        // Temporarily shadow document.createElement so createSafeCanvas falls through to getHostWindow()
+        const origCreateElement = origDoc.createElement;
+        (origDoc as any).createElement = undefined;
+        try {
+          const canvas = createSafeCanvas(300, 400);
+          expect(createElementNSSpy).toHaveBeenCalledWith('http://www.w3.org/1999/xhtml', 'canvas');
+          expect(canvas.width).toBe(300);
+          expect(canvas.height).toBe(400);
+        } finally {
+          (origDoc as any).createElement = origCreateElement;
+        }
+      } finally {
+        (globalThis as any).OffscreenCanvas = origOffscreen;
+      }
+    });
+
+    it('should not contain bare [hidden] CSS selector that hides XUL elements with hidden="false"', () => {
+      const cssSource = fs.readFileSync(path.resolve(__dirname, '../src/styles/grid.css'), 'utf8');
+      expect(cssSource).not.toMatch(/^\s*\[hidden\]\s*[,{]/m);
+      expect(cssSource).toContain('#zotero-cover-grid[hidden]:not([hidden="false"])');
     });
   });
 });

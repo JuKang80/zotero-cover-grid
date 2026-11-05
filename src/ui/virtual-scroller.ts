@@ -53,7 +53,11 @@ export class VirtualGridScroller {
     }
 
     // Append/Update current items
-    const doc = this.container.ownerDocument || document;
+    const doc =
+      this.container.ownerDocument ||
+      (typeof document !== 'undefined'
+        ? document
+        : (typeof (globalThis as any).Zotero !== 'undefined' ? (globalThis as any).Zotero.getMainWindow?.()?.document : null));
     const HTML_NS = 'http://www.w3.org/1999/xhtml';
     if (this.items.length === 0) {
       this.focusedIndex = -1;
@@ -234,7 +238,10 @@ export class VirtualGridScroller {
     const containerWidth = this.container.clientWidth || 800;
     let cardW = 180;
     try {
-      const customWidth = getComputedStyle(this.container).getPropertyValue('--card-width');
+      const win =
+        this.container.ownerDocument?.defaultView ||
+        (typeof getComputedStyle !== 'undefined' ? { getComputedStyle } : null);
+      const customWidth = win?.getComputedStyle?.(this.container)?.getPropertyValue('--card-width');
       if (customWidth) {
         const parsed = parseInt(customWidth, 10);
         if (!isNaN(parsed) && parsed > 0) {

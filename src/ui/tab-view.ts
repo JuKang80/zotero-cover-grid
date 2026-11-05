@@ -43,7 +43,7 @@ export function openCoverGridTab(win: any) {
     for (const t of tabs._tabs) {
       if (t && !t.data) {
         t.data = { icon: 'library' };
-      } else if (t && !t.data?.icon) {
+      } else if (t && (t.id === COVER_GRID_TAB_ID || t.type === 'custom') && !t.data?.icon) {
         t.data.icon = 'library';
       }
     }
@@ -377,7 +377,9 @@ export async function hotReloadPlugin(win: any) {
       }
     }
   } catch (e) {
-    console.error('[CoverGrid] Hot reload failed:', e);
+    if (typeof Zotero !== 'undefined' && typeof Zotero.debug === 'function') {
+      Zotero.debug('[CoverGrid] Hot reload failed: ' + e);
+    }
   }
 
   // In-memory fallback: reload current window controller and scroller in place
