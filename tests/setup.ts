@@ -56,6 +56,23 @@ g.ChromeUtils = {
   })
 };
 
+g.Zotero_Tabs = {
+  _tabs: [{ id: 'zotero-pane', type: 'library', title: 'My Library' }],
+  add: vi.fn(({ id, type, title, onClose }: any) => {
+    const container = document.createElement('div');
+    container.id = id;
+    const tab = { id, type, title, onClose };
+    g.Zotero_Tabs._tabs.push(tab);
+    return { id, container };
+  }),
+  select: vi.fn((id: string) => {
+    g.Zotero_Tabs._selectedID = id;
+  }),
+  close: vi.fn((id: string) => {
+    g.Zotero_Tabs._tabs = g.Zotero_Tabs._tabs.filter((t: any) => t.id !== id);
+  })
+};
+
 g.ZoteroPane = {
   loadedPromise: Promise.resolve(),
   openAttachment: vi.fn(),

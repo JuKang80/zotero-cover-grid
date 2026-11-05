@@ -192,3 +192,129 @@ zotero-cover-grid[hidden],
   width: 80px !important;
   cursor: pointer !important;
 }
+
+/* ==========================================================================
+   Dedicated Tab Mode (상단 독립 탭 전체 화면 모드)
+   ========================================================================== */
+tab-content#zotero-cover-grid-tab,
+#zotero-cover-grid-tab {
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100% !important;
+  height: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  background-color: var(--material-background, #f9fafb) !important;
+}
+
+.cover-grid-tab-root {
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100% !important;
+  height: 100% !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
+  background-color: var(--material-background, #f9fafb) !important;
+}
+
+.cover-grid-tab-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 10px 20px !important;
+  background: var(--material-toolbar-background, #ffffff) !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
+  gap: 16px !important;
+  flex-shrink: 0 !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03) !important;
+}
+
+.cover-grid-tab-title-group {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+.cover-grid-tab-icon {
+  font-size: 20px !important;
+  line-height: 1 !important;
+}
+
+.cover-grid-tab-title {
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  color: var(--text-color, #111827) !important;
+}
+
+.cover-grid-collection-name {
+  font-size: 12px !important;
+  color: var(--text-muted, #6b7280) !important;
+  background: rgba(0, 0, 0, 0.05) !important;
+  padding: 3px 10px !important;
+  border-radius: 12px !important;
+  font-weight: 500 !important;
+}
+
+.cover-grid-tab-controls {
+  display: flex !important;
+  align-items: center !important;
+  gap: 14px !important;
+}
+
+.cover-grid-search-input {
+  width: 240px !important;
+  padding: 6px 12px !important;
+  border-radius: 6px !important;
+  border: 1px solid rgba(0, 0, 0, 0.15) !important;
+  background: #ffffff !important;
+  color: var(--text-color, #111827) !important;
+  font-size: 13px !important;
+  outline: none !important;
+  box-sizing: border-box !important;
+}
+
+.cover-grid-search-input:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
+}
+
+.cover-grid-refresh-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 30px !important;
+  height: 30px !important;
+  background: rgba(0, 0, 0, 0.04) !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  border-radius: 6px !important;
+  cursor: pointer !important;
+  font-size: 14px !important;
+  transition: all 0.15s ease !important;
+}
+
+.cover-grid-refresh-btn:hover {
+  background: rgba(0, 0, 0, 0.08) !important;
+}
+
+.cover-grid-open-tab-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  padding: 3px 10px !important;
+  background: rgba(0, 0, 0, 0.05) !important;
+  border: 1px solid rgba(0, 0, 0, 0.12) !important;
+  border-radius: 6px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: var(--text-color, #374151) !important;
+  cursor: pointer !important;
+  margin-left: 8px !important;
+  transition: all 0.15s ease !important;
+}
+
+.cover-grid-open-tab-btn:hover {
+  background: #2563eb !important;
+  color: #ffffff !important;
+  border-color: #1d4ed8 !important;
+}

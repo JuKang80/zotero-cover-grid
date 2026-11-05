@@ -131,7 +131,20 @@ export function cleanupCoverGridUI(win: any) {
   // Remove injected styles
   doc.getElementById('zotero-cover-grid-style')?.remove();
 
-  // Step 5: Tear down instance controller and clear window reference
+  // Step 5: Close dedicated tab if open
+  if (win.Zotero_Tabs) {
+    try {
+      const existing = win.Zotero_Tabs._tabs?.find((t: any) => t.id === 'zotero-cover-grid-tab');
+      if (existing) {
+        win.Zotero_Tabs.close('zotero-cover-grid-tab');
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
+  // Step 6: Tear down instance controller and clear window reference
   win.__zoteroCoverGridInstance?.cleanup?.();
   delete win.__zoteroCoverGridInstance;
+  delete win.__zoteroCoverGridTabInstance;
 }

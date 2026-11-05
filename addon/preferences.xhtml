@@ -1,24 +1,26 @@
-<vbox xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
-      xmlns:html="http://www.w3.org/1999/xhtml"
-      style="padding: 18px; font-size: 13px; color: var(--text-color, #111827);">
-  <groupbox style="padding: 16px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.1);">
-    <label style="font-weight: bold; font-size: 16px; margin-bottom: 8px;">Zotero Cover Grid</label>
-    <html:p style="margin-bottom: 16px; color: var(--text-muted, #6b7280); line-height: 1.4;">
-      논문 목록을 첫 페이지 표지 서가 형태로 시각화해 주는 Zotero 전용 확장기능입니다.<br/>
-      상단 검색창 우측의 <b>[ ≡ 목록 | ⊞ 바둑판 ]</b> 버튼을 눌러 언제든 뷰를 전환할 수 있습니다.
-    </html:p>
+<vbox id="zotero-prefpane-cover-grid"
+      xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+      xmlns:html="http://www.w3.org/1999/xhtml">
+  <vbox class="main-section" style="padding: 16px;">
+    <groupbox style="padding: 16px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.1);">
+      <label><html:h2 style="margin: 0 0 8px 0; font-size: 16px; font-weight: bold;">Zotero Cover Grid</html:h2></label>
+      <description style="margin-bottom: 14px; color: #555; line-height: 1.4;">
+        논문 목록을 첫 페이지 표지 서가 형태로 시각화해 주는 Zotero 전용 확장기능입니다.
+        상단 툴바의 [📚 Cover Grid] 버튼을 클릭하면 독립 탭 전체 화면으로 표지 서가를 탐색할 수 있습니다.
+      </description>
 
-    <separator class="thin" style="margin: 12px 0;" />
+      <separator class="thin" style="margin: 12px 0;" />
 
-    <hbox align="center" style="margin-top: 10px;">
-      <label value="기본 카드 크기 (Default Card Width):" style="width: 240px; font-weight: 500;" />
-      <html:input type="number" min="140" max="320" value="180" style="width: 70px; padding: 4px; border-radius: 4px; border: 1px solid #ccc;" />
-      <label value="px (140px ~ 320px)" style="margin-left: 6px; color: #888;" />
-    </hbox>
+      <hbox align="center" style="margin-top: 10px;">
+        <label value="기본 카드 크기 (Default Card Width):" style="width: 230px; font-weight: 500;" />
+        <html:input type="number" min="140" max="320" value="180" style="width: 70px; padding: 4px; border-radius: 4px; border: 1px solid #ccc;" />
+        <label value="px (140px ~ 320px)" style="margin-left: 6px; color: #888;" />
+      </hbox>
 
-    <hbox align="center" style="margin-top: 14px;">
-      <html:input type="checkbox" checked="true" id="pref-splash-detect" style="cursor: pointer;" />
-      <label value="출판사 안내문(JSTOR, Elsevier 등) 자동 건너뛰고 2페이지를 표지로 설정" style="margin-left: 6px;" />
-    </hbox>
-  </groupbox>
+      <hbox align="center" style="margin-top: 14px;">
+        <html:input type="checkbox" checked="true" id="pref-splash-detect" style="cursor: pointer;" />
+        <label value="출판사 안내문(JSTOR 등) 자동 건너뛰고 2페이지를 표지로 설정" style="margin-left: 6px;" />
+      </hbox>
+    </groupbox>
+  </vbox>
 </vbox>

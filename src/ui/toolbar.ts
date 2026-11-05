@@ -1,6 +1,8 @@
 /**
- * Toolbar injection: Segmented View Switcher [ ≡ | ⊞ ] & Zoom Slider (140px ~ 320px)
+ * Toolbar injection: Dedicated Tab button [ 📚 Cover Grid ] & Segmented View Switcher [ ≡ | ⊞ ]
  */
+
+import { openCoverGridTab } from './tab-view';
 
 export interface ToolbarController {
   setView(mode: 'list' | 'grid'): void;
@@ -34,7 +36,20 @@ export function injectToolbarControls(win: any): ToolbarController | null {
   toolbarGroup.id = 'zotero-cover-grid-toolbar-group';
   toolbarGroup.className = 'cover-grid-toolbar-group';
 
-  // Segmented Switcher [ ≡ | ⊞ ]
+  // 1. Dedicated Tab Button [ 📚 Cover Grid ]
+  const btnOpenTab = doc.createElementNS(HTML_NS, 'button');
+  btnOpenTab.className = 'cover-grid-open-tab-btn';
+  btnOpenTab.id = 'zotero-cover-grid-btn-open-tab';
+  btnOpenTab.textContent = '📚 Cover Grid';
+  btnOpenTab.title = '상단 독립 탭에서 표지 서가 열기 (Full Page Tab)';
+  btnOpenTab.addEventListener('click', (e: Event) => {
+    e.preventDefault();
+    e.stopPropagation();
+    openCoverGridTab(win);
+  });
+  toolbarGroup.appendChild(btnOpenTab);
+
+  // 2. Segmented Switcher [ ≡ | ⊞ ]
   const switcher = doc.createElementNS(HTML_NS, 'div');
   switcher.id = 'zotero-cover-grid-view-switcher';
   switcher.className = 'view-segmented-toggle';
@@ -59,7 +74,7 @@ export function injectToolbarControls(win: any): ToolbarController | null {
   switcher.appendChild(btnGrid);
   toolbarGroup.appendChild(switcher);
 
-  // Zoom Slider Container
+  // 3. Zoom Slider Container
   const zoomContainer = doc.createElementNS(HTML_NS, 'div');
   zoomContainer.id = 'zotero-cover-grid-zoom-container';
   zoomContainer.className = 'zoom-slider-container';
@@ -73,9 +88,9 @@ export function injectToolbarControls(win: any): ToolbarController | null {
   zoomSlider.id = 'zotero-cover-grid-zoom-slider';
   zoomSlider.type = 'range';
   zoomSlider.min = '140';
-  zoomSlider.max = '320';
+  zoomSlider.max = '340';
   zoomSlider.value = '180';
-  zoomSlider.title = 'Card Zoom (140px - 320px)';
+  zoomSlider.title = 'Card Zoom (140px - 340px)';
 
   zoomContainer.appendChild(zoomLabel);
   zoomContainer.appendChild(zoomSlider);
@@ -107,10 +122,17 @@ export function injectToolbarControls(win: any): ToolbarController | null {
       if (itemsTree) {
         itemsTree.hidden = true;
         itemsTree.setAttribute('hidden', 'true');
+        itemsTree.style.setProperty('display', 'none', 'important');
       }
       if (coverGrid) {
         coverGrid.hidden = false;
         coverGrid.removeAttribute('hidden');
+        coverGrid.style.setProperty('display', 'flex', 'important');
+      }
+
+      // Trigger collection reload!
+      if (win.__zoteroCoverGridInstance?.controller) {
+        win.__zoteroCoverGridInstance.controller.reloadCurrentCollection();
       }
     } else {
       btnGrid.classList.remove('active');
@@ -122,16 +144,18 @@ export function injectToolbarControls(win: any): ToolbarController | null {
       if (coverGrid) {
         coverGrid.hidden = true;
         coverGrid.setAttribute('hidden', 'true');
+        coverGrid.style.setProperty('display', 'none', 'important');
       }
       if (itemsTree) {
         itemsTree.hidden = false;
         itemsTree.removeAttribute('hidden');
+        itemsTree.style.removeProperty('display');
       }
     }
   };
 
   const setZoom = (widthPx: number) => {
-    const clamped = Math.min(320, Math.max(140, widthPx));
+    const clamped = Math.min(340, Math.max(140, widthPx));
     zoomSlider.value = String(clamped);
     const coverGrid = doc.getElementById('zotero-cover-grid');
     if (coverGrid) {
@@ -139,25 +163,18 @@ export function injectToolbarControls(win: any): ToolbarController | null {
     }
   };
 
-  const onListClick = () => setView('list');
-  const onGridClick = () => setView('grid');
-  const onZoomInput = (e: Event) => {
+  btnList.addEventListener('click', () => setView('list'));
+  btnGrid.addEventListener('click', () => setView('grid'));
+  zoomSlider.addEventListener('input', (e: Event) => {
     const val = Number((e.target as HTMLInputElement).value);
     setZoom(val);
-  };
-
-  btnList.addEventListener('click', onListClick);
-  btnGrid.addEventListener('click', onGridClick);
-  zoomSlider.addEventListener('input', onZoomInput);
+  });
 
   return {
     setView,
     getView: () => currentView,
     setZoom,
     destroy: () => {
-      btnList.removeEventListener('click', onListClick);
-      btnGrid.removeEventListener('click', onGridClick);
-      zoomSlider.removeEventListener('input', onZoomInput);
       toolbarGroup.remove();
     }
   };

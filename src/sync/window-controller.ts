@@ -98,11 +98,43 @@ export class WindowCoverGridController {
     // 2. Fetch items from current collection / ZoteroPane
     let rawItems: any[] = [];
     const zp = this.win?.ZoteroPane || (typeof ZoteroPane !== 'undefined' ? ZoteroPane : null);
-    if (zp?.itemsView?.rowProvider?.items) {
-      rawItems = zp.itemsView.rowProvider.items;
+    try {
+      if (typeof zp?.getSortedItems === 'function') {
+        rawItems = zp.getSortedItems();
+      } else if (zp?.itemsView?.getSortedItems) {
+        rawItems = zp.itemsView.getSortedItems();
+      } else if (typeof zp?.getUnfilteredItems === 'function') {
+        rawItems = await zp.getUnfilteredItems();
+      } else if (zp?.itemsView?.rowProvider?.items) {
+        rawItems = zp.itemsView.rowProvider.items;
+      }
+    } catch {
+      // Ignore
     }
 
-    this.allItems = rawItems.map(extractPaperCardData);
+    if (!rawItems || rawItems.length === 0) {
+      if (typeof Zotero !== 'undefined' && Zotero.Items?.getAll) {
+        try {
+          rawItems = Zotero.Items.getAll();
+        } catch {
+          // Ignore
+        }
+      }
+    }
+
+    // Filter to valid displayable paper items (exclude notes, attachments, annotations)
+    const validItems = (rawItems || []).filter((it: any) => {
+      if (!it) return false;
+      if (typeof it.isRegularItem === 'function') {
+        return it.isRegularItem();
+      }
+      if (typeof it.isAttachment === 'function' && it.isAttachment()) return false;
+      if (typeof it.isNote === 'function' && it.isNote()) return false;
+      if (typeof it.isAnnotation === 'function' && it.isAnnotation()) return false;
+      return true;
+    });
+
+    this.allItems = validItems.map(extractPaperCardData);
     this.applyFilter();
 
     // 3. Background thumbnail loading with abort check
