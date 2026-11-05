@@ -21,6 +21,7 @@ export class VirtualGridScroller {
   private items: PaperCardData[] = [];
   private cardMap = new Map<number, HTMLElement>();
   private selectedIds = new Set<number>();
+  private prevSelectedIds = new Set<number>();
   private anchorIndex = 0;
   private focusedIndex = -1;
   private options: VirtualScrollerOptions;
@@ -181,13 +182,18 @@ export class VirtualGridScroller {
   }
 
   private updateSelectionClasses() {
-    for (const [id, el] of this.cardMap.entries()) {
-      if (this.selectedIds.has(id)) {
-        el.classList.add('selected');
-      } else {
-        el.classList.remove('selected');
+    // High-performance O(1) differential DOM class update (zero reflow lag)
+    for (const prevId of this.prevSelectedIds) {
+      if (!this.selectedIds.has(prevId)) {
+        this.cardMap.get(prevId)?.classList.remove('selected');
       }
     }
+    for (const newId of this.selectedIds) {
+      if (!this.prevSelectedIds.has(newId)) {
+        this.cardMap.get(newId)?.classList.add('selected');
+      }
+    }
+    this.prevSelectedIds = new Set(this.selectedIds);
   }
 
   private notifySelection() {

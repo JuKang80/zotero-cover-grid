@@ -129,35 +129,12 @@ export function createPaperCardElement(
 
   cardEl.appendChild(badgeContainer);
 
-  // Event Listeners with Clean-room Debouncing (prevents double-click triggering single-click)
-  let clickTimeout: any = null;
-  const CLICK_DELAY_MS = 220;
-
+  // Event Listeners (Zero-delay instant click dispatch for 60fps snappy responsiveness)
   cardEl.addEventListener('click', (e) => {
-    // If consecutive click (double-click sequence), cancel pending single click
-    if (e.detail > 1) {
-      if (clickTimeout) {
-        clearTimeout(clickTimeout);
-        clickTimeout = null;
-      }
-      return;
-    }
-
-    if (clickTimeout) {
-      clearTimeout(clickTimeout);
-    }
-
-    clickTimeout = setTimeout(() => {
-      clickTimeout = null;
-      handlers.onClick?.(card, e);
-    }, CLICK_DELAY_MS);
+    handlers.onClick?.(card, e);
   });
 
   cardEl.addEventListener('dblclick', (e) => {
-    if (clickTimeout) {
-      clearTimeout(clickTimeout);
-      clickTimeout = null;
-    }
     handlers.onDoubleClick?.(card, e);
   });
 

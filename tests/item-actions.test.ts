@@ -23,7 +23,7 @@ describe('Clean-Room Item Actions & Debouncing', () => {
 
     selectItemInZotero(mockWin, 101);
 
-    expect(mockZp.selectItem).toHaveBeenCalledWith(101, false, true);
+    expect(mockZp.selectItem).toHaveBeenCalledWith(101, false, false);
     expect(mockZ.Items.get).toHaveBeenCalledWith(101);
     expect(mockZp.itemPane.viewItem).toHaveBeenCalledWith({ id: 101, title: 'Test Paper' });
   });
@@ -58,13 +58,11 @@ describe('Clean-Room Item Actions & Debouncing', () => {
     expect(mockReader.open).toHaveBeenCalledWith(999);
   });
 
-  it('debounces single-click and suppresses it when double-click occurs', async () => {
-    vi.useFakeTimers();
-
+  it('dispatches click instantly without artificial timer lag', () => {
     const card: PaperCardData = {
       id: 303,
       key: 'KEY303',
-      title: 'Debounce Test',
+      title: 'Snappy Click Test',
       citationText: 'Tester (2026)',
       authorText: 'Tester, A.',
       year: '2026',
@@ -81,37 +79,12 @@ describe('Clean-Room Item Actions & Debouncing', () => {
       onDoubleClick
     });
 
-    // 1. Single click
-    const clickEvent1 = new MouseEvent('click', { detail: 1 });
-    cardEl.dispatchEvent(clickEvent1);
-
-    expect(onClick).not.toHaveBeenCalled();
-
-    // Fast forward 230ms
-    vi.advanceTimersByTime(230);
+    // 1. Single click fires instantly (0ms delay)
+    cardEl.dispatchEvent(new MouseEvent('click'));
     expect(onClick).toHaveBeenCalledTimes(1);
 
-    onClick.mockClear();
-
-    // 2. Double click sequence: click (detail 1) -> click (detail 2) -> dblclick
-    const dblClick1 = new MouseEvent('click', { detail: 1 });
-    const dblClick2 = new MouseEvent('click', { detail: 2 });
-    const dblEvent = new MouseEvent('dblclick', { detail: 2 });
-
-    cardEl.dispatchEvent(dblClick1);
-    // Before 220ms elapses, the second click and dblclick arrive
-    vi.advanceTimersByTime(50);
-    cardEl.dispatchEvent(dblClick2);
-    cardEl.dispatchEvent(dblEvent);
-
-    // Fast forward remaining time
-    vi.advanceTimersByTime(300);
-
-    // onClick should NOT have been called due to debouncing cancellation
-    expect(onClick).not.toHaveBeenCalled();
-    // onDoubleClick should have been called
+    // 2. Double click fires immediately
+    cardEl.dispatchEvent(new MouseEvent('dblclick'));
     expect(onDoubleClick).toHaveBeenCalledTimes(1);
-
-    vi.useRealTimers();
   });
 });

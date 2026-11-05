@@ -8,26 +8,64 @@
 
 export function selectItemInZotero(win: any, itemId: number): void {
   const zp = win?.ZoteroPane || (typeof (globalThis as any).ZoteroPane !== 'undefined' ? (globalThis as any).ZoteroPane : null);
-  if (!zp) return;
+  const z = win?.Zotero || (typeof (globalThis as any).Zotero !== 'undefined' ? (globalThis as any).Zotero : null);
+  const doc = win?.document || (typeof document !== 'undefined' ? document : null);
+
+  if (!z && !zp) return;
 
   try {
-    // 1. Primary ZoteroPane item selection API (selects item and updates right item pane)
-    if (typeof zp.selectItem === 'function') {
-      zp.selectItem(itemId, false, true);
-    } else if (zp.itemsView && typeof zp.itemsView.selectItem === 'function') {
-      zp.itemsView.selectItem(itemId);
-    }
-
-    // 2. Explicitly ensure Item Pane inspects the item if itemPane is available
-    if (zp.itemPane && typeof zp.itemPane.viewItem === 'function') {
-      const z = win?.Zotero || (typeof (globalThis as any).Zotero !== 'undefined' ? (globalThis as any).Zotero : null);
-      const item = z?.Items?.get ? z.Items.get(itemId) : null;
-      if (item) {
-        zp.itemPane.viewItem(item);
+    // 1. Ensure right-hand Item Pane is visible and not collapsed
+    if (doc) {
+      const pane = doc.getElementById('zotero-item-pane');
+      if (pane) {
+        pane.hidden = false;
+        pane.removeAttribute('hidden');
+        pane.style.removeProperty('display');
+      }
+      const splitter = doc.getElementById('zotero-items-splitter');
+      if (splitter) {
+        splitter.hidden = false;
+        splitter.removeAttribute('hidden');
       }
     }
+
+    const item = z?.Items?.get ? z.Items.get(itemId) : null;
+
+    // 2. Direct Right-Hand Item Pane Inspection (60fps snappy)
+    const itemPane =
+      win?.ZoteroItemPane ||
+      zp?.itemPane ||
+      (typeof (globalThis as any).ZoteroItemPane !== 'undefined' ? (globalThis as any).ZoteroItemPane : null);
+
+    const applyItemView = (targetItem: any) => {
+      if (!targetItem) return;
+      if (itemPane && typeof itemPane.viewItem === 'function') {
+        try { itemPane.viewItem(targetItem); return; } catch {}
+      }
+      if (itemPane && typeof itemPane.viewItems === 'function') {
+        try { itemPane.viewItems([targetItem]); return; } catch {}
+      }
+      if (zp && typeof zp.viewItem === 'function') {
+        try { zp.viewItem(targetItem); return; } catch {}
+      }
+    };
+
+    if (item) {
+      applyItemView(item);
+    } else if (z?.Items?.getAsync) {
+      z.Items.getAsync(itemId).then((asyncItem: any) => {
+        applyItemView(asyncItem);
+      }).catch(() => {});
+    }
+
+    // 3. Sync with ZoteroPane selection (both selectItem and itemsView.selectItem)
+    if (typeof zp?.selectItem === 'function') {
+      try { zp.selectItem(itemId, false, false); } catch {}
+    }
+    if (zp?.itemsView && typeof zp.itemsView.selectItem === 'function') {
+      try { zp.itemsView.selectItem(itemId); } catch {}
+    }
   } catch (err) {
-    const z = win?.Zotero || (typeof (globalThis as any).Zotero !== 'undefined' ? (globalThis as any).Zotero : null);
     z?.logError?.(err);
   }
 }

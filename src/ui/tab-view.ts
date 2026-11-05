@@ -199,7 +199,10 @@ export function openCoverGridTab(win: any) {
   header.appendChild(controls);
   root.appendChild(header);
 
-  // 5. Grid Viewport & Container
+  // 5. Grid Main Layout (Viewport + Inspector Drawer)
+  const tabMain = doc.createElementNS(HTML_NS, 'div');
+  tabMain.className = 'cover-grid-tab-main';
+
   const viewport = doc.createElementNS(HTML_NS, 'div');
   viewport.className = 'grid-viewport';
   viewport.style.cssText = 'display: flex !important; flex-direction: column !important; flex: 1 1 auto !important; width: 100% !important; height: 100% !important; min-height: 0 !important; overflow-y: auto !important; overflow-x: hidden !important; padding: 16px !important; box-sizing: border-box !important;';
@@ -208,9 +211,95 @@ export function openCoverGridTab(win: any) {
   cardsContainer.className = 'grid-cards-container';
   cardsContainer.style.cssText = 'width: 100% !important; box-sizing: border-box !important;';
   viewport.appendChild(cardsContainer);
-  root.appendChild(viewport);
+  tabMain.appendChild(viewport);
 
+  const inspector = doc.createElementNS(HTML_NS, 'div');
+  inspector.className = 'cover-grid-tab-inspector';
+  tabMain.appendChild(inspector);
+
+  root.appendChild(tabMain);
   container.appendChild(root);
+
+  const renderInspector = async (cardItem: any) => {
+    if (!cardItem) {
+      inspector.style.display = 'none';
+      return;
+    }
+    inspector.innerHTML = '';
+    inspector.style.display = 'flex';
+
+    // Header (Type badge + Close btn)
+    const inspHeader = doc.createElementNS(HTML_NS, 'div');
+    inspHeader.className = 'inspector-header';
+
+    const typeBadge = doc.createElementNS(HTML_NS, 'span');
+    typeBadge.className = 'inspector-type-badge';
+    typeBadge.textContent = cardItem.itemType || 'Journal Article';
+
+    const closeBtn = doc.createElementNS(HTML_NS, 'button');
+    closeBtn.className = 'inspector-close-btn';
+    closeBtn.textContent = '×';
+    closeBtn.title = '닫기';
+    closeBtn.onclick = () => { inspector.style.display = 'none'; };
+
+    inspHeader.appendChild(typeBadge);
+    inspHeader.appendChild(closeBtn);
+    inspector.appendChild(inspHeader);
+
+    // Title
+    const titleEl = doc.createElementNS(HTML_NS, 'div');
+    titleEl.className = 'inspector-title';
+    titleEl.textContent = cardItem.title || 'Untitled Document';
+    inspector.appendChild(titleEl);
+
+    // Authors
+    const authorsEl = doc.createElementNS(HTML_NS, 'div');
+    authorsEl.className = 'inspector-authors';
+    authorsEl.textContent = cardItem.authorText || 'Unknown Authors';
+    inspector.appendChild(authorsEl);
+
+    // Citation Text
+    const citationEl = doc.createElementNS(HTML_NS, 'div');
+    citationEl.className = 'inspector-citation';
+    citationEl.textContent = cardItem.citationText || `(${cardItem.year || 'n.d.'})`;
+    inspector.appendChild(citationEl);
+
+    // Fetch full Zotero Item for Abstract & Metadata
+    try {
+      const z = win.Zotero || (typeof Zotero !== 'undefined' ? Zotero : null);
+      const zItem = z?.Items?.get ? z.Items.get(cardItem.id) : null;
+      if (zItem) {
+        const abstract = zItem.getField ? zItem.getField('abstractNote') : '';
+        if (abstract) {
+          const absLabel = doc.createElementNS(HTML_NS, 'div');
+          absLabel.className = 'inspector-section-label';
+          absLabel.textContent = 'Abstract';
+          inspector.appendChild(absLabel);
+
+          const absEl = doc.createElementNS(HTML_NS, 'div');
+          absEl.className = 'inspector-abstract';
+          absEl.textContent = abstract;
+          inspector.appendChild(absEl);
+        }
+      }
+    } catch {
+      // Ignore
+    }
+
+    // Action Buttons
+    const actions = doc.createElementNS(HTML_NS, 'div');
+    actions.className = 'inspector-actions';
+
+    const openPdfBtn = doc.createElementNS(HTML_NS, 'button');
+    openPdfBtn.className = 'inspector-open-pdf-btn';
+    openPdfBtn.textContent = '📄 PDF 열기';
+    openPdfBtn.onclick = async () => {
+      await openItemInZotero(win, cardItem.id);
+    };
+
+    actions.appendChild(openPdfBtn);
+    inspector.appendChild(actions);
+  };
 
   // 6. Setup Controller & Virtual Scroller
   const controller = new WindowCoverGridController(win);
@@ -220,6 +309,9 @@ export function openCoverGridTab(win: any) {
     onSelect: (selectedItems) => {
       if (selectedItems.length > 0) {
         selectItemInZotero(win, selectedItems[0].id);
+        renderInspector(selectedItems[0]);
+      } else {
+        renderInspector(null);
       }
     },
     onOpenPdf: async (item) => {
