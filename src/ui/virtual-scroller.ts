@@ -54,6 +54,19 @@ export class VirtualGridScroller {
 
     // Append/Update current items
     const doc = this.container.ownerDocument || document;
+    if (this.items.length === 0) {
+      if (!this.container.querySelector('.grid-empty-placeholder')) {
+        const emptyEl = doc.createElement('div');
+        emptyEl.className = 'grid-empty-placeholder';
+        emptyEl.style.cssText =
+          'grid-column: 1 / -1; padding: 48px; text-align: center; color: #888; font-size: 14px;';
+        emptyEl.textContent = '표시할 논문이 없습니다. (No items to display)';
+        this.container.appendChild(emptyEl);
+      }
+      return;
+    }
+    this.container.querySelector('.grid-empty-placeholder')?.remove();
+
     for (let i = 0; i < this.items.length; i++) {
       const card = this.items[i];
       let cardEl = this.cardMap.get(card.id);

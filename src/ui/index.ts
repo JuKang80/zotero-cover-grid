@@ -147,4 +147,14 @@ export function cleanupCoverGridUI(win: any) {
   win.__zoteroCoverGridInstance?.cleanup?.();
   delete win.__zoteroCoverGridInstance;
   delete win.__zoteroCoverGridTabInstance;
+
+  // Step 7: Safeguard against white screen desynchronization
+  const tabCover = doc.getElementById('zotero-tab-cover');
+  if (tabCover && !tabCover.classList.contains('hidden')) {
+    tabCover.classList.add('hidden');
+  }
+  const tabsDeck = doc.getElementById('tabs-deck');
+  if (tabsDeck && (tabsDeck.selectedIndex === -1 || tabsDeck.selectedIndex === undefined)) {
+    tabsDeck.selectedIndex = 0;
+  }
 }

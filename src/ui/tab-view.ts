@@ -11,10 +11,27 @@ export function openCoverGridTab(win: any) {
   const tabs = win.Zotero_Tabs || (typeof Zotero_Tabs !== 'undefined' ? Zotero_Tabs : null);
   if (!tabs) return;
 
+  const doc = win.document;
+  if (!doc) return;
+
+  // Safeguard: Ensure white tab cover overlay is never left visible
+  const hideTabCover = () => {
+    const cover = doc.getElementById('zotero-tab-cover');
+    if (cover) cover.classList.add('hidden');
+    if (win.ZoteroContextPane?.showLoadingMessage) {
+      try {
+        win.ZoteroContextPane.showLoadingMessage(false);
+      } catch {
+        // Ignore
+      }
+    }
+  };
+
   // 1. If tab already exists, simply select and refresh
   const existing = tabs._tabs?.find((t: any) => t.id === COVER_GRID_TAB_ID);
   if (existing) {
     tabs.select(COVER_GRID_TAB_ID);
+    hideTabCover();
     if (win.__zoteroCoverGridTabInstance?.controller) {
       win.__zoteroCoverGridTabInstance.controller.reloadCurrentCollection();
     }
@@ -23,7 +40,6 @@ export function openCoverGridTab(win: any) {
 
   // 2. Add new dedicated tab
   const HTML_NS = 'http://www.w3.org/1999/xhtml';
-  const doc = win.document;
 
   const tabInfo = tabs.add({
     id: COVER_GRID_TAB_ID,
@@ -36,8 +52,14 @@ export function openCoverGridTab(win: any) {
         win.__zoteroCoverGridTabInstance.scroller?.destroy();
         win.__zoteroCoverGridTabInstance = null;
       }
+      hideTabCover();
+      if (tabs.deck && tabs.deck.selectedIndex === -1) {
+        tabs.deck.selectedIndex = 0;
+      }
     }
   });
+
+  hideTabCover();
 
   const container = tabInfo?.container;
   if (!container) return;
@@ -164,6 +186,7 @@ export function openCoverGridTab(win: any) {
   });
 
   controller.init(scroller);
+  controller.reloadCurrentCollection();
 
   // Wire search input
   searchInput.addEventListener('input', (e: Event) => {
