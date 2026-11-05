@@ -9,6 +9,63 @@ declare const Zotero: any;
 let windowListener: any = null;
 const PREF_PANE_ID = 'zotero-cover-grid-preferences-pane';
 let origGetContents: ((url: string) => string) | null = null;
+let reloadWatcherTimer: any = null;
+let lastTriggerMtime = 0;
+
+/**
+ * Watcher for external reload triggers (e.g. from CLI or remote device via /tmp/zotero-cover-grid-reload.trigger)
+ */
+function startReloadWatcher(pluginID: string) {
+  if (reloadWatcherTimer) {
+    clearInterval(reloadWatcherTimer);
+    reloadWatcherTimer = null;
+  }
+
+  const triggerPath = '/tmp/zotero-cover-grid-reload.trigger';
+
+  reloadWatcherTimer = setInterval(async () => {
+    try {
+      if (typeof (globalThis as any).IOUtils !== 'undefined') {
+        const IOUtils = (globalThis as any).IOUtils;
+        if (await IOUtils.exists(triggerPath)) {
+          const stat = await IOUtils.stat(triggerPath);
+          if (stat.lastModified > lastTriggerMtime) {
+            lastTriggerMtime = stat.lastModified;
+            if (typeof Zotero !== 'undefined') {
+              Zotero.debug('[CoverGrid] External reload trigger detected. Hot reloading...');
+            }
+            if (typeof Services !== 'undefined') {
+              try {
+                Services.obs?.notifyObservers(null, 'startupcache-invalidate');
+              } catch {
+                // Ignore
+              }
+            }
+            if (typeof (globalThis as any).ChromeUtils !== 'undefined') {
+              const { AddonManager } = (globalThis as any).ChromeUtils.importESModule(
+                'resource://gre/modules/AddonManager.sys.mjs'
+              );
+              const addon = await AddonManager.getAddonByID(pluginID);
+              if (addon) {
+                await addon.disable();
+                await addon.enable();
+              }
+            }
+          }
+        }
+      }
+    } catch {
+      // Ignore
+    }
+  }, 1000);
+}
+
+function stopReloadWatcher() {
+  if (reloadWatcherTimer) {
+    clearInterval(reloadWatcherTimer);
+    reloadWatcherTimer = null;
+  }
+}
 
 /**
  * Register default preferences on the root default branch so Zotero 10 preferences UI
@@ -146,6 +203,37 @@ function destroyWindow(win: any) {
   initializingWindows.delete(win);
 }
 
+/**
+ * Automatically check for updates via Zotero's AddonManager and updates.json
+ */
+function checkForPluginUpdates(pluginID: string) {
+  if (typeof (globalThis as any).ChromeUtils !== 'undefined') {
+    try {
+      const { AddonManager } = (globalThis as any).ChromeUtils.importESModule(
+        'resource://gre/modules/AddonManager.sys.mjs'
+      );
+      AddonManager.getAddonByID(pluginID).then((addon: any) => {
+        if (addon && typeof addon.findUpdates === 'function') {
+          addon.findUpdates(
+            {
+              onUpdateAvailable: (_addonObj: any, install: any) => {
+                if (typeof Zotero !== 'undefined') {
+                  Zotero.debug(`[CoverGrid] Auto-update found: ${install.version}. Installing in background...`);
+                }
+                install.install();
+              },
+              onUpdateFinished: () => {}
+            },
+            AddonManager.UPDATE_WHEN_USER_REQUESTED
+          );
+        }
+      }).catch(() => {});
+    } catch {
+      // Ignore
+    }
+  }
+}
+
 export function startup({ id, version, rootURI }: any, reason: number) {
   const pluginID = id || 'zotero-cover-grid@antigravity.user';
 
@@ -206,6 +294,12 @@ export function startup({ id, version, rootURI }: any, reason: number) {
     };
     Services.wm.addListener(windowListener);
   }
+
+  // 5. Start background watcher for remote/CLI reload triggers
+  startReloadWatcher(pluginID);
+
+  // 6. Automatically check for updates via Zotero's AddonManager and updates.json
+  checkForPluginUpdates(pluginID);
 }
 
 export function onMainWindowLoad({ window }: any) {
@@ -221,6 +315,9 @@ export function onMainWindowUnload({ window }: any) {
 }
 
 export function shutdown(data: any, reason: number) {
+  // Stop remote reload trigger watcher
+  stopReloadWatcher();
+
   // 1. Revoke in-memory blob URLs
   thumbnailCacheManager.clearMemoryCache();
 
