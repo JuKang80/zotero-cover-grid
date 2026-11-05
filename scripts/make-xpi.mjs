@@ -10,14 +10,19 @@ if (!fs.existsSync(path.join(sourceDir, 'manifest.json')) || !fs.existsSync(path
   throw new Error('[make-xpi] CRITICAL: manifest.json or bootstrap.js missing in build/addon!');
 }
 
-const output = fs.createWriteStream(outPath);
-const archive = archiver('zip', { zlib: { level: 9 } });
+await new Promise((resolve, reject) => {
+  const output = fs.createWriteStream(outPath);
+  const archive = archiver('zip', { zlib: { level: 9 } });
 
-output.on('close', () => {
-  console.log(`[make-xpi] Generated XPI: ${outPath} (${(archive.pointer() / 1024).toFixed(1)} KB)`);
+  output.on('close', () => {
+    console.log(`[make-xpi] Generated XPI: ${outPath} (${(archive.pointer() / 1024).toFixed(1)} KB)`);
+    resolve(undefined);
+  });
+
+  output.on('error', reject);
+  archive.on('error', reject);
+
+  archive.pipe(output);
+  archive.directory(sourceDir, false);
+  archive.finalize();
 });
-
-archive.on('error', (err) => { throw err; });
-archive.pipe(output);
-archive.directory(sourceDir, false);
-await archive.finalize();
