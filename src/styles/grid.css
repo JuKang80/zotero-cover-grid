@@ -3,7 +3,9 @@
   display: none !important;
 }
 
-#zotero-items-pane:has(#zotero-cover-grid:not([hidden])) {
+:has(> #zotero-cover-grid:not([hidden])),
+#zotero-items-pane:has(#zotero-cover-grid:not([hidden])),
+.zotero-items-tree-container:has(#zotero-cover-grid:not([hidden])) {
   display: flex !important;
   flex-direction: column !important;
   height: 100% !important;
@@ -15,7 +17,7 @@ zotero-cover-grid,
 .zotero-cover-grid-root {
   display: flex !important;
   flex-direction: column !important;
-  flex: 1 1 0% !important;
+  flex: 1 1 auto !important;
   height: 100% !important;
   width: 100% !important;
   min-height: 0 !important;

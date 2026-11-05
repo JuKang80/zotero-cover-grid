@@ -277,9 +277,38 @@ export class WindowCoverGridController {
         }
       }
 
-      // Step C: Priority 3 - Native itemsView or getSortedItems
+      // Step C: Priority 3 - Native itemsView rows, getRow, getSortedItems
       if (rawItems == null) {
-        if (typeof zp?.itemsView?.getSortedItems === 'function') {
+        if (zp?.itemsView?.rowCount && typeof zp.itemsView.getRow === 'function') {
+          try {
+            const count = zp.itemsView.rowCount;
+            const ids: number[] = [];
+            for (let i = 0; i < count; i++) {
+              const r = zp.itemsView.getRow(i);
+              if (r && typeof r.id === 'number') {
+                ids.push(r.id);
+              }
+            }
+            if (ids.length > 0) {
+              rawItems = z?.Items?.getAsync ? await z.Items.getAsync(ids) : ids;
+            }
+          } catch {
+            // Fall through
+          }
+        }
+        if (rawItems == null && Array.isArray(zp?.itemsView?._rows) && zp.itemsView._rows.length > 0) {
+          try {
+            const ids = zp.itemsView._rows
+              .map((r: any) => (typeof r === 'object' && r?.id ? r.id : (typeof r === 'number' ? r : null)))
+              .filter((id: any) => typeof id === 'number');
+            if (ids.length > 0) {
+              rawItems = z?.Items?.getAsync ? await z.Items.getAsync(ids) : ids;
+            }
+          } catch {
+            // Fall through
+          }
+        }
+        if (rawItems == null && typeof zp?.itemsView?.getSortedItems === 'function') {
           try {
             const treeItems = zp.itemsView.getSortedItems();
             if (Array.isArray(treeItems)) {
@@ -288,7 +317,7 @@ export class WindowCoverGridController {
           } catch {
             // Fall through
           }
-        } else if (typeof zp?.getSortedItems === 'function') {
+        } else if (rawItems == null && typeof zp?.getSortedItems === 'function') {
           try {
             const sorted = zp.getSortedItems();
             if (Array.isArray(sorted)) {
@@ -297,13 +326,13 @@ export class WindowCoverGridController {
           } catch {
             // Fall through
           }
-        } else if (typeof zp?.getUnfilteredItems === 'function') {
+        } else if (rawItems == null && typeof zp?.getUnfilteredItems === 'function') {
           try {
             rawItems = await zp.getUnfilteredItems();
           } catch {
             // Fall through
           }
-        } else if (zp?.itemsView?.rowProvider?.items) {
+        } else if (rawItems == null && zp?.itemsView?.rowProvider?.items) {
           rawItems = zp.itemsView.rowProvider.items;
         }
       }
@@ -375,7 +404,18 @@ export class WindowCoverGridController {
       // Step F: Priority 6 - Library root fallback
       if (rawItems == null) {
         const libraryID = zp?.getSelectedLibraryID?.() || z?.Libraries?.userLibraryID;
-        if (z?.Search && libraryID) {
+        if (z?.Items?.getAll) {
+          try {
+            const allRes = libraryID ? z.Items.getAll(libraryID, true, false) : z.Items.getAll();
+            const resolved = allRes instanceof Promise ? await allRes : allRes;
+            if (Array.isArray(resolved) && resolved.length > 0) {
+              rawItems = resolved;
+            }
+          } catch {
+            // Fall through
+          }
+        }
+        if (rawItems == null && z?.Search && libraryID) {
           try {
             const s = new z.Search();
             s.libraryID = libraryID;
@@ -383,17 +423,7 @@ export class WindowCoverGridController {
             const itemIDs = await s.search();
             if (Array.isArray(itemIDs) && itemIDs.length > 0) {
               rawItems = z.Items?.getAsync ? await z.Items.getAsync(itemIDs) : itemIDs;
-            } else if (Array.isArray(itemIDs)) {
-              rawItems = [];
             }
-          } catch {
-            // Fall through
-          }
-        }
-        if (rawItems == null && z?.Items?.getAll) {
-          try {
-            const allRes = libraryID ? z.Items.getAll(libraryID, true, false) : z.Items.getAll();
-            rawItems = allRes instanceof Promise ? await allRes : allRes;
           } catch {
             // Fall through
           }

@@ -72,7 +72,9 @@ export function injectCoverGridUI(win: any) {
   ensureMainWindowStability(doc, win);
 
   const itemsPane = doc.getElementById('zotero-items-pane');
-  if (!itemsPane) return;
+  const itemsTree = doc.getElementById('zotero-items-tree');
+  const targetParent = itemsTree?.parentElement || itemsPane;
+  if (!targetParent && !itemsTree) return;
 
   // 이미 주입되어 있는지 확인
   if (doc.getElementById('zotero-cover-grid')) return;
@@ -91,6 +93,7 @@ export function injectCoverGridUI(win: any) {
   gridEl.id = 'zotero-cover-grid';
   gridEl.setAttribute('hidden', 'true');
   gridEl.className = 'zotero-cover-grid-root';
+  gridEl.style.cssText = 'display: none !important; flex-direction: column !important; flex: 1 1 auto !important; height: 100% !important; width: 100% !important; min-height: 0 !important; min-width: 0 !important; box-sizing: border-box !important; position: relative !important; overflow: hidden !important;';
 
   // 뷰포트
   const viewport = doc.createElementNS(HTML_NS, 'div');
@@ -102,7 +105,11 @@ export function injectCoverGridUI(win: any) {
   cardsContainer.className = 'grid-cards-container';
   viewport.appendChild(cardsContainer);
 
-  itemsPane.appendChild(gridEl);
+  if (itemsTree && itemsTree.parentNode) {
+    itemsTree.parentNode.insertBefore(gridEl, itemsTree.nextSibling);
+  } else if (targetParent) {
+    targetParent.appendChild(gridEl);
+  }
 
   // 툴바 주입
   const toolbar = injectToolbarControls(win);
@@ -185,6 +192,9 @@ export function injectCoverGridUI(win: any) {
       doc.getElementById('zotero-cover-grid-style')?.remove();
     }
   };
+
+  // Pre-load current collection so switching to grid view renders immediately
+  controller.reloadCurrentCollection();
 
   // Safeguard against white screen after injection
   ensureMainWindowStability(doc, win);

@@ -126,7 +126,7 @@ export function injectToolbarControls(win: any): ToolbarController | null {
   const setView = (mode: 'list' | 'grid') => {
     currentView = mode;
     const itemsTree = doc.getElementById('zotero-items-tree');
-    const coverGrid = doc.getElementById('zotero-cover-grid');
+    let coverGrid = doc.getElementById('zotero-cover-grid');
 
     if (mode === 'grid') {
       btnList.classList.remove('active');
@@ -138,6 +138,11 @@ export function injectToolbarControls(win: any): ToolbarController | null {
       zoomContainer.hidden = false;
       zoomContainer.removeAttribute('hidden');
       zoomContainer.style.display = 'inline-flex';
+
+      // Ensure coverGrid is positioned right next to itemsTree if itemsTree exists
+      if (itemsTree && itemsTree.parentNode && coverGrid && coverGrid.parentNode !== itemsTree.parentNode) {
+        itemsTree.parentNode.insertBefore(coverGrid, itemsTree.nextSibling);
+      }
 
       // Items tree completely hidden
       if (itemsTree) {
