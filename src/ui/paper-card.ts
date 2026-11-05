@@ -20,6 +20,38 @@ export function cycleReadStatus(current: ReadStatus): ReadStatus {
   }
 }
 
+function formatBadgeText(status: ReadStatus): string {
+  switch (status) {
+    case 'reading':
+      return 'Reading';
+    case 'read':
+      return 'Read';
+    case 'unread':
+      return 'Unread';
+    default:
+      return 'Unread';
+  }
+}
+
+function formatItemTypeLabel(itemType: string): string {
+  switch (itemType) {
+    case 'journalArticle':
+      return 'Journal Article';
+    case 'book':
+      return 'Book';
+    case 'bookSection':
+      return 'Book Section';
+    case 'conferencePaper':
+      return 'Conference';
+    case 'preprint':
+      return 'Preprint';
+    case 'thesis':
+      return 'Thesis';
+    default:
+      return 'Journal Article';
+  }
+}
+
 export function createPaperCardElement(
   card: PaperCardData,
   handlers: CardEventHandlers = {},
@@ -45,17 +77,17 @@ export function createPaperCardElement(
   coverWrapper.appendChild(imgEl);
   cardEl.appendChild(coverWrapper);
 
-  // Author & Citation
+  // Author & Citation (e.g. Kim et al. (2026))
   const authorEl = doc.createElementNS(HTML_NS, 'div');
   authorEl.className = 'card-author';
   authorEl.textContent = card.citationText || card.authorText;
-  authorEl.title = `${card.authorText} (${card.year || 'n.d.'})`;
+  authorEl.title = `${card.authorText} (${card.year || 'n.d.'}) - ${card.title}`;
   cardEl.appendChild(authorEl);
 
-  // Title / Meta
+  // Title / Subtitle Meta (e.g. APA 7 · Journal Article)
   const metaEl = doc.createElementNS(HTML_NS, 'div');
   metaEl.className = 'card-meta';
-  metaEl.textContent = card.title;
+  metaEl.textContent = `APA 7 · ${formatItemTypeLabel(card.itemType)}`;
   metaEl.title = card.title;
   cardEl.appendChild(metaEl);
 
@@ -65,8 +97,8 @@ export function createPaperCardElement(
 
   const badgeEl = doc.createElementNS(HTML_NS, 'span');
   badgeEl.className = `card-badge ${card.readStatus}`;
-  badgeEl.textContent = card.readStatus.toUpperCase();
-  badgeEl.title = `Reading Status: ${card.readStatus} (Click to change)`;
+  badgeEl.textContent = formatBadgeText(card.readStatus);
+  badgeEl.title = `Reading Status: ${card.readStatus} (클릭하여 상태 변경)`;
 
   badgeEl.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -91,8 +123,8 @@ export function updatePaperCardBadge(cardEl: HTMLElement, status: ReadStatus) {
   const badge = cardEl.querySelector('.card-badge');
   if (badge) {
     badge.className = `card-badge ${status}`;
-    badge.textContent = status.toUpperCase();
-    badge.setAttribute('title', `Reading Status: ${status} (Click to change)`);
+    badge.textContent = formatBadgeText(status);
+    badge.setAttribute('title', `Reading Status: ${status} (클릭하여 상태 변경)`);
   }
 }
 

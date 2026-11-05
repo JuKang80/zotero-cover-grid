@@ -93,7 +93,7 @@ describe('VirtualGridScroller & Paper Cards', () => {
 
     const newCard1 = scroller.getCardElement(1);
     expect(newCard1).toBe(initialCard1); // Same DOM node preserved!
-    expect(newCard1?.querySelector('.card-badge')?.textContent).toBe('READ');
+    expect(newCard1?.querySelector('.card-badge')?.textContent).toBe('Read');
 
     // Item 3 removed
     expect(scroller.getCardElement(3)).toBeUndefined();
@@ -137,14 +137,14 @@ describe('VirtualGridScroller & Paper Cards', () => {
     // Click badge (starts at unread)
     badge.click();
     expect(onStatusChangeMock).toHaveBeenCalledWith(expect.anything(), 'reading');
-    expect(badge.textContent).toBe('READING');
+    expect(badge.textContent).toBe('Reading');
 
     badge.click();
     expect(onStatusChangeMock).toHaveBeenCalledWith(expect.anything(), 'read');
-    expect(badge.textContent).toBe('READ');
+    expect(badge.textContent).toBe('Read');
 
     badge.click();
     expect(onStatusChangeMock).toHaveBeenCalledWith(expect.anything(), 'unread');
-    expect(badge.textContent).toBe('UNREAD');
+    expect(badge.textContent).toBe('Unread');
   });
 });

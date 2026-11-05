@@ -5,6 +5,7 @@ declare const Ci: any;
 declare const Zotero: any;
 
 let windowListener: any = null;
+const PREF_PANE_ID = 'zotero-cover-grid-preferences-pane';
 
 async function initWindow(win: any) {
   if (!win?.location?.href?.includes('zoteroPane.xhtml')) {
@@ -28,6 +29,8 @@ async function initWindow(win: any) {
     });
   }
 
+  // Clean any leftover elements from earlier loads before injecting
+  cleanupCoverGridUI(win);
   injectCoverGridUI(win);
 }
 
@@ -36,21 +39,29 @@ function destroyWindow(win: any) {
 }
 
 export function startup({ id, version, rootURI }: any, reason: number) {
-  // Register Preference Pane in Zotero Settings (Cmd + ,)
-  if (typeof Zotero !== 'undefined' && Zotero.PreferencePanes?.register) {
+  const pluginID = id || 'zotero-cover-grid@antigravity.user';
+
+  // 1. Clean up duplicate preference panes from previous installs and register a single pane
+  if (typeof Zotero !== 'undefined' && Zotero.PreferencePanes) {
     try {
+      if (Array.isArray(Zotero.PreferencePanes.pluginPanes)) {
+        Zotero.PreferencePanes.pluginPanes = Zotero.PreferencePanes.pluginPanes.filter(
+          (p: any) => p.pluginID !== pluginID && p.id !== PREF_PANE_ID
+        );
+      }
       Zotero.PreferencePanes.register({
-        pluginID: id || 'zotero-cover-grid@antigravity.user',
+        id: PREF_PANE_ID,
+        pluginID: pluginID,
         src: (rootURI || '') + 'preferences.xhtml',
         label: 'Cover Grid',
         image: (rootURI || '') + 'icons/icon-48.png'
       });
-    } catch (e) {
+    } catch {
       // Ignore registration error
     }
   }
 
-  // Enumerate currently open windows
+  // 2. Enumerate currently open windows
   if (typeof Services !== 'undefined' && Services.wm) {
     const windows = Services.wm.getEnumerator('navigator:browser');
     while (windows.hasMoreElements()) {
@@ -95,10 +106,22 @@ export function onMainWindowUnload({ window }: any) {
 }
 
 export function shutdown(data: any, reason: number) {
+  // 1. Unregister Preference Pane
+  if (typeof Zotero !== 'undefined' && Zotero.PreferencePanes?.unregister) {
+    try {
+      Zotero.PreferencePanes.unregister(PREF_PANE_ID);
+    } catch {
+      // Ignore
+    }
+  }
+
+  // 2. Remove window listener
   if (windowListener && typeof Services !== 'undefined' && Services.wm) {
     Services.wm.removeListener(windowListener);
     windowListener = null;
   }
+
+  // 3. Clean all browser windows
   if (typeof Services !== 'undefined' && Services.wm) {
     const windows = Services.wm.getEnumerator('navigator:browser');
     while (windows.hasMoreElements()) {

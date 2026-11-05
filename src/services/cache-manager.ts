@@ -124,7 +124,19 @@ export class ThumbnailCacheManager implements IThumbnailCacheManager {
 
         // 4. Render from PDF or Fallback
         let blob: Blob;
-        const pdfPath = attachment?.getFile?.()?.path || attachment?.path;
+        let pdfPath: string | null = null;
+        try {
+          if (typeof attachment?.getFilePathAsync === 'function') {
+            pdfPath = await attachment.getFilePathAsync();
+          } else if (typeof attachment?.getFilePath === 'function') {
+            pdfPath = attachment.getFilePath();
+          } else if (attachment?.getFile) {
+            pdfPath = attachment.getFile()?.path || null;
+          }
+        } catch {
+          // Ignore path resolution error
+        }
+
         const card: Partial<PaperCardData> = cardData || {
           title: item.getField?.('title') || item.title || 'Untitled',
           authorText: item.getCreators?.()?.[0]?.lastName || 'Author',
@@ -132,7 +144,8 @@ export class ThumbnailCacheManager implements IThumbnailCacheManager {
           itemType: item.itemType || 'journalArticle'
         };
 
-        if (pdfPath && attachment?.isPDFAttachment?.()) {
+        const isPdf = typeof attachment?.isPDFAttachment === 'function' ? attachment.isPDFAttachment() : (pdfPath && pdfPath.toLowerCase().endsWith('.pdf'));
+        if (pdfPath && isPdf) {
           blob = await renderPdfThumbnail(pdfPath, card);
         } else {
           blob = await generateTypographyFallbackCover(card, 'No PDF Attached');

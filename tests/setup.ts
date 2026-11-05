@@ -100,6 +100,7 @@ g.Zotero = {
     unregisterObserver: vi.fn()
   },
   PreferencePanes: {
+    pluginPanes: [],
     register: vi.fn().mockResolvedValue('pane-id'),
     unregister: vi.fn()
   },

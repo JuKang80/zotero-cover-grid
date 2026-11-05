@@ -51,18 +51,58 @@ export function getClampedViewport(page: any) {
 }
 
 /**
- * 3-tier safe canvas encoding: WebP -> JPEG -> PNG
+ * Creates an OffscreenCanvas or HTML5 Canvas compatible with Gecko environment
+ */
+export function createSafeCanvas(width: number, height: number): any {
+  if (typeof OffscreenCanvas !== 'undefined') {
+    return new OffscreenCanvas(Math.max(1, Math.floor(width)), Math.max(1, Math.floor(height)));
+  }
+  if (typeof document !== 'undefined' && typeof document.createElement === 'function') {
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.floor(width));
+    canvas.height = Math.max(1, Math.floor(height));
+    return canvas;
+  }
+  throw new Error('Canvas rendering context unavailable');
+}
+
+/**
+ * 3-tier safe canvas encoding: WebP -> JPEG -> PNG with fallback to toBlob / toDataURL
  */
 export async function convertCanvasToSafeBlob(canvas: any): Promise<Blob> {
-  try {
-    return await canvas.convertToBlob({ type: 'image/webp', quality: 0.85 });
-  } catch {
+  if (typeof canvas.convertToBlob === 'function') {
     try {
-      return await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.85 });
+      return await canvas.convertToBlob({ type: 'image/webp', quality: 0.85 });
     } catch {
-      return await canvas.convertToBlob({ type: 'image/png' });
+      try {
+        return await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.85 });
+      } catch {
+        return await canvas.convertToBlob({ type: 'image/png' });
+      }
     }
   }
+
+  // Fallback for HTMLCanvasElement
+  return new Promise<Blob>((resolve, reject) => {
+    if (typeof canvas.toBlob === 'function') {
+      canvas.toBlob((blob: Blob | null) => {
+        if (blob) resolve(blob);
+        else reject(new Error('Canvas toBlob failed'));
+      }, 'image/jpeg', 0.85);
+    } else if (typeof canvas.toDataURL === 'function') {
+      try {
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        fetch(dataUrl)
+          .then((res) => res.blob())
+          .then(resolve)
+          .catch(reject);
+      } catch (err) {
+        reject(err);
+      }
+    } else {
+      reject(new Error('No blob conversion available on canvas'));
+    }
+  });
 }
 
 /**
@@ -74,49 +114,47 @@ export async function generateTypographyFallbackCover(
 ): Promise<Blob> {
   const width = 480;
   const height = 640;
-  const canvas = new OffscreenCanvas(width, height);
+  const canvas = createSafeCanvas(width, height);
   const ctx = canvas.getContext('2d');
 
   if (ctx) {
-    // Generate subtle distinct gradient based on title hash
-    let hash = 0;
-    const title = card.title || 'Untitled Document';
-    for (let i = 0; i < title.length; i++) {
-      hash = (hash << 5) - hash + title.charCodeAt(i);
-      hash |= 0;
-    }
-    const hue = Math.abs(hash) % 360;
-
+    // Elegant Academic Gradient (Navy / Indigo)
     const grad = ctx.createLinearGradient(0, 0, width, height);
-    grad.addColorStop(0, `hsl(${hue}, 40%, 25%)`);
-    grad.addColorStop(1, `hsl(${(hue + 40) % 360}, 50%, 15%)`);
-
+    grad.addColorStop(0, '#1e293b');
+    grad.addColorStop(1, '#0f172a');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, width, height);
 
-    // Accent line
-    ctx.fillStyle = `hsl(${hue}, 80%, 65%)`;
-    ctx.fillRect(40, 50, 60, 6);
+    // Decorative Top Accent Bar
+    ctx.fillStyle = '#38bdf8';
+    ctx.fillRect(0, 0, width, 8);
 
-    // Item Type / Year badge
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-    ctx.font = 'bold 16px sans-serif';
-    const typeLabel = (card.itemType || 'DOCUMENT').toUpperCase();
-    const yearLabel = card.year ? ` • ${card.year}` : '';
-    ctx.fillText(`${typeLabel}${yearLabel}`, 40, 95);
+    // Year Badge
+    if (card.year) {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+      ctx.beginPath();
+      ctx.roundRect?.(40, 40, 70, 28, 4) || ctx.rect(40, 40, 70, 28);
+      ctx.fill();
 
-    // Title (wrapped)
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = 'bold 14px sans-serif';
+      ctx.fillText(String(card.year), 52, 60);
+    }
+
+    // Title (multi-line word wrap)
     ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 24px sans-serif';
+    ctx.font = 'bold 22px serif';
+    const title = card.title || 'Untitled Document';
     const words = title.split(' ');
     let line = '';
-    let y = 150;
-    for (const word of words) {
-      const testLine = line + word + ' ';
+    let y = 140;
+
+    for (let i = 0; i < words.length; i++) {
+      const testLine = line + words[i] + ' ';
       const metrics = ctx.measureText(testLine);
-      if (metrics.width > width - 80 && line !== '') {
+      if (metrics.width > width - 80 && i > 0) {
         ctx.fillText(line, 40, y);
-        line = word + ' ';
+        line = words[i] + ' ';
         y += 34;
         if (y > 450) {
           line += '...';
@@ -130,7 +168,7 @@ export async function generateTypographyFallbackCover(
 
     // Author
     ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-    ctx.font = '18px sans-serif';
+    ctx.font = '16px sans-serif';
     ctx.fillText(card.authorText || 'Unknown Author', 40, height - 70);
 
     // Reason tag at bottom
@@ -150,14 +188,19 @@ export async function renderPdfThumbnail(
   cardData: Partial<PaperCardData>
 ): Promise<Blob> {
   // Pre-check file existence and size
+  let bytes: Uint8Array;
   try {
-    const exists = await IOUtils.exists(pdfPath);
-    if (!exists) {
-      return generateTypographyFallbackCover(cardData, 'File Not Found');
-    }
-    const stat = await IOUtils.stat(pdfPath);
-    if (!stat || stat.size === 0) {
-      return generateTypographyFallbackCover(cardData, '0-Byte PDF');
+    if (typeof IOUtils !== 'undefined') {
+      const exists = await IOUtils.exists(pdfPath);
+      if (!exists) {
+        return generateTypographyFallbackCover(cardData, 'File Not Found');
+      }
+      bytes = await IOUtils.read(pdfPath);
+      if (!bytes || bytes.length === 0) {
+        return generateTypographyFallbackCover(cardData, '0-Byte PDF');
+      }
+    } else {
+      return generateTypographyFallbackCover(cardData, 'IOUtils Unavailable');
     }
   } catch {
     return generateTypographyFallbackCover(cardData, 'Invalid File');
@@ -166,16 +209,26 @@ export async function renderPdfThumbnail(
   // Load PDF.js via Gecko ChromeUtils
   let pdfjs: any;
   try {
-    pdfjs = await ChromeUtils.importESModule('resource://zotero/reader/pdf/build/pdf.mjs');
+    if (typeof ChromeUtils !== 'undefined' && ChromeUtils.importESModule) {
+      try {
+        pdfjs = await ChromeUtils.importESModule('resource://zotero/reader/pdf/build/pdf.mjs');
+      } catch {
+        pdfjs = await ChromeUtils.importESModule('resource://pdf.js/build/pdf.mjs');
+      }
+    }
   } catch (err) {
     return generateTypographyFallbackCover(cardData, 'PDF.js Unavailable');
   }
 
+  if (!pdfjs) {
+    return generateTypographyFallbackCover(cardData, 'PDF.js Not Found');
+  }
+
   let pdfDoc: any = null;
   try {
-    // Intercept password prompts to avoid blocking GUI
+    // Pass raw byte array directly to avoid file URI resolution and permission issues
     const loadingTask = pdfjs.getDocument({
-      url: pdfPath,
+      data: bytes,
       onPassword: (updatePassword: (pw: string) => void) => {
         updatePassword('');
       }
@@ -190,7 +243,7 @@ export async function renderPdfThumbnail(
     const page1 = await pdfDoc.getPage(1);
     let targetPage = page1;
 
-    // Check splash sheet (JSTOR/Elsevier)
+    // Check publisher splash sheet (JSTOR/Elsevier)
     if (pdfDoc.numPages > 1) {
       const isSplash = await detectSplashPage(page1);
       if (isSplash) {
@@ -199,7 +252,7 @@ export async function renderPdfThumbnail(
     }
 
     const viewport = getClampedViewport(targetPage);
-    const canvas = new OffscreenCanvas(Math.floor(viewport.width), Math.floor(viewport.height));
+    const canvas = createSafeCanvas(viewport.width, viewport.height);
     const renderContext = {
       canvasContext: canvas.getContext('2d'),
       viewport
@@ -208,7 +261,7 @@ export async function renderPdfThumbnail(
     await targetPage.render(renderContext).promise;
     return await convertCanvasToSafeBlob(canvas);
   } catch (err: any) {
-    const errorMsg = err?.name === 'PasswordException' ? 'Password Protected' : 'Corrupted PDF';
+    const errorMsg = err?.name === 'PasswordException' ? 'Password Protected' : 'Render Failed';
     return generateTypographyFallbackCover(cardData, errorMsg);
   } finally {
     if (pdfDoc && typeof pdfDoc.destroy === 'function') {

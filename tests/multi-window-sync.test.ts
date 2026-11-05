@@ -76,13 +76,13 @@ describe('Multi-Window Event Synchronization', () => {
     }];
     ctrl.applyFilter();
 
-    expect(scroller1.getCardElement(99)?.querySelector('.card-badge')?.textContent).toBe('UNREAD');
+    expect(scroller1.getCardElement(99)?.querySelector('.card-badge')?.textContent).toBe('Unread');
 
     // Simulate item updated in Zotero (e.g. tag changed to #read)
     mockItem.getTags = () => [{ tag: '#read' }];
     ctrl.handleNotifierEvent('modify', 'item-tag', [99], {});
 
-    expect(scroller1.getCardElement(99)?.querySelector('.card-badge')?.textContent).toBe('READ');
+    expect(scroller1.getCardElement(99)?.querySelector('.card-badge')?.textContent).toBe('Read');
 
     ctrl.destroy();
   });

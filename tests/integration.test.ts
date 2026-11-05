@@ -105,11 +105,11 @@ describe('End-to-End Extension Lifecycle & User Journey', () => {
 
     // 2 authors: He & Zhang (2016)
     expect(card1.querySelector('.card-author')?.textContent).toBe('He & Zhang (2016)');
-    expect(card1.querySelector('.card-badge')?.textContent).toBe('READING');
+    expect(card1.querySelector('.card-badge')?.textContent).toBe('Reading');
 
     // 3+ authors: Vaswani et al. (2017)
     expect(card2.querySelector('.card-author')?.textContent).toBe('Vaswani et al. (2017)');
-    expect(card2.querySelector('.card-badge')?.textContent).toBe('READ');
+    expect(card2.querySelector('.card-badge')?.textContent).toBe('Read');
 
     // 3. Zoom Slider adjustment
     zoomSlider.value = '260';
