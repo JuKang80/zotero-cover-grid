@@ -29,7 +29,9 @@ zotero-cover-grid[hidden],
 
 /* 내부 가상 스크롤러 뷰포트 */
 #zotero-cover-grid .grid-viewport,
-.zotero-cover-grid-root .grid-viewport {
+.zotero-cover-grid-root .grid-viewport,
+.cover-grid-tab-root .grid-viewport,
+.grid-viewport {
   flex: 1 1 0% !important;
   width: 100% !important;
   height: 100% !important;
@@ -47,6 +49,22 @@ zotero-cover-grid[hidden],
   grid-template-columns: repeat(auto-fill, minmax(var(--card-width, 180px), 1fr)) !important;
   gap: 16px !important;
   width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+/* 빈 목록 플레이스홀더 */
+.grid-empty-placeholder {
+  grid-column: 1 / -1 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 64px 20px !important;
+  text-align: center !important;
+  color: var(--text-muted, #6b7280) !important;
+  font-size: 15px !important;
+  font-weight: 500 !important;
+  line-height: 1.6 !important;
 }
 
 /* 개별 논문 카드 */
@@ -88,8 +106,19 @@ zotero-cover-grid[hidden],
   margin-bottom: 8px !important;
 }
 
+.paper-card .card-cover-wrapper::before {
+  content: '📄' !important;
+  font-size: 32px !important;
+  opacity: 0.25 !important;
+  position: absolute !important;
+  z-index: 0 !important;
+  pointer-events: none !important;
+}
+
 /* 썸네일 이미지: 가로형 및 회전 대응 */
 .paper-card .card-cover-img {
+  position: relative !important;
+  z-index: 1 !important;
   max-width: 100% !important;
   max-height: 100% !important;
   object-fit: contain !important;

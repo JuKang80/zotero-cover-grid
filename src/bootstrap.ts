@@ -117,7 +117,7 @@ async function initWindow(win: any) {
     const doc = win.document;
     if (doc) {
       // Ensure tab cover overlay is dismissed and deck index is restored
-      ensureMainWindowStability(doc);
+      ensureMainWindowStability(doc, win);
     }
 
     // Clean any orphaned DOM leftover before injecting without closing dedicated tabs
@@ -129,7 +129,7 @@ async function initWindow(win: any) {
     }
 
     if (doc) {
-      ensureMainWindowStability(doc);
+      ensureMainWindowStability(doc, win);
     }
 
     win.__zoteroCoverGridInitialized = true;

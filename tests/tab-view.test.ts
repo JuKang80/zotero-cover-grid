@@ -76,6 +76,46 @@ describe('Dedicated Full Tab Cover Grid View', () => {
     expect(corruptTab.data.icon).toBe('library');
   });
 
+  it('should prioritize selected collection getChildItems and sync badge dynamically', async () => {
+    const colItems = [
+      {
+        id: 3001,
+        key: 'ITEM3001',
+        getField: (f: string) => (f === 'title' ? 'Personal Interest Paper' : '2024'),
+        getCreators: () => [{ lastName: 'Kang', firstName: 'Ju' }],
+        getTags: () => [{ tag: '#reading' }],
+        isRegularItem: () => true
+      }
+    ];
+
+    mockWin.ZoteroPane.getSelectedCollection = vi.fn(() => ({
+      name: 'personal interesting',
+      getChildItems: vi.fn(() => colItems)
+    }));
+
+    openCoverGridTab(mockWin);
+
+    const instance = mockWin.__zoteroCoverGridTabInstance;
+    expect(instance.root.querySelector('.cover-grid-collection-name')?.textContent).toBe('personal interesting');
+
+    await instance.controller.reloadCurrentCollection();
+
+    const rendered = instance.scroller.getSelectedIds();
+    // Verify cards container received the paper
+    const cardEl = instance.root.querySelector('#paper-card-3001');
+    expect(cardEl).not.toBeNull();
+    expect(cardEl?.querySelector('.card-author')?.textContent).toBe('Kang (2024)');
+
+    // Simulate changing collection name dynamically
+    mockWin.ZoteroPane.getSelectedCollection = vi.fn(() => ({
+      name: 'Neuroscience 2026',
+      getChildItems: vi.fn(() => [])
+    }));
+
+    await instance.controller.reloadCurrentCollection();
+    expect(instance.root.querySelector('.cover-grid-collection-name')?.textContent).toBe('Neuroscience 2026');
+  });
+
   it('should select existing tab if already opened rather than duplicating', () => {
     openCoverGridTab(mockWin);
     const initialAddCount = vi.mocked(Zotero_Tabs.add).mock.calls.length;

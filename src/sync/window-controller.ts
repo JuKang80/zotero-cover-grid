@@ -17,9 +17,31 @@ export class WindowCoverGridController {
   private isDestroyed = false;
   private searchBoxCleanup: (() => void) | null = null;
   private refreshListener: (() => void) | null = null;
+  public onCollectionChange?: (name: string) => void;
 
   constructor(win: any) {
     this.win = win;
+  }
+
+  public getCurrentCollectionName(): string {
+    const zp = this.win?.ZoteroPane || (typeof ZoteroPane !== 'undefined' ? ZoteroPane : null);
+    try {
+      const col = zp?.getSelectedCollection?.();
+      if (col?.name) return col.name;
+
+      const cols = zp?.getSelectedCollections?.();
+      if (Array.isArray(cols) && cols.length > 0 && cols[0]?.name) {
+        return cols[0].name;
+      }
+
+      const rows = zp?.getCollectionTreeRows?.();
+      if (Array.isArray(rows) && rows[0]?.getName) {
+        return rows[0].getName();
+      }
+    } catch {
+      // Ignore
+    }
+    return 'My Library';
   }
 
   public init(scroller: VirtualGridScroller) {
@@ -112,30 +134,89 @@ export class WindowCoverGridController {
     this.abortController = new AbortController();
     const signal = this.abortController.signal;
 
+    // Notify collection name change if registered
+    if (this.onCollectionChange) {
+      try {
+        this.onCollectionChange(this.getCurrentCollectionName());
+      } catch {
+        // Ignore
+      }
+    }
+
     // 2. Fetch items from current collection / ZoteroPane
     let rawItems: any[] | null = null;
     const zp = this.win?.ZoteroPane || (typeof ZoteroPane !== 'undefined' ? ZoteroPane : null);
+    const z = this.win?.Zotero || (typeof Zotero !== 'undefined' ? Zotero : null);
+
     try {
-      if (typeof zp?.itemsView?.getSortedItems === 'function') {
-        rawItems = zp.itemsView.getSortedItems();
-      } else if (typeof zp?.getSortedItems === 'function') {
-        rawItems = zp.getSortedItems();
-      } else if (typeof zp?.getUnfilteredItems === 'function') {
-        rawItems = await zp.getUnfilteredItems();
-      } else if (zp?.itemsView?.rowProvider?.items) {
-        rawItems = zp.itemsView.rowProvider.items;
+      // Step A: Priority 1 - Explicitly selected collection in sidebar
+      const selectedCol = zp?.getSelectedCollection?.();
+      if (selectedCol && typeof selectedCol.getChildItems === 'function') {
+        const colItems = selectedCol.getChildItems();
+        if (Array.isArray(colItems)) {
+          rawItems = colItems;
+        }
+      }
+
+      // Step B: If no collection selected, check multiple selected collections
+      if (rawItems == null) {
+        const selectedCols = zp?.getSelectedCollections?.();
+        if (Array.isArray(selectedCols) && selectedCols.length > 0) {
+          const itemsMap = new Map<number, any>();
+          for (const col of selectedCols) {
+            if (col && typeof col.getChildItems === 'function') {
+              for (const it of col.getChildItems()) {
+                if (it && it.id) itemsMap.set(it.id, it);
+              }
+            }
+          }
+          rawItems = Array.from(itemsMap.values());
+        }
+      }
+
+      // Step C: Priority 2 - Check saved search (Smart Collection)
+      if (rawItems == null) {
+        const savedSearch = zp?.getSelectedSavedSearch?.();
+        if (savedSearch && typeof savedSearch.search === 'function') {
+          const searchItemIDs = await savedSearch.search(true);
+          if (Array.isArray(searchItemIDs) && z?.Items) {
+            rawItems = z.Items.get(searchItemIDs);
+          }
+        }
+      }
+
+      // Step D: Priority 3 - Native itemsView or rowProvider
+      if (rawItems == null) {
+        if (typeof zp?.itemsView?.getSortedItems === 'function') {
+          const treeItems = zp.itemsView.getSortedItems();
+          if (Array.isArray(treeItems)) {
+            rawItems = treeItems;
+          }
+        } else if (typeof zp?.getSortedItems === 'function') {
+          const sorted = zp.getSortedItems();
+          if (Array.isArray(sorted)) {
+            rawItems = sorted;
+          }
+        } else if (typeof zp?.getUnfilteredItems === 'function') {
+          rawItems = await zp.getUnfilteredItems();
+        } else if (zp?.itemsView?.rowProvider?.items) {
+          rawItems = zp.itemsView.rowProvider.items;
+        }
+      }
+
+      // Step E: Priority 4 - Library root fallback
+      // ONLY when rawItems is strictly null or undefined (e.g. root library view where no collection/itemsView exists)
+      if (rawItems == null) {
+        const libraryID = zp?.getSelectedLibraryID?.() || z?.Libraries?.userLibraryID;
+        if (z?.Items?.getAll) {
+          rawItems = z.Items.getAll(libraryID, false, false);
+        }
       }
     } catch {
-      // Ignore
-    }
-
-    // Fallback to Zotero.Items.getAll() ONLY if rawItems == null (strictly null or undefined),
-    // NEVER when rawItems is an empty array (rawItems.length === 0), to avoid dumping the whole
-    // library when an empty collection is selected or in dedicated tab mode.
-    if (rawItems == null) {
-      if (typeof Zotero !== 'undefined' && Zotero.Items?.getAll) {
+      // Fallback to Zotero.Items.getAll() on unexpected error ONLY if rawItems == null
+      if (rawItems == null && z?.Items?.getAll) {
         try {
-          rawItems = Zotero.Items.getAll();
+          rawItems = z.Items.getAll();
         } catch {
           // Ignore
         }
@@ -145,7 +226,7 @@ export class WindowCoverGridController {
     // Filter to valid displayable paper items (exclude notes, attachments, annotations)
     const validItems = (rawItems || []).map((it: any) => {
       if (typeof it === 'number' || typeof it === 'string') {
-        return typeof Zotero !== 'undefined' && Zotero.Items ? Zotero.Items.get(it) : null;
+        return z?.Items ? z.Items.get(it) : null;
       }
       return it;
     }).filter((it: any) => {

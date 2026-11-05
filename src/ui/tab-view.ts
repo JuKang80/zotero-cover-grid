@@ -133,13 +133,28 @@ export function openCoverGridTab(win: any) {
   zoomLabel.className = 'zoom-slider-label';
   zoomLabel.textContent = '🔍';
 
+  // Read initial card width preference
+  let initialCardWidth = 180;
+  try {
+    const z = win.Zotero || (typeof Zotero !== 'undefined' ? Zotero : null);
+    if (z?.Prefs?.get) {
+      const prefVal = z.Prefs.get('extensions.zotero.covergrid.cardWidth', true);
+      if (typeof prefVal === 'number' && !isNaN(prefVal)) {
+        initialCardWidth = Math.min(340, Math.max(140, prefVal));
+      }
+    }
+  } catch {
+    // Ignore and use default 180
+  }
+
   const zoomSlider = doc.createElementNS(HTML_NS, 'input') as HTMLInputElement;
   zoomSlider.type = 'range';
   zoomSlider.min = '140';
   zoomSlider.max = '340';
-  zoomSlider.value = '180';
+  zoomSlider.value = String(initialCardWidth);
   zoomSlider.className = 'cover-grid-zoom-slider';
   zoomSlider.title = 'Card Zoom (140px - 340px)';
+  root.style.setProperty('--card-width', `${initialCardWidth}px`);
 
   zoomContainer.appendChild(zoomLabel);
   zoomContainer.appendChild(zoomSlider);
@@ -227,6 +242,10 @@ export function openCoverGridTab(win: any) {
       controller.syncTagStatus(item, nextStatus);
     }
   });
+
+  controller.onCollectionChange = (name: string) => {
+    colBadge.textContent = name;
+  };
 
   controller.init(scroller);
   controller.reloadCurrentCollection();

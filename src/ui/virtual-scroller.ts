@@ -54,12 +54,11 @@ export class VirtualGridScroller {
 
     // Append/Update current items
     const doc = this.container.ownerDocument || document;
+    const HTML_NS = 'http://www.w3.org/1999/xhtml';
     if (this.items.length === 0) {
       if (!this.container.querySelector('.grid-empty-placeholder')) {
-        const emptyEl = doc.createElement('div');
+        const emptyEl = doc.createElementNS(HTML_NS, 'div');
         emptyEl.className = 'grid-empty-placeholder';
-        emptyEl.style.cssText =
-          'grid-column: 1 / -1; padding: 48px; text-align: center; color: #888; font-size: 14px;';
         emptyEl.textContent = '표시할 논문이 없습니다. (No items to display)';
         this.container.appendChild(emptyEl);
       }
