@@ -97,6 +97,30 @@ export function extractPaperCardData(item: any): PaperCardData {
       itemType = 'journalArticle';
     }
 
+    // Extract Zotero native colored tags (position 1-9 assigned colors)
+    let colorTags: Array<{ tag: string; color: string }> = [];
+    try {
+      if (typeof item.getItemsListTags === 'function') {
+        const listTags = item.getItemsListTags();
+        if (Array.isArray(listTags)) {
+          colorTags = listTags.filter((t: any) => t && t.color).map((t: any) => ({ tag: t.tag, color: t.color }));
+        }
+      } else if (typeof (globalThis as any).Zotero !== 'undefined' && (globalThis as any).Zotero.Tags?.getColors) {
+        const zColors = (globalThis as any).Zotero.Tags.getColors(item.libraryID);
+        if (zColors && typeof zColors.get === 'function') {
+          colorTags = tags
+            .map((t: any) => {
+              const name = typeof t === 'string' ? t : t?.tag;
+              const c = zColors.get(name)?.color;
+              return c ? { tag: name, color: c } : null;
+            })
+            .filter(Boolean) as any;
+        }
+      }
+    } catch {
+      colorTags = [];
+    }
+
     return {
       id,
       key,
@@ -106,7 +130,8 @@ export function extractPaperCardData(item: any): PaperCardData {
       itemType,
       year,
       readStatus,
-      hasPdf: false // Will be updated when attachment is resolved
+      hasPdf: false, // Will be updated when attachment is resolved
+      colorTags
     };
   } catch {
     return {

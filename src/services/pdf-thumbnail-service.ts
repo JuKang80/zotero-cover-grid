@@ -40,16 +40,24 @@ export const SPLASH_KEYWORDS = [
 ];
 
 /**
- * Checks if a PDF page is a publisher splash/cover sheet (e.g. JSTOR)
+ * Checks if a PDF page is a publisher splash/cover sheet (e.g. JSTOR, ScienceDirect cover sheet).
+ * Real scientific paper first pages with title, authors, and abstract will NOT be skipped.
  */
 export async function detectSplashPage(page: any): Promise<boolean> {
   try {
     const textContent = await page.getTextContent();
-    const fullText = (textContent.items || [])
+    const items = textContent.items || [];
+    const fullText = items
       .map((item: any) => (typeof item.str === 'string' ? item.str : ''))
       .join(' ')
       .toLowerCase();
 
+    // 1. If page contains an academic abstract or substantial text (>400 chars), it is a genuine paper page!
+    if (fullText.includes('abstract') || fullText.length > 400 || items.length > 60) {
+      return false;
+    }
+
+    // 2. Only sparse cover sheets (<400 chars) matching splash keywords qualify
     return SPLASH_KEYWORDS.some((kw) => fullText.includes(kw));
   } catch {
     return false;

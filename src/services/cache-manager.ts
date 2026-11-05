@@ -43,7 +43,7 @@ export class ThumbnailCacheManager implements IThumbnailCacheManager {
   private getDiskCachePath(cacheDir: string, key: string, mtime: string | number): string {
     const safeKey = String(key).replace(/[^a-zA-Z0-9_-]/g, '_');
     const safeMtime = String(mtime).replace(/[^a-zA-Z0-9_-]/g, '_');
-    const filename = `${safeKey}_${safeMtime}_v2.webp`;
+    const filename = `${safeKey}_${safeMtime}_v3.webp`;
     return typeof PathUtils !== 'undefined' && typeof PathUtils.join === 'function'
       ? PathUtils.join(cacheDir, filename)
       : `${cacheDir}/${filename}`;

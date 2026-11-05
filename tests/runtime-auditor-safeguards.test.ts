@@ -348,5 +348,28 @@ describe('Lead Runtime Code Auditor Safeguards (Zotero 10 Gecko 140 ESR)', () =>
       expect(cssSource).not.toMatch(/^\s*\[hidden\]\s*[,{]/m);
       expect(cssSource).toContain('#zotero-cover-grid[hidden]:not([hidden="false"])');
     });
+
+    it('should render colored tag dots alongside readStatus badge and keep card height fit-content', () => {
+      const cardEl = createPaperCardElement({
+        id: 888,
+        key: 'K888',
+        title: 'Color Tag Paper',
+        authorText: 'Author',
+        citationText: 'Author (2026)',
+        itemType: 'journalArticle',
+        year: '2026',
+        readStatus: 'reading',
+        hasPdf: true,
+        colorTags: [
+          { tag: 'important', color: '#ff0000' },
+          { tag: 'ai', color: '#00aa00' }
+        ]
+      });
+
+      const dots = cardEl.querySelectorAll('.card-color-dot');
+      expect(dots.length).toBe(2);
+      expect((dots[0] as HTMLElement).style.backgroundColor).toMatch(/(#ff0000|rgb\(255, 0, 0\))/);
+      expect((dots[1] as HTMLElement).style.backgroundColor).toMatch(/(#00aa00|rgb\(0, 170, 0\))/);
+    });
   });
 });

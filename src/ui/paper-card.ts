@@ -120,6 +120,13 @@ export function createPaperCardElement(
   });
 
   badgeContainer.appendChild(badgeEl);
+
+  // Zotero Native Colored Tags Dots
+  const dotsContainer = targetDoc.createElementNS(HTML_NS, 'div');
+  dotsContainer.className = 'card-color-dots';
+  renderColorDots(dotsContainer, card.colorTags || [], targetDoc);
+  badgeContainer.appendChild(dotsContainer);
+
   cardEl.appendChild(badgeContainer);
 
   // Event Listeners
@@ -143,5 +150,26 @@ export function updatePaperCardThumbnail(cardEl: HTMLElement, url: string) {
   const img = cardEl.querySelector('.card-cover-img') as HTMLImageElement;
   if (img) {
     img.src = url;
+  }
+}
+
+function renderColorDots(container: HTMLElement, colorTags: Array<{ tag: string; color: string }>, doc: Document) {
+  const HTML_NS = 'http://www.w3.org/1999/xhtml';
+  container.innerHTML = '';
+  for (const ct of colorTags) {
+    if (!ct || !ct.color) continue;
+    const dot = doc.createElementNS(HTML_NS, 'span');
+    dot.className = 'card-color-dot';
+    dot.style.setProperty('background-color', ct.color, 'important');
+    dot.title = ct.tag;
+    container.appendChild(dot);
+  }
+}
+
+export function updatePaperCardColorTags(cardEl: HTMLElement, colorTags?: Array<{ tag: string; color: string }>) {
+  const dotsContainer = cardEl.querySelector('.card-color-dots') as HTMLElement;
+  if (dotsContainer) {
+    const doc = cardEl.ownerDocument || document;
+    renderColorDots(dotsContainer, colorTags || [], doc);
   }
 }

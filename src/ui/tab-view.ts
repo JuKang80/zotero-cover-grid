@@ -205,7 +205,7 @@ export function openCoverGridTab(win: any) {
 
   const cardsContainer = doc.createElementNS(HTML_NS, 'div');
   cardsContainer.className = 'grid-cards-container';
-  cardsContainer.style.cssText = 'width: 100% !important; box-sizing: border-box !important; flex: 1 0 auto !important; min-height: 100px !important;';
+  cardsContainer.style.cssText = 'width: 100% !important; box-sizing: border-box !important;';
   viewport.appendChild(cardsContainer);
   root.appendChild(viewport);
 

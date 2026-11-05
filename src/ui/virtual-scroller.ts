@@ -1,5 +1,10 @@
 import { PaperCardData, ReadStatus } from '../types';
-import { createPaperCardElement, updatePaperCardBadge, updatePaperCardThumbnail } from './paper-card';
+import {
+  createPaperCardElement,
+  updatePaperCardBadge,
+  updatePaperCardThumbnail,
+  updatePaperCardColorTags
+} from './paper-card';
 
 export interface VirtualScrollerOptions {
   container: HTMLElement;
@@ -100,6 +105,7 @@ export class VirtualGridScroller {
       } else {
         // Update mutable properties
         updatePaperCardBadge(cardEl, card.readStatus);
+        updatePaperCardColorTags(cardEl, card.colorTags);
         if (card.coverThumbnailUrl) {
           updatePaperCardThumbnail(cardEl, card.coverThumbnailUrl);
         }
