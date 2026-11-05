@@ -242,9 +242,10 @@ export async function renderPdfThumbnail(
   }
 
   let pdfDoc: any = null;
+  let loadingTask: any = null;
   try {
     // Pass raw byte array directly to avoid file URI resolution and permission issues
-    const loadingTask = pdfjs.getDocument({
+    loadingTask = pdfjs.getDocument({
       data: bytes,
       cMapUrl: 'resource://zotero/reader/pdf/web/cmaps/',
       cMapPacked: true,
@@ -287,6 +288,13 @@ export async function renderPdfThumbnail(
     if (pdfDoc && typeof pdfDoc.destroy === 'function') {
       try {
         await pdfDoc.destroy();
+      } catch {
+        // Ignore destroy error
+      }
+    }
+    if (loadingTask && typeof loadingTask.destroy === 'function') {
+      try {
+        await loadingTask.destroy();
       } catch {
         // Ignore destroy error
       }

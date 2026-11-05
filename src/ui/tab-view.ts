@@ -174,7 +174,15 @@ export function openCoverGridTab(win: any) {
           await zp.viewItems([item.id]);
           return;
         } catch {
-          // Fall through to Reader.open
+          try {
+            const zItem = z?.Items?.get?.(item.id);
+            if (zItem && typeof zItem.isRegularItem === 'function') {
+              await zp.viewItems([zItem]);
+              return;
+            }
+          } catch {
+            // Fall through to Reader.open
+          }
         }
       }
       if (z) {
