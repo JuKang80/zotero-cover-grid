@@ -116,6 +116,55 @@ describe('Dedicated Full Tab Cover Grid View', () => {
     expect(instance.root.querySelector('.cover-grid-collection-name')?.textContent).toBe('Neuroscience 2026');
   });
 
+  it('should query items via Zotero.Search native engine when collection is selected and render cards', async () => {
+    const searchItem = {
+      id: 4001,
+      key: 'ITEM4001',
+      getField: (f: string) => (f === 'title' ? 'Attention Is All You Need' : '2017'),
+      getCreators: () => [{ lastName: 'Vaswani', firstName: 'Ashish' }],
+      getTags: () => [{ tag: '#read' }],
+      isRegularItem: () => true
+    };
+
+    mockWin.Zotero = {
+      Search: class {
+        libraryID: any;
+        conditions: any[] = [];
+        addCondition(cond: string, op: string, val?: any) {
+          this.conditions.push({ cond, op, val });
+        }
+        search() {
+          return Promise.resolve([4001]);
+        }
+      },
+      Items: {
+        get: vi.fn((ids: number[] | number) => {
+          if (Array.isArray(ids)) return [searchItem];
+          return searchItem;
+        })
+      },
+      Prefs: {
+        get: vi.fn(() => true)
+      }
+    };
+
+    mockWin.ZoteroPane.getSelectedCollection = vi.fn(() => ({
+      id: 88,
+      libraryID: 1,
+      name: 'personal interesting'
+    }));
+
+    openCoverGridTab(mockWin);
+    const instance = mockWin.__zoteroCoverGridTabInstance;
+    await instance.controller.reloadCurrentCollection();
+
+    // Verify card is mounted in DOM
+    const cardEl = instance.root.querySelector('#paper-card-4001');
+    expect(cardEl).not.toBeNull();
+    expect(cardEl?.querySelector('.card-author')?.textContent).toBe('Vaswani (2017)');
+    expect(cardEl?.querySelector('.card-badge')?.textContent).toBe('Read');
+  });
+
   it('should select existing tab if already opened rather than duplicating', () => {
     openCoverGridTab(mockWin);
     const initialAddCount = vi.mocked(Zotero_Tabs.add).mock.calls.length;
