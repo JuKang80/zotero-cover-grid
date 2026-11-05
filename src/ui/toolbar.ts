@@ -14,7 +14,13 @@ export function injectToolbarControls(win: any): ToolbarController | null {
   if (!doc) return null;
 
   // Search box or items toolbar container
-  const searchBox = doc.getElementById('zotero-search-box') || doc.querySelector('.zotero-toolbar-search') || doc.getElementById('zotero-items-pane');
+  const searchBox =
+    doc.getElementById('zotero-tb-search') ||
+    doc.getElementById('zotero-search-box') ||
+    doc.querySelector('quick-search-textbox') ||
+    doc.querySelector('.zotero-toolbar-search') ||
+    doc.getElementById('zotero-items-toolbar') ||
+    doc.getElementById('zotero-items-pane');
   if (!searchBox) return null;
 
   // Check if toolbar group already injected
@@ -75,8 +81,10 @@ export function injectToolbarControls(win: any): ToolbarController | null {
   zoomContainer.appendChild(zoomSlider);
   toolbarGroup.appendChild(zoomContainer);
 
-  // Insert after searchBox or inside parent
-  if (searchBox.parentNode) {
+  // Insert after searchBox or inside toolbar
+  if (searchBox.id === 'zotero-items-toolbar') {
+    searchBox.appendChild(toolbarGroup);
+  } else if (searchBox.parentNode) {
     searchBox.parentNode.insertBefore(toolbarGroup, searchBox.nextSibling);
   } else {
     searchBox.appendChild(toolbarGroup);

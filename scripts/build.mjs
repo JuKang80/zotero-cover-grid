@@ -20,7 +20,7 @@ await esbuild.build({
   minify: isProd,
   sourcemap: !isProd ? 'inline' : false,
   footer: {
-    js: 'var { install, startup, shutdown, uninstall } = __ZoteroCoverGridExport__;'
+    js: 'var { install, startup, shutdown, uninstall, onMainWindowLoad, onMainWindowUnload } = __ZoteroCoverGridExport__;'
   },
   external: [
     'resource://*',

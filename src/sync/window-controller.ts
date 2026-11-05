@@ -137,20 +137,35 @@ export class WindowCoverGridController {
   public bindSearchBox() {
     const doc = this.win.document;
     if (!doc) return;
-    const searchBox = doc.getElementById('zotero-search-box') as HTMLInputElement;
+    const searchBox = (
+      doc.getElementById('zotero-tb-search') ||
+      doc.getElementById('zotero-search-box') ||
+      doc.querySelector('quick-search-textbox')
+    ) as any;
     if (!searchBox) return;
 
-    searchBox.addEventListener('input', (e: Event) => {
+    const inputEl = searchBox.inputField || searchBox;
+
+    const handleInput = (e: any) => {
       const query = (e.target as HTMLInputElement).value || '';
       this.handleSearchInput(query);
-    });
+    };
 
-    searchBox.addEventListener('keydown', (e: KeyboardEvent) => {
+    const handleKey = (e: any) => {
       if (e.key === 'Escape') {
-        searchBox.value = '';
+        inputEl.value = '';
+        if (searchBox !== inputEl) searchBox.value = '';
         this.handleSearchInput('', true); // 0ms fast-path
       }
-    });
+    };
+
+    inputEl.addEventListener('input', handleInput);
+    inputEl.addEventListener('keydown', handleKey);
+    if (searchBox !== inputEl) {
+      searchBox.addEventListener('command', handleInput);
+      searchBox.addEventListener('input', handleInput);
+      searchBox.addEventListener('keydown', handleKey);
+    }
   }
 
   public handleSearchInput(query: string, fastPath = false) {

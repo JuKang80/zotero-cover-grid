@@ -82,6 +82,10 @@ g.Zotero = {
     registerObserver: vi.fn(() => 'observer-id'),
     unregisterObserver: vi.fn()
   },
+  PreferencePanes: {
+    register: vi.fn().mockResolvedValue('pane-id'),
+    unregister: vi.fn()
+  },
   Utilities: { cleanAuthor: vi.fn((author: string) => author) }
 };
 
