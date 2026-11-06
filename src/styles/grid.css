@@ -1,4 +1,5 @@
 /* Gecko 140 ESR XUL Layout Rules: Enforce strict flexbox and prevent 0px height/width collapse */
+#zotero-tab-cover,
 #zotero-cover-grid[hidden]:not([hidden="false"]),
 zotero-cover-grid[hidden]:not([hidden="false"]),
 .zotero-cover-grid-root[hidden]:not([hidden="false"]),

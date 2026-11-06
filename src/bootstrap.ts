@@ -184,6 +184,11 @@ async function initWindow(win: any) {
   initializingWindows.add(win);
 
   try {
+    // 0. Immediately dismiss #zotero-tab-cover (Zotero startup icon overlay) at 0ms before awaiting promises
+    if (win.document) {
+      ensureMainWindowStability(win.document, win);
+    }
+
     const zObj = win?.Zotero || (typeof Zotero !== 'undefined' ? Zotero : null);
     if (zObj) {
       const waitPromises: Promise<any>[] = [];
@@ -192,7 +197,10 @@ async function initWindow(win: any) {
       if (zObj.uiReadyPromise) waitPromises.push(zObj.uiReadyPromise);
       if (waitPromises.length > 0) {
         try {
-          await Promise.all(waitPromises);
+          await Promise.race([
+            Promise.all(waitPromises),
+            new Promise((resolve) => setTimeout(resolve, 600))
+          ]);
         } catch {
           // Ignore
         }
@@ -200,17 +208,22 @@ async function initWindow(win: any) {
     }
 
     if (win.ZoteroPane?.loadedPromise) {
-      await win.ZoteroPane.loadedPromise;
+      try {
+        await Promise.race([
+          win.ZoteroPane.loadedPromise,
+          new Promise((resolve) => setTimeout(resolve, 600))
+        ]);
+      } catch {}
     } else {
       await new Promise<void>((resolve) => {
         let attempts = 0;
         const check = () => {
           if (win.ZoteroPane?.loadedPromise) {
-            win.ZoteroPane.loadedPromise.then(() => resolve());
-          } else if (attempts++ > 100) {
+            win.ZoteroPane.loadedPromise.then(() => resolve()).catch(() => resolve());
+          } else if (attempts++ > 25) {
             resolve();
           } else {
-            win.setTimeout(check, 20);
+            (win.setTimeout || setTimeout)(check, 20);
           }
         };
         check();
