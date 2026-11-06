@@ -69,23 +69,14 @@ describe('Keyboard Shortcuts (1~9 Color Tags, r Read Status, Space/Enter Open PD
     expect(onToggleColorTag).toHaveBeenCalledWith(testItems[0], 9);
   });
 
-  it('cycles read status and triggers onStatusChange when r or R is pressed', () => {
-    const { container, onStatusChange, testItems } = setupScroller();
+  it('does not trigger status change on r or R key (r shortcut removed per user request)', () => {
+    const { container, onStatusChange } = setupScroller();
 
-    // Press 'r' (unread -> reading)
     container.dispatchEvent(new KeyboardEvent('keydown', { key: 'r', bubbles: true }));
-    expect(onStatusChange).toHaveBeenCalledWith(testItems[0], 'reading');
-    expect(testItems[0].readStatus).toBe('reading');
+    expect(onStatusChange).not.toHaveBeenCalled();
 
-    // Press 'R' (reading -> read)
     container.dispatchEvent(new KeyboardEvent('keydown', { key: 'R', bubbles: true }));
-    expect(onStatusChange).toHaveBeenCalledWith(testItems[0], 'read');
-    expect(testItems[0].readStatus).toBe('read');
-
-    // Press 'r' again (read -> unread)
-    container.dispatchEvent(new KeyboardEvent('keydown', { key: 'r', bubbles: true }));
-    expect(onStatusChange).toHaveBeenCalledWith(testItems[0], 'unread');
-    expect(testItems[0].readStatus).toBe('unread');
+    expect(onStatusChange).not.toHaveBeenCalled();
   });
 
   it('opens PDF when Space bar or Enter is pressed', () => {

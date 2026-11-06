@@ -185,20 +185,9 @@ export function openCoverGridTab(win: any) {
   refreshBtn.textContent = '🔄';
   refreshBtn.title = '목록 새로고침';
 
-  const reloadBtn = doc.createElementNS(HTML_NS, 'button');
-  reloadBtn.className = 'cover-grid-reload-btn';
-  reloadBtn.textContent = '⚡';
-  reloadBtn.title = '플러그인 코드 핫 리로드 (재시작 없이 즉시 반영 / 단축키: Cmd+Alt+R)';
-  reloadBtn.addEventListener('click', async () => {
-    reloadBtn.textContent = '⏳';
-    await hotReloadPlugin(win);
-    setTimeout(() => { reloadBtn.textContent = '⚡'; }, 600);
-  });
-
   controls.appendChild(searchInput);
   controls.appendChild(zoomContainer);
   controls.appendChild(refreshBtn);
-  controls.appendChild(reloadBtn);
   header.appendChild(controls);
   root.appendChild(header);
 

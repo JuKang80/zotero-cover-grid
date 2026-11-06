@@ -1,8 +1,6 @@
 /**
- * Toolbar injection: Dedicated Tab button [ 📚 Cover Grid ] & Segmented View Switcher [ ≡ | ⊞ ]
+ * Toolbar injection: Segmented View Switcher [ ≡ | ⊞ ] & Card Zoom Slider
  */
-
-import { openCoverGridTab } from './tab-view';
 
 export interface ToolbarController {
   setView(mode: 'list' | 'grid'): void;
@@ -36,20 +34,7 @@ export function injectToolbarControls(win: any): ToolbarController | null {
   toolbarGroup.id = 'zotero-cover-grid-toolbar-group';
   toolbarGroup.className = 'cover-grid-toolbar-group';
 
-  // 1. Dedicated Tab Button [ 📚 Cover Grid ]
-  const btnOpenTab = doc.createElementNS(HTML_NS, 'button');
-  btnOpenTab.className = 'cover-grid-open-tab-btn';
-  btnOpenTab.id = 'zotero-cover-grid-btn-open-tab';
-  btnOpenTab.textContent = '📚 Cover Grid';
-  btnOpenTab.title = '상단 독립 탭에서 표지 서가 열기 (Full Page Tab)';
-  btnOpenTab.addEventListener('click', (e: Event) => {
-    e.preventDefault();
-    e.stopPropagation();
-    openCoverGridTab(win);
-  });
-  toolbarGroup.appendChild(btnOpenTab);
-
-  // 2. Segmented Switcher [ ≡ | ⊞ ]
+  // 1. Segmented Switcher [ ≡ | ⊞ ]
   const switcher = doc.createElementNS(HTML_NS, 'div');
   switcher.id = 'zotero-cover-grid-view-switcher';
   switcher.className = 'view-segmented-toggle';
@@ -196,6 +181,54 @@ export function injectToolbarControls(win: any): ToolbarController | null {
         itemsTree.removeAttribute('hidden');
         itemsTree.style.removeProperty('display');
         itemsTree.style.display = '';
+
+        // Force synchronous reflow so Gecko updates bounding rect and dimensions
+        try {
+          void itemsTree.offsetHeight;
+        } catch {}
+
+        const zp = win.ZoteroPane || (typeof ZoteroPane !== 'undefined' ? ZoteroPane : null);
+        const rerenderItemsTree = () => {
+          try {
+            void itemsTree.offsetHeight;
+            if (typeof zp?.updateLayoutConstraints === 'function') {
+              zp.updateLayoutConstraints();
+            }
+            const iv = zp?.itemsView;
+            if (iv) {
+              try { iv.invalidateRowCache?.(true); } catch {}
+              if (iv.tree) {
+                try { iv.tree.invalidate?.(); } catch {}
+                try { iv.tree.rerender?.(); } catch {}
+                try { iv.tree._jsWindow?.invalidate?.(); } catch {}
+                try { iv.tree._jsWindow?.render?.(); } catch {}
+              }
+              try { iv.refreshAndMaintainSelection?.(); } catch {}
+              try { iv.refresh?.(); } catch {}
+            }
+            if (itemsTree.treeBoxObject && typeof itemsTree.treeBoxObject.invalidate === 'function') {
+              itemsTree.treeBoxObject.invalidate();
+            }
+            itemsTree.dispatchEvent(new Event('resize', { bubbles: true }));
+            win.dispatchEvent(new Event('resize'));
+          } catch {}
+        };
+
+        // 1. Immediate pass
+        rerenderItemsTree();
+
+        // 2. Next animation frame (Gecko frame reconstruct)
+        const raf = win?.requestAnimationFrame || (typeof requestAnimationFrame === 'function' ? requestAnimationFrame : null);
+        if (raf) {
+          raf(rerenderItemsTree);
+        }
+
+        // 3. Dual-stage delayed passes (handles splitter animation / right pane open transition)
+        const timerFn = win?.setTimeout || (typeof setTimeout === 'function' ? setTimeout : null);
+        if (timerFn) {
+          timerFn(rerenderItemsTree, 40);
+          timerFn(rerenderItemsTree, 150);
+        }
       }
     }
   };

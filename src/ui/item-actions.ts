@@ -59,11 +59,26 @@ export function selectItemInZotero(win: any, itemId: number): void {
     }
 
     // 3. Sync with ZoteroPane selection (both selectItem and itemsView.selectItem)
+    const itemsTree = doc?.getElementById('zotero-items-tree');
+    const isTreeHidden = itemsTree?.hidden || itemsTree?.style?.display === 'none';
+
     if (typeof zp?.selectItem === 'function') {
-      try { zp.selectItem(itemId, false, false); } catch {}
-    }
-    if (zp?.itemsView && typeof zp.itemsView.selectItem === 'function') {
-      try { zp.itemsView.selectItem(itemId); } catch {}
+      try {
+        if (isTreeHidden && typeof zp.itemsView?.selectItems === 'function') {
+          // When tree is hidden in grid mode, do not trigger scrollToRow on 0px height tree
+          zp.itemsView.selectItems([itemId], false, true);
+        } else {
+          zp.selectItem(itemId, false, false);
+        }
+      } catch {}
+    } else if (zp?.itemsView && typeof zp.itemsView.selectItem === 'function') {
+      try {
+        if (isTreeHidden && typeof zp.itemsView.selectItems === 'function') {
+          zp.itemsView.selectItems([itemId], false, true);
+        } else {
+          zp.itemsView.selectItem(itemId);
+        }
+      } catch {}
     }
   } catch (err) {
     z?.logError?.(err);

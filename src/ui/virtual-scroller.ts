@@ -3,8 +3,7 @@ import {
   createPaperCardElement,
   updatePaperCardBadge,
   updatePaperCardThumbnail,
-  updatePaperCardColorTags,
-  cycleReadStatus
+  updatePaperCardColorTags
 } from './paper-card';
 
 export interface VirtualScrollerOptions {
@@ -239,20 +238,6 @@ export class VirtualGridScroller {
         e.preventDefault();
         if (this.focusedIndex >= 0 && this.items[this.focusedIndex]) {
           this.options.onOpenPdf?.(this.items[this.focusedIndex]);
-        }
-        break;
-      case 'r':
-      case 'R':
-        e.preventDefault();
-        if (this.focusedIndex >= 0 && this.items[this.focusedIndex]) {
-          const curItem = this.items[this.focusedIndex];
-          const nextStatus = cycleReadStatus(curItem.readStatus);
-          curItem.readStatus = nextStatus;
-          const cardEl = this.cardMap.get(curItem.id);
-          if (cardEl) {
-            updatePaperCardBadge(cardEl, nextStatus);
-          }
-          this.options.onStatusChange?.(curItem, nextStatus);
         }
         break;
       case '1':

@@ -401,47 +401,6 @@ tab-content#zotero-cover-grid-tab:not([hidden]),
   background: rgba(0, 0, 0, 0.08) !important;
 }
 
-.cover-grid-reload-btn {
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  width: 30px !important;
-  height: 30px !important;
-  background: rgba(251, 191, 36, 0.15) !important;
-  border: 1px solid rgba(245, 158, 11, 0.3) !important;
-  border-radius: 6px !important;
-  cursor: pointer !important;
-  font-size: 14px !important;
-  transition: all 0.15s ease !important;
-}
-
-.cover-grid-reload-btn:hover {
-  background: rgba(251, 191, 36, 0.3) !important;
-  transform: scale(1.05) !important;
-}
-
-.cover-grid-open-tab-btn {
-  display: inline-flex !important;
-  align-items: center !important;
-  gap: 6px !important;
-  padding: 3px 10px !important;
-  background: rgba(0, 0, 0, 0.05) !important;
-  border: 1px solid rgba(0, 0, 0, 0.12) !important;
-  border-radius: 6px !important;
-  font-size: 12px !important;
-  font-weight: 600 !important;
-  color: var(--text-color, #374151) !important;
-  cursor: pointer !important;
-  margin-left: 8px !important;
-  transition: all 0.15s ease !important;
-}
-
-.cover-grid-open-tab-btn:hover {
-  background: #2563eb !important;
-  color: #ffffff !important;
-  border-color: #1d4ed8 !important;
-}
-
 /* 전용 탭 우측 인스펙터 패널 */
 .cover-grid-tab-main {
   display: flex !important;

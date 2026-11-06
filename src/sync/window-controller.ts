@@ -2,6 +2,7 @@ import { PaperCardData, ReadStatus } from '../types';
 import { extractPaperCardData } from '../utils/apa-formatter';
 import { VirtualGridScroller } from '../ui/virtual-scroller';
 import { thumbnailCacheManager } from '../services/cache-manager';
+import { updatePaperCardColorTags } from '../ui/paper-card';
 
 declare const Zotero: any;
 declare const ZoteroPane: any;
@@ -223,69 +224,110 @@ export class WindowCoverGridController {
     const z = this.win?.Zotero || (typeof Zotero !== 'undefined' ? Zotero : null);
 
     try {
-      // Step A: Priority 1 - Selected collection row or direct collection items
-      const selectedCols = zp?.getSelectedCollections ? zp.getSelectedCollections() : (zp?.getSelectedCollection ? [zp.getSelectedCollection()] : []);
-      const selectedCol = Array.isArray(selectedCols) && selectedCols.length > 0 ? selectedCols[0] : null;
-      if (selectedCol) {
-        // Try getChildItems(true) - Passing true returns numeric item IDs without throwing UnloadedDataException
-        if (typeof selectedCol.getChildItems === 'function') {
-          try {
-            let colItemsOrIDs = selectedCol.getChildItems(true);
-            if (colItemsOrIDs instanceof Promise) {
-              colItemsOrIDs = await colItemsOrIDs;
+      // Step A: Priority 1 - Native itemsView rows, getRow, getSortedItems (Strictly inherits active Zotero table sort order)
+      if (zp?.itemsView?.rowCount && typeof zp.itemsView.getRow === 'function') {
+        try {
+          const count = zp.itemsView.rowCount;
+          const ids: number[] = [];
+          for (let i = 0; i < count; i++) {
+            const r = zp.itemsView.getRow(i);
+            const id = typeof r === 'object' && r ? (r.id || r.ref?.id) : r;
+            if (typeof id === 'number' && !ids.includes(id)) {
+              ids.push(id);
             }
-            if (Array.isArray(colItemsOrIDs)) {
-              const hasObjects = colItemsOrIDs.some((it: any) => typeof it === 'object' && it !== null);
-              if (hasObjects) {
-                rawItems = colItemsOrIDs;
-              } else if (colItemsOrIDs.length > 0 && z?.Items?.getAsync) {
-                rawItems = await z.Items.getAsync(colItemsOrIDs);
-              } else if (colItemsOrIDs.length > 0 && z?.Items?.get) {
-                try {
-                  rawItems = z.Items.get(colItemsOrIDs);
-                } catch {
+          }
+          if (ids.length > 0) {
+            if (z?.Items?.getAsync) {
+              rawItems = await z.Items.getAsync(ids);
+            } else if (z?.Items?.get) {
+              rawItems = ids.map((id) => {
+                try { return z.Items.get(id); } catch { return null; }
+              }).filter(Boolean);
+            } else {
+              rawItems = ids;
+            }
+          }
+        } catch {
+          // Fall through
+        }
+      }
+
+      if (rawItems == null && typeof zp?.itemsView?.getSortedItems === 'function') {
+        try {
+          const treeItems = zp.itemsView.getSortedItems();
+          if (Array.isArray(treeItems)) {
+            rawItems = treeItems;
+          }
+        } catch {
+          // Fall through
+        }
+      }
+
+      // Step B: Priority 2 - Selected collection row or direct collection items
+      if (rawItems == null) {
+        const selectedCols = zp?.getSelectedCollections ? zp.getSelectedCollections() : (zp?.getSelectedCollection ? [zp.getSelectedCollection()] : []);
+        const selectedCol = Array.isArray(selectedCols) && selectedCols.length > 0 ? selectedCols[0] : null;
+        if (selectedCol) {
+          // Try getChildItems(true) - Passing true returns numeric item IDs without throwing UnloadedDataException
+          if (typeof selectedCol.getChildItems === 'function') {
+            try {
+              let colItemsOrIDs = selectedCol.getChildItems(true);
+              if (colItemsOrIDs instanceof Promise) {
+                colItemsOrIDs = await colItemsOrIDs;
+              }
+              if (Array.isArray(colItemsOrIDs)) {
+                const hasObjects = colItemsOrIDs.some((it: any) => typeof it === 'object' && it !== null);
+                if (hasObjects) {
+                  rawItems = colItemsOrIDs;
+                } else if (colItemsOrIDs.length > 0 && z?.Items?.getAsync) {
+                  rawItems = await z.Items.getAsync(colItemsOrIDs);
+                } else if (colItemsOrIDs.length > 0 && z?.Items?.get) {
+                  try {
+                    rawItems = z.Items.get(colItemsOrIDs);
+                  } catch {
+                    rawItems = colItemsOrIDs;
+                  }
+                } else {
                   rawItems = colItemsOrIDs;
                 }
-              } else {
-                rawItems = colItemsOrIDs;
               }
+            } catch {
+              // Fall through to Search / getAsync
             }
-          } catch {
-            // Fall through to Search / getAsync
           }
-        }
 
-        // Try native Zotero.Search with selected collectionID
-        if ((rawItems == null || rawItems.length === 0) && z?.Search) {
-          try {
-            const s = new z.Search();
-            s.libraryID = selectedCol.libraryID || zp?.getSelectedLibraryID?.() || z?.Libraries?.userLibraryID;
-            s.addCondition('collectionID', 'is', selectedCol.id);
-            s.addCondition('noChildren', 'true');
-            if (z.Prefs?.get?.('recursiveCollections')) {
-              s.addCondition('recursive', 'true');
-            }
-            const itemIDs = await s.search();
-            if (Array.isArray(itemIDs) && itemIDs.length > 0) {
-              if (z.Items?.getAsync) {
-                rawItems = await z.Items.getAsync(itemIDs);
-              } else if (z.Items?.get) {
-                try {
-                  rawItems = z.Items.get(itemIDs);
-                } catch {
+          // Try native Zotero.Search with selected collectionID
+          if ((rawItems == null || rawItems.length === 0) && z?.Search) {
+            try {
+              const s = new z.Search();
+              s.libraryID = selectedCol.libraryID || zp?.getSelectedLibraryID?.() || z?.Libraries?.userLibraryID;
+              s.addCondition('collectionID', 'is', selectedCol.id);
+              s.addCondition('noChildren', 'true');
+              if (z.Prefs?.get?.('recursiveCollections')) {
+                s.addCondition('recursive', 'true');
+              }
+              const itemIDs = await s.search();
+              if (Array.isArray(itemIDs)) {
+                if (itemIDs.length > 0 && z.Items?.getAsync) {
+                  rawItems = await z.Items.getAsync(itemIDs);
+                } else if (itemIDs.length > 0 && z.Items?.get) {
+                  try {
+                    rawItems = z.Items.get(itemIDs);
+                  } catch {
+                    rawItems = itemIDs;
+                  }
+                } else {
                   rawItems = itemIDs;
                 }
-              } else {
-                rawItems = itemIDs;
               }
+            } catch {
+              // Fall through
             }
-          } catch {
-            // Fall through
           }
         }
       }
 
-      // Step B: Priority 2 - Native collectionTreeRow.getItems()
+      // Step C: Priority 3 - Native collectionTreeRow.getItems()
       if (rawItems == null) {
         const treeRow = zp?.getCollectionTreeRow?.() || zp?.getCollectionTreeRows?.()?.[0];
         if (treeRow && typeof treeRow.getItems === 'function') {
@@ -300,47 +342,8 @@ export class WindowCoverGridController {
         }
       }
 
-      // Step C: Priority 3 - Native itemsView rows, getRow, getSortedItems
       if (rawItems == null) {
-        if (zp?.itemsView?.rowCount && typeof zp.itemsView.getRow === 'function') {
-          try {
-            const count = zp.itemsView.rowCount;
-            const ids: number[] = [];
-            for (let i = 0; i < count; i++) {
-              const r = zp.itemsView.getRow(i);
-              if (r && typeof r.id === 'number') {
-                ids.push(r.id);
-              }
-            }
-            if (ids.length > 0) {
-              rawItems = z?.Items?.getAsync ? await z.Items.getAsync(ids) : ids;
-            }
-          } catch {
-            // Fall through
-          }
-        }
-        if (rawItems == null && Array.isArray(zp?.itemsView?._rows) && zp.itemsView._rows.length > 0) {
-          try {
-            const ids = zp.itemsView._rows
-              .map((r: any) => (typeof r === 'object' && r?.id ? r.id : (typeof r === 'number' ? r : null)))
-              .filter((id: any) => typeof id === 'number');
-            if (ids.length > 0) {
-              rawItems = z?.Items?.getAsync ? await z.Items.getAsync(ids) : ids;
-            }
-          } catch {
-            // Fall through
-          }
-        }
-        if (rawItems == null && typeof zp?.itemsView?.getSortedItems === 'function') {
-          try {
-            const treeItems = zp.itemsView.getSortedItems();
-            if (Array.isArray(treeItems)) {
-              rawItems = treeItems;
-            }
-          } catch {
-            // Fall through
-          }
-        } else if (rawItems == null && typeof zp?.getSortedItems === 'function') {
+        if (typeof zp?.getSortedItems === 'function') {
           try {
             const sorted = zp.getSortedItems();
             if (Array.isArray(sorted)) {
@@ -349,13 +352,13 @@ export class WindowCoverGridController {
           } catch {
             // Fall through
           }
-        } else if (rawItems == null && typeof zp?.getUnfilteredItems === 'function') {
+        } else if (typeof zp?.getUnfilteredItems === 'function') {
           try {
             rawItems = await zp.getUnfilteredItems();
           } catch {
             // Fall through
           }
-        } else if (rawItems == null && zp?.itemsView?.rowProvider?.items) {
+        } else if (zp?.itemsView?.rowProvider?.items) {
           rawItems = zp.itemsView.rowProvider.items;
         }
       }
@@ -736,10 +739,24 @@ export class WindowCoverGridController {
       const targetColor = Array.isArray(colors) ? colors.find((c: any) => c.position === position) : null;
       if (!targetColor || !targetColor.tag) return;
 
+      // 1. Instant local in-memory reflection for 0ms visual feedback
+      if (!card.colorTags) card.colorTags = [];
+      const hasColor = card.colorTags.some((c) => c.tag === targetColor.tag || c.color === targetColor.color);
+      if (hasColor) {
+        card.colorTags = card.colorTags.filter((c) => c.tag !== targetColor.tag && c.color !== targetColor.color);
+      } else {
+        card.colorTags.push({ tag: targetColor.tag, color: targetColor.color });
+      }
+      const cardEl = this.scroller?.getCardElement(card.id);
+      if (cardEl) {
+        updatePaperCardColorTags(cardEl, card.colorTags);
+      }
+
+      // 2. Persist to Zotero database with type 0 (manual user tag)
       if (typeof zItem.hasTag === 'function' && zItem.hasTag(targetColor.tag)) {
         zItem.removeTag?.(targetColor.tag);
       } else {
-        zItem.addTag?.(targetColor.tag, 1);
+        zItem.addTag?.(targetColor.tag, 0);
       }
 
       if (typeof zItem.saveTx === 'function') {

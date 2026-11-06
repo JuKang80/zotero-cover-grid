@@ -1,6 +1,6 @@
 {
   "name": "zotero-cover-grid",
-  "version": "0.2.8",
+  "version": "0.2.9",
   "description": "Visual APA 7 Cover Grid view for Zotero 10 (Gecko 140 ESR)",
   "main": "build/addon/bootstrap.js",
   "type": "module",
