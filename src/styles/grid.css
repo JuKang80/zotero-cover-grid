@@ -86,11 +86,19 @@ zotero-cover-grid[hidden]:not([hidden="false"]),
 /* Zotero 순정 테마 변수 연동 & 앰비언트 틴트 제어 */
 :root {
   --card-bg: var(--material-background, #ffffff);
+  --surface-elevated: var(--material-side, #ffffff);
+  --surface-subtle: rgba(0, 0, 0, 0.05);
   --border-color: var(--color-border, rgba(0, 0, 0, 0.12));
   --border-color-hover: var(--color-border, rgba(0, 0, 0, 0.22));
   --text-color: var(--fill-primary, #111827);
   --text-muted: var(--fill-secondary, #6b7280);
   --accent-color: var(--accent-blue, #0a84ff);
+  --badge-unread-bg: #f3f4f6;
+  --badge-unread-fg: #4b5563;
+  --badge-reading-bg: #fef3c7;
+  --badge-reading-fg: #d97706;
+  --badge-read-bg: #d1fae5;
+  --badge-read-fg: #059669;
   /* 앰비언트 틴트 불투명도: 언제든 0으로 설정하면 완전 무채색 슬레이트/차콜 북커버로 전환 */
   --ambient-tint-opacity: 0.22;
 }
@@ -98,12 +106,38 @@ zotero-cover-grid[hidden]:not([hidden="false"]),
 @media (prefers-color-scheme: dark) {
   :root {
     --card-bg: var(--material-background, #1f2023);
+    --surface-elevated: var(--material-side, #2b2d31);
+    --surface-subtle: rgba(255, 255, 255, 0.08);
     --border-color: var(--color-border, rgba(255, 255, 255, 0.12));
     --border-color-hover: var(--color-border, rgba(255, 255, 255, 0.25));
     --text-color: var(--fill-primary, #f3f4f6);
     --text-muted: var(--fill-secondary, #9ca3af);
+    --badge-unread-bg: rgba(255, 255, 255, 0.1);
+    --badge-unread-fg: #d1d5db;
+    --badge-reading-bg: rgba(245, 158, 11, 0.2);
+    --badge-reading-fg: #fbbf24;
+    --badge-read-bg: rgba(16, 185, 129, 0.2);
+    --badge-read-fg: #34d399;
     --ambient-tint-opacity: 0.28;
   }
+}
+
+:root[data-color-scheme="dark"],
+:root[lwthemetextcolor="bright"] {
+  --card-bg: var(--material-background, #1f2023);
+  --surface-elevated: var(--material-side, #2b2d31);
+  --surface-subtle: rgba(255, 255, 255, 0.08);
+  --border-color: var(--color-border, rgba(255, 255, 255, 0.12));
+  --border-color-hover: var(--color-border, rgba(255, 255, 255, 0.25));
+  --text-color: var(--fill-primary, #f3f4f6);
+  --text-muted: var(--fill-secondary, #9ca3af);
+  --badge-unread-bg: rgba(255, 255, 255, 0.1);
+  --badge-unread-fg: #d1d5db;
+  --badge-reading-bg: rgba(245, 158, 11, 0.2);
+  --badge-reading-fg: #fbbf24;
+  --badge-read-bg: rgba(16, 185, 129, 0.2);
+  --badge-read-fg: #34d399;
+  --ambient-tint-opacity: 0.28;
 }
 
 /* 개별 논문 카드 (60fps 가상 렌더링 & 고정 높이 그리드) */
@@ -195,8 +229,8 @@ zotero-cover-grid[hidden]:not([hidden="false"]),
   z-index: 2 !important;
 }
 
-/* 앰비언트 틴트 레이어: --ambient-tint-opacity로 농도 조절 (언제든 0으로 즉시 해제 가능) */
-.paper-card .card-book-cover[data-has-tag-color="true"]::after {
+/* 앰비언트 틴트 레이어: --ambient-tint-opacity로 농도 조절 (언제든 0으로 즉시 해제 가능, 노트는 제외) */
+:root:not([data-tag-band="off"]) .paper-card .card-book-cover:not(.is-note)[data-has-tag-color="true"]::after {
   content: '' !important;
   position: absolute !important;
   inset: 0 !important;
@@ -205,6 +239,11 @@ zotero-cover-grid[hidden]:not([hidden="false"]),
   mix-blend-mode: color-dodge !important;
   pointer-events: none !important;
   z-index: 1 !important;
+}
+
+/* 노트 커버는 배경 번짐 대신 좌측 스프링 제본선에 컬러 태그 색상을 반영 */
+:root:not([data-tag-band="off"]) .paper-card .card-book-cover.is-note[data-has-tag-color="true"]::before {
+  background: linear-gradient(to right, var(--card-tag-color), rgba(180, 83, 9, 0.1) 85%, rgba(255,255,255,0.2)) !important;
 }
 
 .paper-card .book-cover-header {
@@ -222,17 +261,18 @@ zotero-cover-grid[hidden]:not([hidden="false"]),
 
 .paper-card .book-cover-title {
   font-family: Georgia, Cambria, "Times New Roman", Times, serif !important;
-  font-size: 11.5px !important;
+  font-size: clamp(11px, calc(var(--card-width, 180px) * 0.064), 16px) !important;
   font-weight: 600 !important;
   line-height: 1.35 !important;
   color: rgba(255, 255, 255, 0.95) !important;
   margin: auto 0 !important;
   display: -webkit-box !important;
-  -webkit-line-clamp: 4 !important;
+  -webkit-line-clamp: 5 !important;
   -webkit-box-orient: vertical !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
-  word-break: break-word !important;
+  word-break: keep-all !important;
+  overflow-wrap: anywhere !important;
   z-index: 2 !important;
 }
 
@@ -296,7 +336,7 @@ zotero-cover-grid[hidden]:not([hidden="false"]),
   color: #1c1917 !important;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
   font-weight: 700 !important;
-  font-size: 11.5px !important;
+  font-size: clamp(11px, calc(var(--card-width, 180px) * 0.062), 14.5px) !important;
   margin: 4px 0 2px 0 !important;
   -webkit-line-clamp: 2 !important;
 }
@@ -308,7 +348,7 @@ zotero-cover-grid[hidden]:not([hidden="false"]),
 }
 
 .paper-card .book-cover-note-body {
-  font-size: 9.5px !important;
+  font-size: clamp(9.5px, calc(var(--card-width, 180px) * 0.052), 12.5px) !important;
   line-height: 1.45 !important;
   color: #57534e !important;
   font-style: normal !important;
@@ -317,7 +357,8 @@ zotero-cover-grid[hidden]:not([hidden="false"]),
   -webkit-box-orient: vertical !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
-  word-break: break-word !important;
+  word-break: keep-all !important;
+  overflow-wrap: anywhere !important;
   margin-bottom: auto !important;
   z-index: 2 !important;
 }
@@ -347,6 +388,7 @@ zotero-cover-grid[hidden]:not([hidden="false"]),
   max-width: 100% !important;
   max-height: 100% !important;
   object-fit: contain !important;
+  border-radius: 2px !important;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12) !important;
 }
 
@@ -372,7 +414,8 @@ zotero-cover-grid[hidden]:not([hidden="false"]),
   -webkit-box-orient: vertical !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
-  word-break: break-word !important;
+  word-break: keep-all !important;
+  overflow-wrap: anywhere !important;
   color: var(--text-color, #111827) !important;
   margin-top: 5px !important;
 }
@@ -393,6 +436,7 @@ zotero-cover-grid[hidden]:not([hidden="false"]),
   display: flex !important;
   align-items: center !important;
   margin-top: 6px !important;
+  overflow: hidden !important;
 }
 
 /* Zotero 순정 컬러 태그 도트 */
@@ -401,6 +445,7 @@ zotero-cover-grid[hidden]:not([hidden="false"]),
   align-items: center !important;
   gap: 4px !important;
   margin-left: 6px !important;
+  overflow: hidden !important;
 }
 
 .card-color-dot {
@@ -417,6 +462,14 @@ zotero-cover-grid[hidden]:not([hidden="false"]),
   transform: scale(1.3) !important;
 }
 
+.card-color-dot-more {
+  font-size: 9px !important;
+  font-weight: 600 !important;
+  color: var(--text-muted, #6b7280) !important;
+  line-height: 1 !important;
+  flex-shrink: 0 !important;
+}
+
 .paper-card .card-badge {
   display: inline-flex !important;
   align-items: center !important;
@@ -429,18 +482,18 @@ zotero-cover-grid[hidden]:not([hidden="false"]),
   cursor: pointer !important;
 }
 
-/* 신호등 읽기 상태 배지 색상 */
+/* 신호등 읽기 상태 배지 색상 (라이트/다크 자동 대응) */
 .card-badge.unread {
-  background: #f3f4f6 !important;
-  color: #4b5563 !important;
+  background: var(--badge-unread-bg, #f3f4f6) !important;
+  color: var(--badge-unread-fg, #4b5563) !important;
 }
 .card-badge.reading {
-  background: #fef3c7 !important;
-  color: #d97706 !important;
+  background: var(--badge-reading-bg, #fef3c7) !important;
+  color: var(--badge-reading-fg, #d97706) !important;
 }
 .card-badge.read {
-  background: #d1fae5 !important;
-  color: #059669 !important;
+  background: var(--badge-read-bg, #d1fae5) !important;
+  color: var(--badge-read-fg, #059669) !important;
 }
 
 /* 툴바 스위처 & 줌 슬라이더 컨테이너 */
@@ -454,7 +507,7 @@ zotero-cover-grid[hidden]:not([hidden="false"]),
 .view-segmented-toggle {
   display: inline-flex !important;
   border-radius: 6px !important;
-  background: rgba(0, 0, 0, 0.06) !important;
+  background: var(--surface-subtle, rgba(0, 0, 0, 0.06)) !important;
   padding: 2px !important;
 }
 
@@ -470,9 +523,9 @@ zotero-cover-grid[hidden]:not([hidden="false"]),
 }
 
 .view-toggle-btn.active {
-  background: #ffffff !important;
+  background: var(--surface-elevated, #ffffff) !important;
   color: var(--text-color, #111827) !important;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.14) !important;
 }
 
 .zoom-slider-container:not([hidden]) {
@@ -569,7 +622,7 @@ tab-content#zotero-cover-grid-tab:not([hidden]),
 .cover-grid-collection-name {
   font-size: 12px !important;
   color: var(--text-muted, #6b7280) !important;
-  background: rgba(0, 0, 0, 0.05) !important;
+  background: var(--surface-subtle, rgba(0, 0, 0, 0.05)) !important;
   padding: 3px 10px !important;
   border-radius: 12px !important;
   font-weight: 500 !important;
@@ -585,8 +638,8 @@ tab-content#zotero-cover-grid-tab:not([hidden]),
   width: 240px !important;
   padding: 6px 12px !important;
   border-radius: 6px !important;
-  border: 1px solid rgba(0, 0, 0, 0.15) !important;
-  background: #ffffff !important;
+  border: 1px solid var(--border-color, rgba(0, 0, 0, 0.15)) !important;
+  background: var(--surface-elevated, #ffffff) !important;
   color: var(--text-color, #111827) !important;
   font-size: 13px !important;
   outline: none !important;
@@ -604,8 +657,8 @@ tab-content#zotero-cover-grid-tab:not([hidden]),
   justify-content: center !important;
   width: 30px !important;
   height: 30px !important;
-  background: rgba(0, 0, 0, 0.04) !important;
-  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  background: var(--surface-subtle, rgba(0, 0, 0, 0.04)) !important;
+  border: 1px solid var(--border-color, rgba(0, 0, 0, 0.1)) !important;
   border-radius: 6px !important;
   cursor: pointer !important;
   font-size: 14px !important;
@@ -613,7 +666,7 @@ tab-content#zotero-cover-grid-tab:not([hidden]),
 }
 
 .cover-grid-refresh-btn:hover {
-  background: rgba(0, 0, 0, 0.08) !important;
+  background: rgba(128, 128, 128, 0.14) !important;
 }
 
 /* 전용 탭 우측 인스펙터 패널 */
@@ -631,7 +684,7 @@ tab-content#zotero-cover-grid-tab:not([hidden]),
   width: 340px !important;
   min-width: 280px !important;
   max-width: 450px !important;
-  border-left: 1px solid rgba(0, 0, 0, 0.1) !important;
+  border-left: 1px solid var(--border-color, rgba(0, 0, 0, 0.1)) !important;
   background: var(--material-side, #ffffff) !important;
   display: none;
   flex-direction: column !important;
@@ -652,14 +705,14 @@ tab-content#zotero-cover-grid-tab:not([hidden]),
   align-items: center !important;
   margin-bottom: 12px !important;
   padding-bottom: 8px !important;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
+  border-bottom: 1px solid var(--border-color, rgba(0, 0, 0, 0.08)) !important;
 }
 
 .inspector-type-badge {
   font-size: 11px !important;
   font-weight: 600 !important;
-  color: #2563eb !important;
-  background: rgba(37, 99, 235, 0.1) !important;
+  color: var(--accent-color, #2563eb) !important;
+  background: rgba(37, 99, 235, 0.12) !important;
   padding: 2px 8px !important;
   border-radius: 4px !important;
 }
@@ -668,15 +721,15 @@ tab-content#zotero-cover-grid-tab:not([hidden]),
   background: transparent !important;
   border: none !important;
   font-size: 18px !important;
-  color: #64748b !important;
+  color: var(--text-muted, #64748b) !important;
   cursor: pointer !important;
   padding: 2px 6px !important;
   border-radius: 4px !important;
 }
 
 .inspector-close-btn:hover {
-  background: rgba(0, 0, 0, 0.06) !important;
-  color: #0f172a !important;
+  background: var(--surface-subtle, rgba(0, 0, 0, 0.06)) !important;
+  color: var(--text-color, #0f172a) !important;
 }
 
 .inspector-title {
@@ -689,14 +742,15 @@ tab-content#zotero-cover-grid-tab:not([hidden]),
 
 .inspector-authors {
   font-size: 13px !important;
-  color: #475569 !important;
+  color: var(--text-color, #475569) !important;
+  opacity: 0.85 !important;
   margin-bottom: 4px !important;
 }
 
 .inspector-citation {
   font-size: 12px !important;
   font-style: italic !important;
-  color: #64748b !important;
+  color: var(--text-muted, #64748b) !important;
   margin-bottom: 16px !important;
 }
 
@@ -705,16 +759,16 @@ tab-content#zotero-cover-grid-tab:not([hidden]),
   font-weight: 700 !important;
   text-transform: uppercase !important;
   letter-spacing: 0.05em !important;
-  color: #94a3b8 !important;
+  color: var(--text-muted, #94a3b8) !important;
   margin-top: 12px !important;
   margin-bottom: 6px !important;
 }
 
 .inspector-abstract {
   font-size: 12px !important;
-  color: #334155 !important;
+  color: var(--text-color, #334155) !important;
   line-height: 1.6 !important;
-  background: rgba(0, 0, 0, 0.02) !important;
+  background: var(--surface-subtle, rgba(0, 0, 0, 0.02)) !important;
   padding: 10px !important;
   border-radius: 6px !important;
   max-height: 240px !important;

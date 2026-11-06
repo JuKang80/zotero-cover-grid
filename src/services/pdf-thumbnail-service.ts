@@ -76,7 +76,7 @@ export function getClampedViewport(page: any) {
   const initialVp = page.getViewport({ scale: 1.0, rotation });
 
   const scale = Math.min(
-    1.0,
+    2.0,
     MAX_CANVAS_WIDTH / initialVp.width,
     MAX_CANVAS_HEIGHT / initialVp.height
   );
@@ -352,8 +352,24 @@ export async function renderPdfThumbnail(
       return generateTypographyFallbackCover(cardData, 'Empty PDF');
     }
 
-    // Always render Page 1 directly - lightweight, deterministic, fast & zero-skip
-    const targetPage = await pdfDoc.getPage(1);
+    // Render Page 1, or Page 2 if publisher splash page detection is enabled and triggered
+    let targetPage = await pdfDoc.getPage(1);
+    if (pdfDoc.numPages > 1) {
+      let splashEnabled = true;
+      try {
+        if (typeof Zotero !== 'undefined' && Zotero.Prefs?.get) {
+          const pref = Zotero.Prefs.get('extensions.zotero.covergrid.splashDetect', true);
+          if (pref === false) splashEnabled = false;
+        }
+      } catch {}
+      if (splashEnabled && (await detectSplashPage(targetPage))) {
+        try {
+          targetPage = await pdfDoc.getPage(2);
+        } catch {
+          // Keep page 1 on fallback
+        }
+      }
+    }
 
     const viewport = getClampedViewport(targetPage);
     const canvas = createSafeCanvas(viewport.width, viewport.height);

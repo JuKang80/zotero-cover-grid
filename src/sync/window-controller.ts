@@ -2,7 +2,7 @@ import { PaperCardData, ReadStatus } from '../types';
 import { extractPaperCardData } from '../utils/apa-formatter';
 import { VirtualGridScroller } from '../ui/virtual-scroller';
 import { thumbnailCacheManager } from '../services/cache-manager';
-import { updatePaperCardColorTags } from '../ui/paper-card';
+import { updatePaperCardColorTags, updatePaperCardThumbnail } from '../ui/paper-card';
 
 declare const Zotero: any;
 declare const ZoteroPane: any;
@@ -13,6 +13,7 @@ export class WindowCoverGridController {
   private scroller: VirtualGridScroller | null = null;
   private abortController: AbortController | null = null;
   private searchDebounceTimer: any = null;
+  private currentSearchQuery = '';
   private allItems: PaperCardData[] = [];
   private filteredItems: PaperCardData[] = [];
   private isDestroyed = false;
@@ -502,7 +503,7 @@ export class WindowCoverGridController {
 
     if (signal.aborted) return;
 
-    // Filter to valid displayable paper items (exclude notes, attachments, annotations)
+    // Filter to valid displayable paper items and standalone notes (exclude child notes, attachments, annotations)
     const validItems = (rawItems || []).map((it: any) => {
       if (typeof it === 'number' || typeof it === 'string') {
         try {
@@ -514,12 +515,14 @@ export class WindowCoverGridController {
       return it;
     }).filter((it: any) => {
       if (!it) return false;
+      if (typeof it.isAttachment === 'function' && it.isAttachment()) return false;
+      if (typeof it.isAnnotation === 'function' && it.isAnnotation()) return false;
+      if (typeof it.isNote === 'function' && it.isNote()) {
+        return Boolean(it.id) && !it.parentItemID && !it.parentID;
+      }
       if (typeof it.isRegularItem === 'function') {
         return it.isRegularItem();
       }
-      if (typeof it.isAttachment === 'function' && it.isAttachment()) return false;
-      if (typeof it.isNote === 'function' && it.isNote()) return false;
-      if (typeof it.isAnnotation === 'function' && it.isAnnotation()) return false;
       return true;
     });
 
@@ -580,6 +583,10 @@ export class WindowCoverGridController {
   }
 
   private async loadThumbnailForCard(card: PaperCardData, signal: AbortSignal) {
+    if (card.itemType === 'note') {
+      card.hasPdf = false;
+      return;
+    }
     const z = this.win?.Zotero || (typeof Zotero !== 'undefined' ? Zotero : null);
     if (!z?.Items) return;
     try {
@@ -595,14 +602,20 @@ export class WindowCoverGridController {
       const attachment = await zItem.getBestAttachment?.();
       if (signal.aborted) return;
 
+      card.hasPdf = Boolean(attachment);
+
+      // Keep the rich DOM typographic book cover when no PDF attachment exists
+      if (!attachment) {
+        return;
+      }
+
       const url = await thumbnailCacheManager.getThumbnail(zItem, attachment, card);
       if (signal.aborted) return;
 
       card.coverThumbnailUrl = url;
       const cardEl = this.scroller?.getCardElement(card.id);
       if (cardEl) {
-        const img = cardEl.querySelector('.card-cover-img') as HTMLImageElement;
-        if (img) img.src = url;
+        updatePaperCardThumbnail(cardEl, url);
       }
     } catch {
       // Ignore background render failure
@@ -625,6 +638,14 @@ export class WindowCoverGridController {
       searchBox.querySelector?.('input') ||
       doc.getElementById('zotero-tb-search-textbox')?.inputField ||
       searchBox;
+
+    // Sync any pre-existing search query when binding
+    try {
+      const initialVal = (inputEl && 'value' in inputEl ? inputEl.value : searchBox?.value) || '';
+      if (typeof initialVal === 'string' && initialVal.trim()) {
+        this.currentSearchQuery = initialVal.trim().toLowerCase();
+      }
+    } catch {}
 
     const handleInput = (e: any) => {
       const query = (e.target as HTMLInputElement).value || '';
@@ -665,29 +686,34 @@ export class WindowCoverGridController {
     }
 
     const trimmed = query.trim().toLowerCase();
+    this.currentSearchQuery = trimmed;
 
     // 0ms Fast-path on empty string
     if (fastPath || trimmed === '') {
-      this.filteredItems = [...this.allItems];
-      this.scroller?.setItems(this.filteredItems);
+      this.applyFilter();
       return;
     }
 
     // 150ms Trailing-edge debounce
     this.searchDebounceTimer = setTimeout(() => {
-      this.filteredItems = this.allItems.filter((it) => {
-        return (
-          it.title.toLowerCase().includes(trimmed) ||
-          it.authorText.toLowerCase().includes(trimmed) ||
-          it.citationText.toLowerCase().includes(trimmed)
-        );
-      });
-      this.scroller?.setItems(this.filteredItems);
+      this.applyFilter();
     }, 150);
   }
 
   public applyFilter() {
-    this.filteredItems = [...this.allItems];
+    const q = this.currentSearchQuery;
+    if (!q) {
+      this.filteredItems = [...this.allItems];
+    } else {
+      this.filteredItems = this.allItems.filter((it) => {
+        return (
+          it.title.toLowerCase().includes(q) ||
+          it.authorText.toLowerCase().includes(q) ||
+          it.citationText.toLowerCase().includes(q) ||
+          (it.notePreview && it.notePreview.toLowerCase().includes(q))
+        );
+      });
+    }
     this.scroller?.setItems(this.filteredItems);
   }
 

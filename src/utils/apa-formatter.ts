@@ -119,14 +119,19 @@ export function extractPaperCardData(item: any): PaperCardData {
         .replace(/<style[^>]*>.*?<\/style>/gi, '')
         .replace(/<script[^>]*>.*?<\/script>/gi, '')
         .replace(/<br\s*[\/]?>/gi, '\n')
-        .replace(/<\/p>/gi, '\n')
+        .replace(/<\/(p|div|li|h[1-6]|blockquote|tr)>/gi, '\n')
         .replace(/<[^>]+>/g, ' ')
-        .replace(/&nbsp;/g, ' ')
-        .replace(/&amp;/g, '&')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&quot;/g, '"')
-        .replace(/\s+/g, ' ')
+        .replace(/&#(\d+);/g, (_: string, dec: string) => String.fromCharCode(Number(dec)))
+        .replace(/&#x([0-9a-f]+);/gi, (_: string, hex: string) => String.fromCharCode(parseInt(hex, 16)))
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/&(apos|lsquo|rsquo);/gi, "'")
+        .replace(/&(ldquo|rdquo);/gi, '"')
+        .replace(/&(ndash|mdash);/gi, '—')
+        .replace(/&amp;/gi, '&')
+        .replace(/&lt;/gi, '<')
+        .replace(/&gt;/gi, '>')
+        .replace(/&quot;/gi, '"')
+        .replace(/[^\S\n]+/g, ' ')
         .trim();
 
       const lines = plainNote.split('\n').map((l: string) => l.trim()).filter(Boolean);
@@ -141,8 +146,12 @@ export function extractPaperCardData(item: any): PaperCardData {
       }
       title = noteTitle || 'Untitled Note';
 
-      const previewBody = lines.length > 1 ? lines.slice(1).join(' ') : (lines[0] || '');
-      notePreview = previewBody.slice(0, 150);
+      let bodyLines = lines;
+      if (lines.length > 0 && lines[0] === title) {
+        bodyLines = lines.slice(1);
+      }
+      const previewBody = bodyLines.join(' ');
+      notePreview = previewBody.slice(0, 160);
 
       let modDate = '';
       try {

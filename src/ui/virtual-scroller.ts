@@ -1,6 +1,7 @@
 import { PaperCardData, ReadStatus } from '../types';
 import {
   createPaperCardElement,
+  updatePaperCardMetadata,
   updatePaperCardBadge,
   updatePaperCardThumbnail,
   updatePaperCardColorTags
@@ -100,14 +101,26 @@ export class VirtualGridScroller {
               this.handleCardClick(c, curIdx !== -1 ? curIdx : 0, e);
             },
             onDoubleClick: (c) => this.options.onOpenPdf?.(c),
-            onContextMenu: (c, e) => this.options.onContextMenu?.(c, e),
+            onContextMenu: (c, e) => {
+              if (!this.selectedIds.has(c.id)) {
+                const curIdx = this.items.findIndex((it) => it.id === c.id);
+                this.selectedIds.clear();
+                this.selectedIds.add(c.id);
+                this.focusedIndex = curIdx !== -1 ? curIdx : 0;
+                this.anchorIndex = this.focusedIndex;
+                this.updateSelectionClasses();
+                this.notifySelection();
+              }
+              this.options.onContextMenu?.(c, e);
+            },
             onStatusChange: (c, s) => this.options.onStatusChange?.(c, s)
           },
           doc
         );
         this.cardMap.set(card.id, cardEl);
       } else {
-        // Update mutable properties
+        // Update mutable properties & metadata
+        updatePaperCardMetadata(cardEl, card);
         updatePaperCardBadge(cardEl, card.readStatus);
         updatePaperCardColorTags(cardEl, card.colorTags);
         if (card.coverThumbnailUrl) {
@@ -115,8 +128,10 @@ export class VirtualGridScroller {
         }
       }
 
-      // Ensure DOM ordering strictly matches this.items sequence
-      this.container.appendChild(cardEl);
+      // Ensure DOM ordering matches this.items sequence without detaching in-order nodes
+      if (this.container.children[i] !== cardEl) {
+        this.container.insertBefore(cardEl, this.container.children[i] || null);
+      }
 
       // Re-apply selection state
       if (this.selectedIds.has(card.id)) {
@@ -125,6 +140,8 @@ export class VirtualGridScroller {
         cardEl.classList.remove('selected');
       }
     }
+
+    this.prevSelectedIds = new Set(this.selectedIds);
 
     // 3. Scroll Anchoring Restoration
     if (anchor && this.cardMap.has(anchor.id)) {
@@ -180,6 +197,12 @@ export class VirtualGridScroller {
     }
 
     this.focusedIndex = index;
+    const el = this.cardMap.get(card.id);
+    try {
+      el?.focus({ preventScroll: true });
+    } catch {
+      el?.focus();
+    }
     this.updateSelectionClasses();
     this.notifySelection();
   }
@@ -207,11 +230,23 @@ export class VirtualGridScroller {
   public handleKeyDown(e: KeyboardEvent) {
     if (this.items.length === 0) return;
 
+    // Cmd/Ctrl + A: Select all items in current grid
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'a') {
+      e.preventDefault();
+      this.selectedIds.clear();
+      for (const it of this.items) {
+        this.selectedIds.add(it.id);
+      }
+      this.updateSelectionClasses();
+      this.notifySelection();
+      return;
+    }
+
     const cols = this.getColumnCount();
 
-    if (this.focusedIndex === -1 && ['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp'].includes(e.key)) {
+    if (this.focusedIndex === -1 && ['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) {
       e.preventDefault();
-      this.moveFocus(0);
+      this.moveFocus(e.key === 'End' ? this.items.length - 1 : 0);
       return;
     }
 
@@ -231,6 +266,14 @@ export class VirtualGridScroller {
       case 'ArrowUp':
         e.preventDefault();
         this.moveFocus(this.focusedIndex - 1 * cols);
+        break;
+      case 'Home':
+        e.preventDefault();
+        this.moveFocus(0);
+        break;
+      case 'End':
+        e.preventDefault();
+        this.moveFocus(this.items.length - 1);
         break;
       case 'Enter':
       case ' ':
@@ -273,7 +316,15 @@ export class VirtualGridScroller {
       const win =
         this.container.ownerDocument?.defaultView ||
         (typeof getComputedStyle !== 'undefined' ? { getComputedStyle } : null);
-      const customWidth = win?.getComputedStyle?.(this.container)?.getPropertyValue('--card-width');
+      const style = win?.getComputedStyle?.(this.container);
+      const gridTemplateCols = style?.getPropertyValue?.('grid-template-columns') || (style as any)?.gridTemplateColumns;
+      if (gridTemplateCols && typeof gridTemplateCols === 'string' && gridTemplateCols.includes('px')) {
+        const tracks = gridTemplateCols.trim().split(/\s+/).filter((t) => t.endsWith('px'));
+        if (tracks.length > 0) {
+          return tracks.length;
+        }
+      }
+      const customWidth = style?.getPropertyValue?.('--card-width');
       if (customWidth) {
         const parsed = parseInt(customWidth, 10);
         if (!isNaN(parsed) && parsed > 0) {

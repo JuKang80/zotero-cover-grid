@@ -47,9 +47,45 @@ function formatItemTypeLabel(itemType: string): string {
       return 'Preprint';
     case 'thesis':
       return 'Thesis';
+    case 'report':
+      return 'Report';
+    case 'webpage':
+      return 'Web Page';
+    case 'presentation':
+      return 'Presentation';
+    case 'manuscript':
+      return 'Manuscript';
+    case 'patent':
+      return 'Patent';
+    case 'newspaperArticle':
+      return 'Newspaper';
+    case 'magazineArticle':
+      return 'Magazine';
+    case 'document':
+      return 'Document';
+    case 'dataset':
+      return 'Dataset';
+    case 'computerProgram':
+    case 'software':
+      return 'Software';
     default:
-      return 'Journal Article';
+      if (!itemType) return 'Journal Article';
+      return itemType
+        .replace(/([A-Z])/g, ' $1')
+        .replace(/^./, (s) => s.toUpperCase())
+        .trim();
   }
+}
+
+function isTagBandEnabled(): boolean {
+  try {
+    const z = (globalThis as any).Zotero;
+    if (z?.Prefs?.get) {
+      const val = z.Prefs.get('extensions.zotero.covergrid.showTagBand', true);
+      if (val === false) return false;
+    }
+  } catch {}
+  return true;
 }
 
 export function createPaperCardElement(
@@ -68,6 +104,7 @@ export function createPaperCardElement(
   cardEl.id = `paper-card-${card.id}`;
   cardEl.setAttribute('data-item-id', String(card.id));
   cardEl.setAttribute('tabindex', '0');
+  (cardEl as any).__cardData = card;
 
   // Cover image wrapper
   const coverWrapper = targetDoc.createElementNS(HTML_NS, 'div');
@@ -98,13 +135,14 @@ export function createPaperCardElement(
 
   const bookFooter = targetDoc.createElementNS(HTML_NS, 'div');
   bookFooter.className = 'book-cover-footer';
-  const firstAuthor = card.citationText ? card.citationText.replace(/\s*\(\d{4}\)/, '') : card.authorText;
+  const strippedAuthor = card.citationText ? card.citationText.replace(/\s*\((?:\d{4}|n\.d\.)\)/, '').trim() : '';
+  const firstAuthor = strippedAuthor || card.authorText;
   bookFooter.textContent = isNote ? (card.year ? `${card.year} · Note` : 'Note') : (card.year ? `${card.year} · ${firstAuthor}` : firstAuthor);
   bookCoverEl.appendChild(bookFooter);
 
-  // Apply primary color tag for ambient tint if present
+  // Apply primary color tag for ambient tint / band if present and enabled
   const primaryColor = card.colorTags?.[0]?.color;
-  if (primaryColor) {
+  if (primaryColor && isTagBandEnabled()) {
     bookCoverEl.style.setProperty('--card-tag-color', primaryColor);
     bookCoverEl.setAttribute('data-has-tag-color', 'true');
   }
@@ -117,11 +155,13 @@ export function createPaperCardElement(
   imgEl.alt = card.title;
   imgEl.addEventListener('error', () => {
     coverWrapper.classList.remove('is-loading');
+    imgEl.classList.remove('is-loaded');
     imgEl.style.display = 'none';
     bookCoverEl.style.display = 'flex';
   });
   imgEl.addEventListener('load', () => {
     coverWrapper.classList.remove('is-loading');
+    imgEl.classList.add('is-loaded');
     imgEl.style.display = '';
     bookCoverEl.style.display = 'none';
   });
@@ -160,10 +200,11 @@ export function createPaperCardElement(
 
   badgeEl.addEventListener('click', (e) => {
     e.stopPropagation();
-    const nextStatus = cycleReadStatus(card.readStatus);
-    card.readStatus = nextStatus;
+    const activeCard: PaperCardData = (cardEl as any).__cardData || card;
+    const nextStatus = cycleReadStatus(activeCard.readStatus);
+    activeCard.readStatus = nextStatus;
     updatePaperCardBadge(cardEl, nextStatus);
-    handlers.onStatusChange?.(card, nextStatus);
+    handlers.onStatusChange?.(activeCard, nextStatus);
   });
 
   badgeContainer.appendChild(badgeEl);
@@ -178,16 +219,65 @@ export function createPaperCardElement(
 
   // Event Listeners (Zero-delay instant click dispatch for 60fps snappy responsiveness)
   cardEl.addEventListener('click', (e) => {
-    handlers.onClick?.(card, e);
+    handlers.onClick?.((cardEl as any).__cardData || card, e);
   });
 
   cardEl.addEventListener('dblclick', (e) => {
-    handlers.onDoubleClick?.(card, e);
+    handlers.onDoubleClick?.((cardEl as any).__cardData || card, e);
   });
 
-  cardEl.addEventListener('contextmenu', (e) => handlers.onContextMenu?.(card, e));
+  cardEl.addEventListener('contextmenu', (e) => handlers.onContextMenu?.((cardEl as any).__cardData || card, e));
 
   return cardEl;
+}
+
+export function updatePaperCardMetadata(cardEl: HTMLElement, card: PaperCardData) {
+  (cardEl as any).__cardData = card;
+  const titleEl = cardEl.querySelector('.card-title') as HTMLElement | null;
+  if (titleEl && titleEl.textContent !== card.title) {
+    titleEl.textContent = card.title;
+    titleEl.title = card.title;
+  }
+  const authorEl = cardEl.querySelector('.card-author') as HTMLElement | null;
+  const nextAuthor = card.citationText || card.authorText;
+  if (authorEl) {
+    if (authorEl.textContent !== nextAuthor) authorEl.textContent = nextAuthor;
+    authorEl.title = `${card.authorText} (${card.year || 'n.d.'}) - ${card.title}`;
+  }
+  const bookTitle = cardEl.querySelector('.book-cover-title') as HTMLElement | null;
+  if (bookTitle && bookTitle.textContent !== card.title) {
+    bookTitle.textContent = card.title;
+  }
+  const bookHeader = cardEl.querySelector('.book-cover-header') as HTMLElement | null;
+  const isNote = card.itemType === 'note';
+  if (bookHeader) {
+    const nextHeader = isNote ? '📝 RESEARCH NOTE' : (card.publicationTitle || formatItemTypeLabel(card.itemType)).toUpperCase();
+    if (bookHeader.textContent !== nextHeader) bookHeader.textContent = nextHeader;
+  }
+  const bookFooter = cardEl.querySelector('.book-cover-footer') as HTMLElement | null;
+  if (bookFooter) {
+    const strippedAuthor = card.citationText ? card.citationText.replace(/\s*\((?:\d{4}|n\.d\.)\)/, '').trim() : '';
+    const firstAuthor = strippedAuthor || card.authorText;
+    const nextFooter = isNote ? (card.year ? `${card.year} · Note` : 'Note') : (card.year ? `${card.year} · ${firstAuthor}` : firstAuthor);
+    if (bookFooter.textContent !== nextFooter) bookFooter.textContent = nextFooter;
+  }
+  if (isNote) {
+    const bookCoverEl = cardEl.querySelector('.card-book-cover') as HTMLElement | null;
+    let noteBody = cardEl.querySelector('.book-cover-note-body') as HTMLElement | null;
+    if (card.notePreview) {
+      if (!noteBody && bookCoverEl && bookFooter) {
+        const doc = cardEl.ownerDocument || document;
+        noteBody = doc.createElementNS('http://www.w3.org/1999/xhtml', 'div');
+        noteBody.className = 'book-cover-note-body';
+        bookCoverEl.insertBefore(noteBody, bookFooter);
+      }
+      if (noteBody && noteBody.textContent !== card.notePreview) {
+        noteBody.textContent = card.notePreview;
+      }
+    } else if (noteBody) {
+      noteBody.remove();
+    }
+  }
 }
 
 export function updatePaperCardBadge(cardEl: HTMLElement, status: ReadStatus) {
@@ -209,6 +299,7 @@ export function updatePaperCardThumbnail(cardEl: HTMLElement, url: string) {
       img.src = url;
     } else {
       wrapper?.classList.remove('is-loading');
+      img.classList.remove('is-loaded');
       img.style.display = 'none';
       if (bookCover) bookCover.style.display = 'flex';
     }
@@ -218,13 +309,22 @@ export function updatePaperCardThumbnail(cardEl: HTMLElement, url: string) {
 function renderColorDots(container: HTMLElement, colorTags: Array<{ tag: string; color: string }>, doc: Document) {
   const HTML_NS = 'http://www.w3.org/1999/xhtml';
   container.innerHTML = '';
-  for (const ct of colorTags) {
-    if (!ct || !ct.color) continue;
+  const validTags = (colorTags || []).filter((ct) => ct && ct.color);
+  const maxVisible = 5;
+  const visible = validTags.slice(0, maxVisible);
+  for (const ct of visible) {
     const dot = doc.createElementNS(HTML_NS, 'span');
     dot.className = 'card-color-dot';
     dot.style.setProperty('background-color', ct.color, 'important');
     dot.title = ct.tag;
     container.appendChild(dot);
+  }
+  if (validTags.length > maxVisible) {
+    const more = doc.createElementNS(HTML_NS, 'span');
+    more.className = 'card-color-dot-more';
+    more.textContent = `+${validTags.length - maxVisible}`;
+    more.title = validTags.slice(maxVisible).map((t) => t.tag).join(', ');
+    container.appendChild(more);
   }
 }
 
@@ -237,7 +337,7 @@ export function updatePaperCardColorTags(cardEl: HTMLElement, colorTags?: Array<
   const bookCover = cardEl.querySelector('.card-book-cover') as HTMLElement;
   if (bookCover) {
     const primaryColor = colorTags?.[0]?.color;
-    if (primaryColor) {
+    if (primaryColor && isTagBandEnabled()) {
       bookCover.style.setProperty('--card-tag-color', primaryColor);
       bookCover.setAttribute('data-has-tag-color', 'true');
     } else {

@@ -79,6 +79,7 @@ function setDefaultPreferences() {
       branch.setBoolPref('extensions.zotero.covergrid.splashDetect', true);
       branch.setStringPref('extensions.zotero.covergrid.openPDFIn', 'tab');
       branch.setBoolPref('extensions.zotero.covergrid.showBadge', true);
+      branch.setBoolPref('extensions.zotero.covergrid.showTagBand', true);
     } catch {
       // Ignore if default branch is inaccessible in test/sandboxed environment
     }
