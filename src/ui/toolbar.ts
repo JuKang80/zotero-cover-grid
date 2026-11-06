@@ -23,6 +23,9 @@ export function injectToolbarControls(win: any): ToolbarController | null {
     doc.getElementById('zotero-items-pane');
   if (!searchBox) return null;
 
+  // Remove any legacy open-tab button if left over from older versions
+  doc.getElementById('zotero-cover-grid-btn-open-tab')?.remove();
+
   // Check if toolbar group already injected
   if (doc.getElementById('zotero-cover-grid-toolbar-group')) {
     return null;

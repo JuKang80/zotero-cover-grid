@@ -223,7 +223,8 @@ export function cleanupCoverGridUI(win: any) {
   const doc = win.document;
   if (!doc) return;
 
-  // Step 1: Remove toolbar switcher & group
+  // Step 1: Remove toolbar switcher & group (and any legacy open-tab button)
+  doc.getElementById('zotero-cover-grid-btn-open-tab')?.remove();
   doc.getElementById('zotero-cover-grid-toolbar-group')?.remove();
   doc.getElementById('zotero-cover-grid-view-switcher')?.remove();
 
