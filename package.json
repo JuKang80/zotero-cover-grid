@@ -7,7 +7,7 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "watch": "node scripts/build.mjs --watch",
-    "reload": "node scripts/build.mjs && touch /tmp/zotero-cover-grid-reload.trigger && echo '[reload] Rebuilt and reload trigger sent to Zotero!'",
+    "reload": "node scripts/build.mjs && node scripts/make-xpi.mjs && touch /tmp/zotero-cover-grid-reload.trigger && echo '[reload] Rebuilt XPI and reload trigger sent to Zotero!'",
     "server": "node scripts/remote-server.mjs",
     "package": "node scripts/build.mjs --prod && node scripts/make-xpi.mjs",
     "type-check": "tsc --noEmit",

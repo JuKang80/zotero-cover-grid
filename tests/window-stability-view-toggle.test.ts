@@ -129,7 +129,7 @@ describe('Milestone 2: Main Window Stability & View Toggle (R2)', () => {
       expect(document.querySelectorAll('#zotero-cover-grid-toolbar-group').length).toBe(1);
     });
 
-    it('should not close existing dedicated tabs during startup initialization', async () => {
+    it('should automatically close deprecated legacy dedicated tabs during startup initialization', async () => {
       (mockWin as any).Zotero_Tabs = {
         _tabs: [{ id: 'zotero-cover-grid-tab', type: 'custom', title: 'Cover Grid' }],
         close: vi.fn()
@@ -138,7 +138,7 @@ describe('Milestone 2: Main Window Stability & View Toggle (R2)', () => {
       onMainWindowLoad({ window: mockWin });
       await new Promise((r) => setTimeout(r, 20));
 
-      expect((mockWin as any).Zotero_Tabs.close).not.toHaveBeenCalled();
+      expect((mockWin as any).Zotero_Tabs.close).toHaveBeenCalledWith('zotero-cover-grid-tab');
     });
   });
 

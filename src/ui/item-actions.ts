@@ -32,21 +32,42 @@ export function selectItemInZotero(win: any, itemId: number): void {
     const item = z?.Items?.get ? z.Items.get(itemId) : null;
 
     // 2. Direct Right-Hand Item Pane Inspection (60fps snappy)
+    const domItemPane = doc?.getElementById?.('zotero-item-pane') as any;
+    const domItemPaneContent = doc?.getElementById?.('zotero-item-pane-content') as any;
     const itemPane =
       win?.ZoteroItemPane ||
       zp?.itemPane ||
+      domItemPane ||
+      domItemPaneContent ||
       (typeof (globalThis as any).ZoteroItemPane !== 'undefined' ? (globalThis as any).ZoteroItemPane : null);
 
     const applyItemView = (targetItem: any) => {
       if (!targetItem) return;
+      // 1. Update Zotero 10 <zotero-item-pane> custom element directly if present
+      if (domItemPane) {
+        try {
+          if ('item' in domItemPane) domItemPane.item = targetItem;
+          if (typeof domItemPane.viewItem === 'function') {
+            domItemPane.viewItem(targetItem, 'view');
+            return;
+          }
+        } catch {}
+      }
+      if (domItemPaneContent) {
+        try {
+          if ('item' in domItemPaneContent) domItemPaneContent.item = targetItem;
+          if (typeof domItemPaneContent.viewItem === 'function') {
+            domItemPaneContent.viewItem(targetItem, 'view');
+            return;
+          }
+        } catch {}
+      }
+      // 2. Fallback to ZoteroItemPane / zp.itemPane controller (NOTE: Never call zp.viewItem here, as zp.viewItem opens PDF/URL!)
       if (itemPane && typeof itemPane.viewItem === 'function') {
         try { itemPane.viewItem(targetItem); return; } catch {}
       }
       if (itemPane && typeof itemPane.viewItems === 'function') {
         try { itemPane.viewItems([targetItem]); return; } catch {}
-      }
-      if (zp && typeof zp.viewItem === 'function') {
-        try { zp.viewItem(targetItem); return; } catch {}
       }
     };
 
@@ -58,26 +79,51 @@ export function selectItemInZotero(win: any, itemId: number): void {
       }).catch(() => {});
     }
 
-    // 3. Sync with ZoteroPane selection (both selectItem and itemsView.selectItem)
-    const itemsTree = doc?.getElementById('zotero-items-tree');
-    const isTreeHidden = itemsTree?.hidden || itemsTree?.style?.display === 'none';
+    // 3. Sync with ZoteroPane selection without switching out of Grid View or switching tabs
+    const itemsTree = doc?.getElementById?.('zotero-items-tree');
+    const coverGrid = doc?.getElementById?.('zotero-cover-grid');
+    const tabs = win?.Zotero_Tabs || doc?.defaultView?.Zotero_Tabs;
+    const isNonLibraryTab = Boolean(tabs?.selectedID && tabs.selectedID !== 'zotero-pane');
+    const isGridActive =
+      isNonLibraryTab ||
+      (coverGrid && !coverGrid.hidden && coverGrid.style?.display !== 'none') ||
+      itemsTree?.hidden ||
+      itemsTree?.style?.display === 'none';
 
-    if (typeof zp?.selectItem === 'function') {
+    if (isGridActive) {
+      // When in Grid View, never call zp.selectItem() because ZoteroPane.selectItem() forces focus back to #zotero-items-tree / list view
       try {
-        if (isTreeHidden && typeof zp.itemsView?.selectItems === 'function') {
-          // When tree is hidden in grid mode, do not trigger scrollToRow on 0px height tree
+        if (typeof zp?.itemsView?.selectItems === 'function') {
           zp.itemsView.selectItems([itemId], false, true);
-        } else {
-          zp.selectItem(itemId, false, false);
+        } else if (typeof zp?.itemsView?.selectItem === 'function') {
+          zp.itemsView.selectItem(itemId);
         }
+      } catch {}
+      try {
+        if (typeof zp?.itemSelected === 'function') {
+          zp.itemSelected(null, itemId);
+        }
+      } catch {}
+      // Enforce that Grid View remains visible and List View tree remains hidden
+      if (!isNonLibraryTab) {
+        if (itemsTree) {
+          itemsTree.hidden = true;
+          itemsTree.setAttribute('hidden', 'true');
+          itemsTree.style?.setProperty?.('display', 'none', 'important');
+        }
+        if (coverGrid) {
+          coverGrid.hidden = false;
+          coverGrid.removeAttribute('hidden');
+          coverGrid.style?.setProperty?.('display', 'flex', 'important');
+        }
+      }
+    } else if (typeof zp?.selectItem === 'function') {
+      try {
+        zp.selectItem(itemId, false, false);
       } catch {}
     } else if (zp?.itemsView && typeof zp.itemsView.selectItem === 'function') {
       try {
-        if (isTreeHidden && typeof zp.itemsView.selectItems === 'function') {
-          zp.itemsView.selectItems([itemId], false, true);
-        } else {
-          zp.itemsView.selectItem(itemId);
-        }
+        zp.itemsView.selectItem(itemId);
       } catch {}
     }
   } catch (err) {

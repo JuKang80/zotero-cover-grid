@@ -45,10 +45,38 @@ function startReloadWatcher(pluginID: string) {
               const { AddonManager } = (globalThis as any).ChromeUtils.importESModule(
                 'resource://gre/modules/AddonManager.sys.mjs'
               );
+              // If local build XPI exists, sync it into Zotero's extensions directory before reloading
+              try {
+                const localXpi = '/Users/user/workspace/zotero-cover-grid/build/zotero-cover-grid.xpi';
+                const PathUtils = (globalThis as any).PathUtils;
+                const profDir =
+                  (typeof Zotero !== 'undefined' && Zotero.Profile?.dir) ||
+                  (PathUtils && PathUtils.profileDir);
+                if (profDir && (await IOUtils.exists(localXpi))) {
+                  const destXpi =
+                    PathUtils && typeof PathUtils.join === 'function'
+                      ? PathUtils.join(profDir, 'extensions', `${pluginID}.xpi`)
+                      : `${profDir}/extensions/${pluginID}.xpi`;
+                  if (await IOUtils.exists(destXpi)) {
+                    await IOUtils.copy(localXpi, destXpi);
+                  }
+                }
+              } catch {
+                // Ignore copy error if directory-linked
+              }
+              if (typeof Services !== 'undefined') {
+                try {
+                  Services.obs?.notifyObservers(null, 'startupcache-invalidate');
+                } catch {}
+              }
               const addon = await AddonManager.getAddonByID(pluginID);
               if (addon) {
-                await addon.disable();
-                await addon.enable();
+                if (typeof addon.reload === 'function') {
+                  await addon.reload();
+                } else {
+                  await addon.disable();
+                  await addon.enable();
+                }
               }
             }
           }

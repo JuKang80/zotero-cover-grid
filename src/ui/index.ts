@@ -75,6 +75,25 @@ export function injectCoverGridUI(win: any) {
   // Safeguard against white screen before injection
   ensureMainWindowStability(doc, win);
 
+  // Close and remove any deprecated legacy 'zotero-cover-grid-tab' (📚 Cover Grid tab) from older sessions
+  const tabs = win?.Zotero_Tabs || doc.defaultView?.Zotero_Tabs;
+  if (tabs) {
+    try {
+      const legacyTab = Array.isArray(tabs._tabs)
+        ? tabs._tabs.find((t: any) => t && t.id === 'zotero-cover-grid-tab')
+        : null;
+      if (legacyTab && typeof tabs.close === 'function') {
+        tabs.close('zotero-cover-grid-tab');
+      }
+      if (typeof tabs.select === 'function' && tabs.selectedID === 'zotero-cover-grid-tab') {
+        tabs.select('zotero-pane');
+      }
+    } catch {
+      // Ignore
+    }
+  }
+  doc.getElementById('zotero-cover-grid-tab')?.remove();
+
   const itemsPane = doc.getElementById('zotero-items-pane');
   const itemsTree = doc.getElementById('zotero-items-tree');
   const targetParent = itemsTree?.parentElement || itemsPane;
