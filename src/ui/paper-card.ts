@@ -73,36 +73,74 @@ export function createPaperCardElement(
   const coverWrapper = targetDoc.createElementNS(HTML_NS, 'div');
   coverWrapper.className = 'card-cover-wrapper';
 
+  // Fallback / Loading Typographic Book Cover
+  const bookCoverEl = targetDoc.createElementNS(HTML_NS, 'div');
+  bookCoverEl.className = 'card-book-cover';
+
+  const bookHeader = targetDoc.createElementNS(HTML_NS, 'div');
+  bookHeader.className = 'book-cover-header';
+  bookHeader.textContent = (card.publicationTitle || formatItemTypeLabel(card.itemType)).toUpperCase();
+  bookCoverEl.appendChild(bookHeader);
+
+  const bookTitle = targetDoc.createElementNS(HTML_NS, 'div');
+  bookTitle.className = 'book-cover-title';
+  bookTitle.textContent = card.title;
+  bookCoverEl.appendChild(bookTitle);
+
+  const bookFooter = targetDoc.createElementNS(HTML_NS, 'div');
+  bookFooter.className = 'book-cover-footer';
+  const firstAuthor = card.citationText ? card.citationText.replace(/\s*\(\d{4}\)/, '') : card.authorText;
+  bookFooter.textContent = card.year ? `${card.year} · ${firstAuthor}` : firstAuthor;
+  bookCoverEl.appendChild(bookFooter);
+
+  // Apply primary color tag for ambient tint if present
+  const primaryColor = card.colorTags?.[0]?.color;
+  if (primaryColor) {
+    bookCoverEl.style.setProperty('--card-tag-color', primaryColor);
+    bookCoverEl.setAttribute('data-has-tag-color', 'true');
+  }
+
+  coverWrapper.appendChild(bookCoverEl);
+
+  // Actual PDF Thumbnail Image
   const imgEl = targetDoc.createElementNS(HTML_NS, 'img') as HTMLImageElement;
   imgEl.className = 'card-cover-img';
   imgEl.alt = card.title;
   imgEl.addEventListener('error', () => {
+    coverWrapper.classList.remove('is-loading');
     imgEl.style.display = 'none';
+    bookCoverEl.style.display = 'flex';
   });
   imgEl.addEventListener('load', () => {
+    coverWrapper.classList.remove('is-loading');
     imgEl.style.display = '';
+    bookCoverEl.style.display = 'none';
   });
+
   if (card.coverThumbnailUrl) {
+    coverWrapper.classList.add('is-loading');
     imgEl.src = card.coverThumbnailUrl;
+  } else {
+    imgEl.style.display = 'none';
   }
   coverWrapper.appendChild(imgEl);
   cardEl.appendChild(coverWrapper);
 
-  // Author & Citation (e.g. Kim et al. (2026))
+  // 1. Uniform 2-Line Fixed Height Paper Title
+  const titleEl = targetDoc.createElementNS(HTML_NS, 'div');
+  titleEl.className = 'card-title';
+  titleEl.textContent = card.title;
+  titleEl.title = card.title;
+  cardEl.appendChild(titleEl);
+
+  // 2. Author & Citation (1 line ellipsis, e.g. Kim et al. (2026))
   const authorEl = targetDoc.createElementNS(HTML_NS, 'div');
   authorEl.className = 'card-author';
   authorEl.textContent = card.citationText || card.authorText;
   authorEl.title = `${card.authorText} (${card.year || 'n.d.'}) - ${card.title}`;
   cardEl.appendChild(authorEl);
 
-  // Title / Subtitle Meta (e.g. APA 7 · Journal Article)
-  const metaEl = targetDoc.createElementNS(HTML_NS, 'div');
-  metaEl.className = 'card-meta';
-  metaEl.textContent = `APA 7 · ${formatItemTypeLabel(card.itemType)}`;
-  metaEl.title = card.title;
-  cardEl.appendChild(metaEl);
-
-  // Badge Container
+  // 3. Badge Container (Reading Status Badge & Native Color Dots)
   const badgeContainer = targetDoc.createElementNS(HTML_NS, 'div');
   badgeContainer.className = 'card-badge-container';
 
@@ -154,8 +192,17 @@ export function updatePaperCardBadge(cardEl: HTMLElement, status: ReadStatus) {
 
 export function updatePaperCardThumbnail(cardEl: HTMLElement, url: string) {
   const img = cardEl.querySelector('.card-cover-img') as HTMLImageElement;
+  const bookCover = cardEl.querySelector('.card-book-cover') as HTMLElement;
+  const wrapper = cardEl.querySelector('.card-cover-wrapper') as HTMLElement;
   if (img) {
-    img.src = url;
+    if (url) {
+      wrapper?.classList.add('is-loading');
+      img.src = url;
+    } else {
+      wrapper?.classList.remove('is-loading');
+      img.style.display = 'none';
+      if (bookCover) bookCover.style.display = 'flex';
+    }
   }
 }
 
@@ -177,5 +224,15 @@ export function updatePaperCardColorTags(cardEl: HTMLElement, colorTags?: Array<
   if (dotsContainer) {
     const doc = cardEl.ownerDocument || document;
     renderColorDots(dotsContainer, colorTags || [], doc);
+  }
+  const bookCover = cardEl.querySelector('.card-book-cover') as HTMLElement;
+  if (bookCover) {
+    const primaryColor = colorTags?.[0]?.color;
+    if (primaryColor) {
+      bookCover.style.setProperty('--card-tag-color', primaryColor);
+      bookCover.setAttribute('data-has-tag-color', 'true');
+    } else {
+      bookCover.removeAttribute('data-has-tag-color');
+    }
   }
 }

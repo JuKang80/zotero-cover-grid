@@ -97,6 +97,13 @@ export function extractPaperCardData(item: any): PaperCardData {
       itemType = 'journalArticle';
     }
 
+    let publicationTitle = '';
+    try {
+      publicationTitle = item.getField?.('publicationTitle') || item.publicationTitle || '';
+    } catch {
+      publicationTitle = '';
+    }
+
     // Extract Zotero native colored tags (position 1-9 assigned colors)
     let colorTags: Array<{ tag: string; color: string }> = [];
     try {
@@ -129,6 +136,7 @@ export function extractPaperCardData(item: any): PaperCardData {
       citationText,
       itemType,
       year,
+      publicationTitle,
       readStatus,
       hasPdf: false, // Will be updated when attachment is resolved
       colorTags

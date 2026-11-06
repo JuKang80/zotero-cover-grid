@@ -15,6 +15,7 @@ export interface PaperCardData {
   citationText: string;   // e.g. "APA 7 · Journal Article"
   itemType: string;
   year: string;
+  publicationTitle?: string;
   readStatus: ReadStatus;
   hasPdf: boolean;
   bestAttachmentId?: number;
