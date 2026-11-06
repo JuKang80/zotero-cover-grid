@@ -78,6 +78,28 @@ describe('Read Status & Card Data Extraction', () => {
     expect(card.readStatus).toBe('reading');
   });
 
+  it('should extract note title and body preview from Zotero standalone note item', () => {
+    const mockNoteItem = {
+      id: 77,
+      key: 'NOTEKEY77',
+      isNote: () => true,
+      getNoteTitle: () => '■ 2026 실험 가설 메모',
+      getNote: () => '<p><strong>■ 2026 실험 가설 메모</strong></p><p>1. fMRI 신호 대조군 측정 및 데이터 전처리</p><p>2. 피험자 반응 시간 기록 및 통계 분석</p>',
+      dateModified: '2026-11-06 18:30:00',
+      itemType: 'note',
+      getTags: () => []
+    };
+
+    const card = extractPaperCardData(mockNoteItem);
+    expect(card.id).toBe(77);
+    expect(card.itemType).toBe('note');
+    expect(card.title).toBe('■ 2026 실험 가설 메모');
+    expect(card.citationText).toBe('Note');
+    expect(card.authorText).toContain('Note · 2026-11-06');
+    expect(card.publicationTitle).toBe('RESEARCH NOTE');
+    expect(card.notePreview).toContain('fMRI 신호 대조군 측정');
+  });
+
   it('formats full APA 7 bibliographic reference correctly', () => {
     const card = {
       id: 88,

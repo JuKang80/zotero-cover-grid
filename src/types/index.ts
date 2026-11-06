@@ -16,6 +16,7 @@ export interface PaperCardData {
   itemType: string;
   year: string;
   publicationTitle?: string;
+  notePreview?: string;
   readStatus: ReadStatus;
   hasPdf: boolean;
   bestAttachmentId?: number;

@@ -75,11 +75,12 @@ export function createPaperCardElement(
 
   // Fallback / Loading Typographic Book Cover
   const bookCoverEl = targetDoc.createElementNS(HTML_NS, 'div');
-  bookCoverEl.className = 'card-book-cover';
+  const isNote = card.itemType === 'note';
+  bookCoverEl.className = `card-book-cover${isNote ? ' is-note' : ''}`;
 
   const bookHeader = targetDoc.createElementNS(HTML_NS, 'div');
   bookHeader.className = 'book-cover-header';
-  bookHeader.textContent = (card.publicationTitle || formatItemTypeLabel(card.itemType)).toUpperCase();
+  bookHeader.textContent = isNote ? '📝 RESEARCH NOTE' : (card.publicationTitle || formatItemTypeLabel(card.itemType)).toUpperCase();
   bookCoverEl.appendChild(bookHeader);
 
   const bookTitle = targetDoc.createElementNS(HTML_NS, 'div');
@@ -87,10 +88,18 @@ export function createPaperCardElement(
   bookTitle.textContent = card.title;
   bookCoverEl.appendChild(bookTitle);
 
+  // If note has body preview, display it like a ruled memo pad
+  if (isNote && card.notePreview) {
+    const noteBody = targetDoc.createElementNS(HTML_NS, 'div');
+    noteBody.className = 'book-cover-note-body';
+    noteBody.textContent = card.notePreview;
+    bookCoverEl.appendChild(noteBody);
+  }
+
   const bookFooter = targetDoc.createElementNS(HTML_NS, 'div');
   bookFooter.className = 'book-cover-footer';
   const firstAuthor = card.citationText ? card.citationText.replace(/\s*\(\d{4}\)/, '') : card.authorText;
-  bookFooter.textContent = card.year ? `${card.year} · ${firstAuthor}` : firstAuthor;
+  bookFooter.textContent = isNote ? (card.year ? `${card.year} · Note` : 'Note') : (card.year ? `${card.year} · ${firstAuthor}` : firstAuthor);
   bookCoverEl.appendChild(bookFooter);
 
   // Apply primary color tag for ambient tint if present

@@ -58,6 +58,28 @@ describe('Clean-Room Item Actions & Debouncing', () => {
     expect(mockReader.open).toHaveBeenCalledWith(999);
   });
 
+  it('openItemInZotero opens note in Zotero Note Editor when item is a note', async () => {
+    const mockNoteItem = {
+      id: 404,
+      isNote: () => true,
+      itemType: 'note'
+    };
+    const mockOpenNote = vi.fn();
+    const mockWin = {
+      ZoteroPane: {
+        openNote: mockOpenNote
+      },
+      Zotero: {
+        Items: {
+          get: vi.fn().mockReturnValue(mockNoteItem)
+        }
+      }
+    };
+
+    await openItemInZotero(mockWin, 404);
+    expect(mockOpenNote).toHaveBeenCalledWith(404);
+  });
+
   it('dispatches click instantly without artificial timer lag', () => {
     const card: PaperCardData = {
       id: 303,

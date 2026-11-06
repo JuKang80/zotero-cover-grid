@@ -89,6 +89,23 @@ export async function openItemInZotero(win: any, itemId: number): Promise<void> 
   const zp = win?.ZoteroPane || (typeof (globalThis as any).ZoteroPane !== 'undefined' ? (globalThis as any).ZoteroPane : null);
   const z = win?.Zotero || (typeof (globalThis as any).Zotero !== 'undefined' ? (globalThis as any).Zotero : null);
 
+  // 0. Dedicated handler for Zotero Standalone/Child Notes: Open directly in Note Editor Tab
+  try {
+    const zItem = z?.Items?.getAsync ? await z.Items.getAsync(itemId) : z?.Items?.get?.(itemId);
+    if (zItem && (zItem.isNote?.() || zItem.itemType === 'note')) {
+      if (typeof zp?.openNote === 'function') {
+        zp.openNote(itemId);
+        return;
+      }
+      if (typeof z?.Notes?.open === 'function') {
+        z.Notes.open(itemId);
+        return;
+      }
+    }
+  } catch {
+    // Fall through
+  }
+
   // 1. First try ZoteroPane.viewItems (Zotero's primary UI view handler)
   if (zp && typeof zp.viewItems === 'function') {
     try {

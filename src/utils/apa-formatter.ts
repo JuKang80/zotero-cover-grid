@@ -80,8 +80,8 @@ export function extractPaperCardData(item: any): PaperCardData {
     const yearMatch = String(rawDate).match(/\b\d{4}\b/);
     const year = yearMatch ? yearMatch[0] : '';
 
-    const citationText = formatApa7Citation(creators, year);
-    const authorText = creators.map((c) => c.lastName || c.name || c.firstName).filter(Boolean).join(', ') || 'Unknown Author';
+    let citationText = formatApa7Citation(creators, year);
+    let authorText = creators.map((c) => c.lastName || c.name || c.firstName).filter(Boolean).join(', ') || 'Unknown Author';
 
     let tags: any[] = [];
     try {
@@ -102,6 +102,55 @@ export function extractPaperCardData(item: any): PaperCardData {
       publicationTitle = item.getField?.('publicationTitle') || item.publicationTitle || '';
     } catch {
       publicationTitle = '';
+    }
+
+    // Special handling for Zotero Standalone Notes
+    const isNote = typeof item?.isNote === 'function' ? item.isNote() : itemType === 'note';
+    let notePreview = '';
+    if (isNote) {
+      itemType = 'note';
+      let rawNote = '';
+      try {
+        rawNote = item.getNote?.() || item.note || '';
+      } catch {
+        rawNote = '';
+      }
+      const plainNote = rawNote
+        .replace(/<style[^>]*>.*?<\/style>/gi, '')
+        .replace(/<script[^>]*>.*?<\/script>/gi, '')
+        .replace(/<br\s*[\/]?>/gi, '\n')
+        .replace(/<\/p>/gi, '\n')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      const lines = plainNote.split('\n').map((l: string) => l.trim()).filter(Boolean);
+      let noteTitle = '';
+      try {
+        noteTitle = item.getNoteTitle?.() || '';
+      } catch {
+        noteTitle = '';
+      }
+      if (!noteTitle && lines.length > 0) {
+        noteTitle = lines[0];
+      }
+      title = noteTitle || 'Untitled Note';
+
+      const previewBody = lines.length > 1 ? lines.slice(1).join(' ') : (lines[0] || '');
+      notePreview = previewBody.slice(0, 150);
+
+      let modDate = '';
+      try {
+        modDate = item.dateModified || item.dateAdded || '';
+      } catch {}
+      authorText = modDate ? `Note · ${String(modDate).slice(0, 10)}` : 'Research Note';
+      citationText = 'Note';
+      publicationTitle = 'RESEARCH NOTE';
     }
 
     // Extract Zotero native colored tags (position 1-9 assigned colors)
@@ -137,6 +186,7 @@ export function extractPaperCardData(item: any): PaperCardData {
       itemType,
       year,
       publicationTitle,
+      notePreview,
       readStatus,
       hasPdf: false, // Will be updated when attachment is resolved
       colorTags
