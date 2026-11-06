@@ -29,6 +29,7 @@ export class VirtualGridScroller {
   private focusedIndex = -1;
   private options: VirtualScrollerOptions;
   private boundKeyDown = this.handleKeyDown.bind(this);
+  private boundDocKeyDown = this.handleDocumentKeyDown.bind(this);
 
   constructor(options: VirtualScrollerOptions) {
     this.container = options.container;
@@ -40,6 +41,67 @@ export class VirtualGridScroller {
 
   private bindEvents() {
     this.container.addEventListener('keydown', this.boundKeyDown);
+    if (this.viewport && this.viewport !== this.container) {
+      this.viewport.addEventListener('keydown', this.boundKeyDown);
+    }
+    const doc = this.container?.ownerDocument;
+    if (doc && typeof doc.addEventListener === 'function') {
+      doc.addEventListener('keydown', this.boundDocKeyDown);
+    }
+  }
+
+  private isEditableElement(el: any): boolean {
+    if (!el || typeof el !== 'object') return false;
+    const tag = String(el.tagName || el.nodeName || '').toLowerCase();
+    if (
+      tag === 'input' ||
+      tag === 'textarea' ||
+      tag === 'select' ||
+      tag.includes('textbox') ||
+      tag === 'editable-text'
+    ) {
+      return true;
+    }
+    if (el.isContentEditable || el.getAttribute?.('contenteditable') === 'true') {
+      return true;
+    }
+    return false;
+  }
+
+  private handleDocumentKeyDown(e: KeyboardEvent) {
+    if (e.defaultPrevented) return;
+    if (this.items.length === 0) return;
+
+    // If event originated inside container/viewport, container listener already handled it
+    const target = e.target as any;
+    if (target && (this.container.contains?.(target) || this.viewport?.contains?.(target))) {
+      return;
+    }
+
+    // Do not intercept typing in inputs, search boxes, or editable fields
+    const doc = this.container?.ownerDocument;
+    if (this.isEditableElement(target) || this.isEditableElement(doc?.activeElement)) {
+      return;
+    }
+
+    // Only active when the grid is visible
+    const gridRoot = (this.container.closest?.('#zotero-cover-grid') ||
+      doc?.getElementById?.('zotero-cover-grid') ||
+      this.viewport) as HTMLElement | null;
+    if (gridRoot && (gridRoot.hidden || gridRoot.style?.display === 'none')) {
+      return;
+    }
+    const tabs = (doc?.defaultView as any)?.Zotero_Tabs;
+    if (tabs?.selectedID && tabs.selectedID !== 'zotero-pane') {
+      return;
+    }
+
+    // Only forward number tag keys (0-9) when a card is selected/focused
+    if (/^[0-9]$/.test(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      if (this.selectedIds.size > 0 || this.focusedIndex >= 0) {
+        this.handleKeyDown(e);
+      }
+    }
   }
 
   public setItems(newItems: PaperCardData[]) {
@@ -197,14 +259,15 @@ export class VirtualGridScroller {
     }
 
     this.focusedIndex = index;
+    this.updateSelectionClasses();
+    this.notifySelection();
+
     const el = this.cardMap.get(card.id);
     try {
       el?.focus({ preventScroll: true });
     } catch {
       el?.focus();
     }
-    this.updateSelectionClasses();
-    this.notifySelection();
   }
 
   private updateSelectionClasses() {
@@ -283,6 +346,7 @@ export class VirtualGridScroller {
           this.options.onOpenPdf?.(this.items[this.focusedIndex]);
         }
         break;
+      case '0':
       case '1':
       case '2':
       case '3':
@@ -291,13 +355,19 @@ export class VirtualGridScroller {
       case '6':
       case '7':
       case '8':
-      case '9':
+      case '9': {
+        if (e.metaKey || e.ctrlKey || e.altKey) break;
         e.preventDefault();
-        if (this.focusedIndex >= 0 && this.items[this.focusedIndex]) {
-          const pos = parseInt(e.key, 10);
-          this.options.onToggleColorTag?.(this.items[this.focusedIndex], pos);
+        const pos = parseInt(e.key, 10);
+        const targets = this.items.filter((it) => this.selectedIds.has(it.id));
+        if (targets.length === 0 && this.focusedIndex >= 0 && this.items[this.focusedIndex]) {
+          targets.push(this.items[this.focusedIndex]);
+        }
+        for (const target of targets) {
+          this.options.onToggleColorTag?.(target, pos);
         }
         break;
+      }
       case 'Delete':
       case 'Backspace':
         e.preventDefault();
@@ -370,6 +440,13 @@ export class VirtualGridScroller {
 
   public destroy() {
     this.container.removeEventListener('keydown', this.boundKeyDown);
+    if (this.viewport && this.viewport !== this.container) {
+      this.viewport.removeEventListener('keydown', this.boundKeyDown);
+    }
+    const doc = this.container?.ownerDocument;
+    if (doc && typeof doc.removeEventListener === 'function') {
+      doc.removeEventListener('keydown', this.boundDocKeyDown);
+    }
     this.cardMap.clear();
     this.selectedIds.clear();
     this.items = [];

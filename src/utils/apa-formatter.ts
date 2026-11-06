@@ -170,16 +170,35 @@ export function extractPaperCardData(item: any): PaperCardData {
         if (Array.isArray(listTags)) {
           colorTags = listTags.filter((t: any) => t && t.color).map((t: any) => ({ tag: t.tag, color: t.color }));
         }
-      } else if (typeof (globalThis as any).Zotero !== 'undefined' && (globalThis as any).Zotero.Tags?.getColors) {
-        const zColors = (globalThis as any).Zotero.Tags.getColors(item.libraryID);
-        if (zColors && typeof zColors.get === 'function') {
-          colorTags = tags
-            .map((t: any) => {
-              const name = typeof t === 'string' ? t : t?.tag;
-              const c = zColors.get(name)?.color;
-              return c ? { tag: name, color: c } : null;
-            })
-            .filter(Boolean) as any;
+      }
+      if (colorTags.length === 0) {
+        const zObj =
+          (typeof (globalThis as any).Zotero !== 'undefined' ? (globalThis as any).Zotero : null) ||
+          item?.Zotero;
+        if (zObj?.Tags?.getColors) {
+          const libId = item?.libraryID || zObj.Libraries?.userLibraryID || 1;
+          const zColors = zObj.Tags.getColors(libId);
+          if (zColors && typeof zColors.get === 'function') {
+            colorTags = tags
+              .map((t: any) => {
+                const name = typeof t === 'string' ? t : t?.tag;
+                const entry = name ? zColors.get(name) : null;
+                return entry?.color ? { tag: name, color: entry.color, position: entry.position ?? 99 } : null;
+              })
+              .filter(Boolean)
+              .sort((a: any, b: any) => a.position - b.position)
+              .map(({ tag, color }: any) => ({ tag, color }));
+          } else if (Array.isArray(zColors)) {
+            colorTags = tags
+              .map((t: any) => {
+                const name = typeof t === 'string' ? t : t?.tag;
+                const entry = name ? zColors.find((c: any) => c && c.tag === name) : null;
+                return entry?.color ? { tag: name, color: entry.color, position: entry.position ?? 99 } : null;
+              })
+              .filter(Boolean)
+              .sort((a: any, b: any) => a.position - b.position)
+              .map(({ tag, color }: any) => ({ tag, color }));
+          }
         }
       }
     } catch {
