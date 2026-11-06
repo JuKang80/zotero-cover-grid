@@ -188,23 +188,16 @@ export function injectToolbarControls(win: any): ToolbarController | null {
         } catch {}
 
         const zp = win.ZoteroPane || (typeof ZoteroPane !== 'undefined' ? ZoteroPane : null);
-        const rerenderItemsTree = () => {
+        const instantPaintTree = () => {
           try {
             void itemsTree.offsetHeight;
             if (typeof zp?.updateLayoutConstraints === 'function') {
               zp.updateLayoutConstraints();
             }
             const iv = zp?.itemsView;
-            if (iv) {
-              try { iv.invalidateRowCache?.(true); } catch {}
-              if (iv.tree) {
-                try { iv.tree.invalidate?.(); } catch {}
-                try { iv.tree.rerender?.(); } catch {}
-                try { iv.tree._jsWindow?.invalidate?.(); } catch {}
-                try { iv.tree._jsWindow?.render?.(); } catch {}
-              }
-              try { iv.refreshAndMaintainSelection?.(); } catch {}
-              try { iv.refresh?.(); } catch {}
+            if (iv?.tree) {
+              try { iv.tree.rerender?.(); } catch {}
+              try { iv.tree._jsWindow?.render?.(); } catch {}
             }
             if (itemsTree.treeBoxObject && typeof itemsTree.treeBoxObject.invalidate === 'function') {
               itemsTree.treeBoxObject.invalidate();
@@ -214,20 +207,13 @@ export function injectToolbarControls(win: any): ToolbarController | null {
           } catch {}
         };
 
-        // 1. Immediate pass
-        rerenderItemsTree();
+        // 1. Synchronous 0ms instant paint (No database I/O, renders from memory in < 1ms)
+        instantPaintTree();
 
-        // 2. Next animation frame (Gecko frame reconstruct)
+        // 2. Next animation frame (Guarantees Gecko layout pass after pane dimension change)
         const raf = win?.requestAnimationFrame || (typeof requestAnimationFrame === 'function' ? requestAnimationFrame : null);
         if (raf) {
-          raf(rerenderItemsTree);
-        }
-
-        // 3. Dual-stage delayed passes (handles splitter animation / right pane open transition)
-        const timerFn = win?.setTimeout || (typeof setTimeout === 'function' ? setTimeout : null);
-        if (timerFn) {
-          timerFn(rerenderItemsTree, 40);
-          timerFn(rerenderItemsTree, 150);
+          raf(instantPaintTree);
         }
       }
     }
