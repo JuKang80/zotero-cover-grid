@@ -1,441 +1,62 @@
 import { PaperCardData, ReadStatus } from '../types';
+import {
+  CardEventHandlers,
+  isMacEnvironment,
+  attachCardGestureHandlers,
+  attachCardGestures,
+} from './card/gesture-handler';
+import {
+  formatBadgeText,
+  formatItemTypeLabel,
+  isTagBandEnabled,
+  isBadgeEnabled,
+  cycleReadStatus,
+  renderColorDots,
+  buildPaperCardDOM,
+  createPaperCardDOM,
+} from './card/card-dom-builder';
+import {
+  updatePaperCardMetadata,
+  updatePaperCardBadge,
+  updatePaperCardThumbnail,
+  updatePaperCardColorTags,
+} from './card/card-updater';
 
-export interface CardEventHandlers {
-  onClick?: (card: PaperCardData, event: MouseEvent) => void;
-  onDoubleClick?: (card: PaperCardData, event: MouseEvent) => void;
-  onContextMenu?: (card: PaperCardData, event: MouseEvent) => void;
-  onStatusChange?: (card: PaperCardData, nextStatus: ReadStatus) => void;
-  onDragStart?: (card: PaperCardData, event: DragEvent) => void;
-}
+// Re-export all sub-module functions and types for 100% backward compatibility
+export {
+  CardEventHandlers,
+  isMacEnvironment,
+  attachCardGestureHandlers,
+  attachCardGestures,
+  formatBadgeText,
+  formatItemTypeLabel,
+  isTagBandEnabled,
+  isBadgeEnabled,
+  cycleReadStatus,
+  renderColorDots,
+  buildPaperCardDOM,
+  createPaperCardDOM,
+  updatePaperCardMetadata,
+  updatePaperCardBadge,
+  updatePaperCardThumbnail,
+  updatePaperCardColorTags,
+};
 
-export function isMacEnvironment(doc?: any): boolean {
-  try {
-    const win = doc?.defaultView || (typeof window !== 'undefined' ? window : null);
-    const z = win?.Zotero || (globalThis as any).Zotero;
-    if (z?.isMac === true) return true;
-    if (z?.isMac === false) return false;
-    const platform = String(
-      win?.navigator?.platform ||
-      win?.navigator?.userAgent ||
-      (typeof navigator !== 'undefined' ? navigator.platform || navigator.userAgent : '')
-    );
-    if (/Mac|iPhone|iPod|iPad/i.test(platform)) return true;
-    if (typeof process !== 'undefined' && (process as any)?.platform === 'darwin') return true;
-    if (/Win|Linux/i.test(platform)) return false;
-  } catch {}
-  return true;
-}
-
-export function cycleReadStatus(current: ReadStatus): ReadStatus {
-  switch (current) {
-    case 'unread':
-      return 'reading';
-    case 'reading':
-      return 'read';
-    case 'read':
-      return 'unread';
-    default:
-      return 'unread';
-  }
-}
-
-function formatBadgeText(status: ReadStatus): string {
-  switch (status) {
-    case 'reading':
-      return 'Reading';
-    case 'read':
-      return 'Read';
-    case 'unread':
-      return 'Unread';
-    default:
-      return 'Unread';
-  }
-}
-
-function formatItemTypeLabel(itemType: string): string {
-  switch (itemType) {
-    case 'journalArticle':
-      return 'Journal Article';
-    case 'book':
-      return 'Book';
-    case 'bookSection':
-      return 'Book Section';
-    case 'conferencePaper':
-      return 'Conference';
-    case 'preprint':
-      return 'Preprint';
-    case 'thesis':
-      return 'Thesis';
-    case 'report':
-      return 'Report';
-    case 'webpage':
-      return 'Web Page';
-    case 'presentation':
-      return 'Presentation';
-    case 'manuscript':
-      return 'Manuscript';
-    case 'patent':
-      return 'Patent';
-    case 'newspaperArticle':
-      return 'Newspaper';
-    case 'magazineArticle':
-      return 'Magazine';
-    case 'document':
-      return 'Document';
-    case 'dataset':
-      return 'Dataset';
-    case 'computerProgram':
-    case 'software':
-      return 'Software';
-    default:
-      if (!itemType) return 'Journal Article';
-      return itemType
-        .replace(/([A-Z])/g, ' $1')
-        .replace(/^./, (s) => s.toUpperCase())
-        .trim();
-  }
-}
-
-function isTagBandEnabled(): boolean {
-  try {
-    const z = (globalThis as any).Zotero;
-    if (z?.Prefs?.get) {
-      const val = z.Prefs.get('extensions.zotero.covergrid.showTagBand', true);
-      if (val === false) return false;
-    }
-  } catch {}
-  return true;
-}
-
-function isBadgeEnabled(): boolean {
-  try {
-    const z = (globalThis as any).Zotero;
-    if (z?.Prefs?.get) {
-      const val = z.Prefs.get('extensions.zotero.covergrid.showBadge', true);
-      if (val === false) return false;
-    }
-  } catch {}
-  return true;
-}
-
+/**
+ * Creates and returns a complete Paper Card HTMLElement by assembling
+ * the DOM hierarchy (CardDOMBuilder) and binding event/gesture listeners (GestureHandler).
+ */
 export function createPaperCardElement(
   card: PaperCardData,
   handlers: CardEventHandlers = {},
   doc?: Document
 ): HTMLElement {
-  const targetDoc: Document =
-    doc ||
-    (typeof document !== 'undefined'
-      ? document
-      : (typeof (globalThis as any).Zotero !== 'undefined' ? (globalThis as any).Zotero.getMainWindow?.()?.document : null));
-  const HTML_NS = 'http://www.w3.org/1999/xhtml';
-  const cardEl = targetDoc.createElementNS(HTML_NS, 'div');
-  cardEl.className = 'paper-card';
-  cardEl.id = `paper-card-${card.id}`;
-  cardEl.setAttribute('data-item-id', String(card.id));
-  cardEl.setAttribute('tabindex', '0');
-  cardEl.setAttribute('draggable', 'true');
-  cardEl.title = `${card.title}\n${card.citationText || card.authorText} (더블 클릭: 열기)`;
-  (cardEl as any).__cardData = card;
-
-  // Cover image wrapper
-  const coverWrapper = targetDoc.createElementNS(HTML_NS, 'div');
-  coverWrapper.className = 'card-cover-wrapper';
-
-  // Fallback / Loading Typographic Book Cover
-  const bookCoverEl = targetDoc.createElementNS(HTML_NS, 'div');
-  const isNote = card.itemType === 'note';
-  bookCoverEl.className = `card-book-cover${isNote ? ' is-note' : ''}`;
-
-  const bookHeader = targetDoc.createElementNS(HTML_NS, 'div');
-  bookHeader.className = 'book-cover-header';
-  bookHeader.textContent = isNote ? '📝 RESEARCH NOTE' : (card.publicationTitle || formatItemTypeLabel(card.itemType)).toUpperCase();
-  bookCoverEl.appendChild(bookHeader);
-
-  const bookTitle = targetDoc.createElementNS(HTML_NS, 'div');
-  bookTitle.className = 'book-cover-title';
-  bookTitle.textContent = card.title;
-  bookCoverEl.appendChild(bookTitle);
-
-  // If note has body preview, display it like a ruled memo pad
-  if (isNote && card.notePreview) {
-    const noteBody = targetDoc.createElementNS(HTML_NS, 'div');
-    noteBody.className = 'book-cover-note-body';
-    noteBody.textContent = card.notePreview;
-    bookCoverEl.appendChild(noteBody);
-  }
-
-  const bookFooter = targetDoc.createElementNS(HTML_NS, 'div');
-  bookFooter.className = 'book-cover-footer';
-  const strippedAuthor = card.citationText ? card.citationText.replace(/\s*\((?:\d{4}|n\.d\.)\)/, '').trim() : '';
-  const firstAuthor = strippedAuthor || card.authorText;
-  bookFooter.textContent = isNote ? (card.year ? `${card.year} · Note` : 'Note') : (card.year ? `${card.year} · ${firstAuthor}` : firstAuthor);
-  bookCoverEl.appendChild(bookFooter);
-
-  // Apply primary color tag for ambient tint / band if present and enabled
-  const primaryColor = card.colorTags?.[0]?.color;
-  if (primaryColor && isTagBandEnabled()) {
-    bookCoverEl.style.setProperty('--card-tag-color', primaryColor);
-    bookCoverEl.setAttribute('data-has-tag-color', 'true');
-  }
-
-  coverWrapper.appendChild(bookCoverEl);
-
-  // Actual PDF Thumbnail Image
-  const imgEl = targetDoc.createElementNS(HTML_NS, 'img') as HTMLImageElement;
-  imgEl.className = 'card-cover-img';
-  imgEl.alt = card.title;
-  imgEl.setAttribute('draggable', 'false');
-  imgEl.addEventListener('error', () => {
-    coverWrapper.classList.remove('is-loading');
-    imgEl.classList.remove('is-loaded');
-    imgEl.style.display = 'none';
-    bookCoverEl.style.display = 'flex';
-  });
-  imgEl.addEventListener('load', () => {
-    coverWrapper.classList.remove('is-loading');
-    imgEl.classList.add('is-loaded');
-    imgEl.style.display = '';
-    bookCoverEl.style.display = 'none';
-  });
-
-  if (card.coverThumbnailUrl) {
-    coverWrapper.classList.add('is-loading');
-    imgEl.src = card.coverThumbnailUrl;
-  } else {
-    imgEl.style.display = 'none';
-  }
-  coverWrapper.appendChild(imgEl);
-  cardEl.appendChild(coverWrapper);
-
-  // 1. Uniform 2-Line Fixed Height Paper Title
-  const titleEl = targetDoc.createElementNS(HTML_NS, 'div');
-  titleEl.className = 'card-title';
-  titleEl.textContent = card.title;
-  titleEl.title = card.title;
-  cardEl.appendChild(titleEl);
-
-  // 2. Author & Citation (1 line ellipsis, e.g. Kim et al. (2026))
-  const authorEl = targetDoc.createElementNS(HTML_NS, 'div');
-  authorEl.className = 'card-author';
-  authorEl.textContent = card.citationText || card.authorText;
-  authorEl.title = `${card.authorText} (${card.year || 'n.d.'}) - ${card.title}`;
-  cardEl.appendChild(authorEl);
-
-  // 3. Badge Container (Reading Status Badge & Native Color Dots)
-  const badgeContainer = targetDoc.createElementNS(HTML_NS, 'div');
-  badgeContainer.className = 'card-badge-container';
-
-  const badgeEl = targetDoc.createElementNS(HTML_NS, 'span');
-  badgeEl.className = `card-badge ${card.readStatus}`;
-  badgeEl.textContent = formatBadgeText(card.readStatus);
-  badgeEl.title = `읽기 상태: ${formatBadgeText(card.readStatus)} (클릭 시 순환)`;
-  if (!isBadgeEnabled()) {
-    badgeEl.style.display = 'none';
-  }
-
-  badgeEl.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const activeCard: PaperCardData = (cardEl as any).__cardData || card;
-    const nextStatus = cycleReadStatus(activeCard.readStatus);
-    activeCard.readStatus = nextStatus;
+  const cardEl = buildPaperCardDOM(card, doc, (activeCard, nextStatus) => {
     updatePaperCardBadge(cardEl, nextStatus);
     handlers.onStatusChange?.(activeCard, nextStatus);
   });
 
-  badgeContainer.appendChild(badgeEl);
-
-  // Zotero Native Colored Tags Dots
-  const dotsContainer = targetDoc.createElementNS(HTML_NS, 'div');
-  dotsContainer.className = 'card-color-dots';
-  renderColorDots(dotsContainer, card.colorTags || [], targetDoc);
-  badgeContainer.appendChild(dotsContainer);
-
-  cardEl.appendChild(badgeContainer);
-
-  // Event Listeners (Zero-delay instant click dispatch & macOS Control+Click gesture guard)
-  let lastContextMenuTs = 0;
-  let suppressNextClick = false;
-
-  const dispatchContextMenu = (e: MouseEvent) => {
-    const now = Date.now();
-    if (now - lastContextMenuTs < 80) return;
-    lastContextMenuTs = now;
-    suppressNextClick = true;
-    handlers.onContextMenu?.((cardEl as any).__cardData || card, e);
-  };
-
-  cardEl.addEventListener('mousedown', (e: MouseEvent) => {
-    if (e.button === 2 || (e.ctrlKey && !e.metaKey && handlers.onContextMenu && isMacEnvironment(targetDoc))) {
-      suppressNextClick = true;
-    } else {
-      suppressNextClick = false;
-    }
-  });
-
-  cardEl.addEventListener('click', (e: MouseEvent) => {
-    // If contextmenu already fired during this press gesture, swallow the trailing click completely (even if held >150ms or Control key released early)
-    if (suppressNextClick) {
-      suppressNextClick = false;
-      if (Date.now() - lastContextMenuTs < 1000) {
-        e.preventDefault();
-        e.stopPropagation();
-        return;
-      }
-    }
-    // Support synthetic / standalone macOS trackpad Control + Click as right-click context menu instead of multi-select
-    if (e.button === 2 || (e.ctrlKey && !e.metaKey && handlers.onContextMenu && isMacEnvironment(targetDoc))) {
-      e.preventDefault();
-      e.stopPropagation();
-      dispatchContextMenu(e);
-      suppressNextClick = false;
-      return;
-    }
-    handlers.onClick?.((cardEl as any).__cardData || card, e);
-  });
-
-  cardEl.addEventListener('dblclick', (e) => {
-    handlers.onDoubleClick?.((cardEl as any).__cardData || card, e);
-  });
-
-  cardEl.addEventListener('contextmenu', (e) => {
-    dispatchContextMenu(e);
-  });
-
-  cardEl.addEventListener('dragstart', (e: DragEvent) => {
-    cardEl.classList.add('is-dragging');
-    const activeCard: PaperCardData = (cardEl as any).__cardData || card;
-    if (handlers.onDragStart) {
-      handlers.onDragStart(activeCard, e);
-    } else if (e.dataTransfer) {
-      try {
-        e.dataTransfer.effectAllowed = 'copyMove';
-        e.dataTransfer.setData('zotero/item', String(activeCard.id));
-        e.dataTransfer.setData('text/x-zotero-drag-item', JSON.stringify({ itemIDs: [activeCard.id] }));
-        e.dataTransfer.setData('text/plain', `${activeCard.authorText} (${activeCard.year || 'n.d.'}) - ${activeCard.title}`);
-      } catch {}
-    }
-  });
-
-  cardEl.addEventListener('dragend', () => {
-    cardEl.classList.remove('is-dragging');
-  });
+  attachCardGestureHandlers(cardEl, card, handlers, doc);
 
   return cardEl;
-}
-
-export function updatePaperCardMetadata(cardEl: HTMLElement, card: PaperCardData) {
-  (cardEl as any).__cardData = card;
-  cardEl.title = `${card.title}\n${card.citationText || card.authorText} (더블 클릭: 열기)`;
-  const titleEl = cardEl.querySelector('.card-title') as HTMLElement | null;
-  if (titleEl && titleEl.textContent !== card.title) {
-    titleEl.textContent = card.title;
-    titleEl.title = card.title;
-  }
-  const authorEl = cardEl.querySelector('.card-author') as HTMLElement | null;
-  const nextAuthor = card.citationText || card.authorText;
-  if (authorEl) {
-    if (authorEl.textContent !== nextAuthor) authorEl.textContent = nextAuthor;
-    authorEl.title = `${card.authorText} (${card.year || 'n.d.'}) - ${card.title}`;
-  }
-  const bookTitle = cardEl.querySelector('.book-cover-title') as HTMLElement | null;
-  if (bookTitle && bookTitle.textContent !== card.title) {
-    bookTitle.textContent = card.title;
-  }
-  const bookHeader = cardEl.querySelector('.book-cover-header') as HTMLElement | null;
-  const isNote = card.itemType === 'note';
-  if (bookHeader) {
-    const nextHeader = isNote ? '📝 RESEARCH NOTE' : (card.publicationTitle || formatItemTypeLabel(card.itemType)).toUpperCase();
-    if (bookHeader.textContent !== nextHeader) bookHeader.textContent = nextHeader;
-  }
-  const bookFooter = cardEl.querySelector('.book-cover-footer') as HTMLElement | null;
-  if (bookFooter) {
-    const strippedAuthor = card.citationText ? card.citationText.replace(/\s*\((?:\d{4}|n\.d\.)\)/, '').trim() : '';
-    const firstAuthor = strippedAuthor || card.authorText;
-    const nextFooter = isNote ? (card.year ? `${card.year} · Note` : 'Note') : (card.year ? `${card.year} · ${firstAuthor}` : firstAuthor);
-    if (bookFooter.textContent !== nextFooter) bookFooter.textContent = nextFooter;
-  }
-  if (isNote) {
-    const bookCoverEl = cardEl.querySelector('.card-book-cover') as HTMLElement | null;
-    let noteBody = cardEl.querySelector('.book-cover-note-body') as HTMLElement | null;
-    if (card.notePreview) {
-      if (!noteBody && bookCoverEl && bookFooter) {
-        const doc = cardEl.ownerDocument || document;
-        noteBody = doc.createElementNS('http://www.w3.org/1999/xhtml', 'div');
-        noteBody.className = 'book-cover-note-body';
-        bookCoverEl.insertBefore(noteBody, bookFooter);
-      }
-      if (noteBody && noteBody.textContent !== card.notePreview) {
-        noteBody.textContent = card.notePreview;
-      }
-    } else if (noteBody) {
-      noteBody.remove();
-    }
-  }
-}
-
-export function updatePaperCardBadge(cardEl: HTMLElement, status: ReadStatus) {
-  const badge = cardEl.querySelector('.card-badge');
-  if (badge) {
-    badge.className = `card-badge ${status}`;
-    badge.textContent = formatBadgeText(status);
-    badge.setAttribute('title', `읽기 상태: ${formatBadgeText(status)} (클릭 시 순환)`);
-  }
-}
-
-export function updatePaperCardThumbnail(cardEl: HTMLElement, url: string) {
-  const img = cardEl.querySelector('.card-cover-img') as HTMLImageElement;
-  const bookCover = cardEl.querySelector('.card-book-cover') as HTMLElement;
-  const wrapper = cardEl.querySelector('.card-cover-wrapper') as HTMLElement;
-  if (img) {
-    if (url) {
-      wrapper?.classList.add('is-loading');
-      img.src = url;
-    } else {
-      wrapper?.classList.remove('is-loading');
-      img.classList.remove('is-loaded');
-      img.style.display = 'none';
-      if (bookCover) bookCover.style.display = 'flex';
-    }
-  }
-}
-
-function renderColorDots(container: HTMLElement, colorTags: Array<{ tag: string; color: string }>, doc: Document) {
-  const HTML_NS = 'http://www.w3.org/1999/xhtml';
-  container.innerHTML = '';
-  const validTags = (colorTags || []).filter((ct) => ct && ct.color);
-  const maxVisible = 5;
-  const visible = validTags.slice(0, maxVisible);
-  for (const ct of visible) {
-    const dot = doc.createElementNS(HTML_NS, 'span');
-    dot.className = 'card-color-dot';
-    dot.style.setProperty('background-color', ct.color, 'important');
-    dot.title = ct.tag;
-    container.appendChild(dot);
-  }
-  if (validTags.length > maxVisible) {
-    const more = doc.createElementNS(HTML_NS, 'span');
-    more.className = 'card-color-dot-more';
-    more.textContent = `+${validTags.length - maxVisible}`;
-    more.title = validTags.slice(maxVisible).map((t) => t.tag).join(', ');
-    container.appendChild(more);
-  }
-}
-
-export function updatePaperCardColorTags(cardEl: HTMLElement, colorTags?: Array<{ tag: string; color: string }>) {
-  const dotsContainer = cardEl.querySelector('.card-color-dots') as HTMLElement;
-  if (dotsContainer) {
-    const doc = cardEl.ownerDocument || document;
-    renderColorDots(dotsContainer, colorTags || [], doc);
-  }
-  const bookCover = cardEl.querySelector('.card-book-cover') as HTMLElement;
-  if (bookCover) {
-    const primaryColor = colorTags?.[0]?.color;
-    if (primaryColor && isTagBandEnabled()) {
-      bookCover.style.setProperty('--card-tag-color', primaryColor);
-      bookCover.setAttribute('data-has-tag-color', 'true');
-    } else {
-      bookCover.removeAttribute('data-has-tag-color');
-    }
-  }
 }
