@@ -2,6 +2,20 @@
  * Toolbar injection: Segmented View Switcher [ ≡ | ⊞ ] & Card Zoom Slider
  */
 
+import {
+  extractNativeSelectedIds,
+  extractGridSelectedIds,
+  syncListToGrid,
+  syncGridToList
+} from './toolbar/view-state-sync';
+
+export {
+  extractNativeSelectedIds,
+  extractGridSelectedIds,
+  syncListToGrid,
+  syncGridToList
+} from './toolbar/view-state-sync';
+
 export interface ToolbarController {
   setView(mode: 'list' | 'grid'): void;
   getView(): 'list' | 'grid';
@@ -145,19 +159,7 @@ export function injectToolbarControls(win: any): ToolbarController | null {
 
     if (mode === 'grid') {
       // Capture currently selected item IDs from native Zotero list view before hiding it
-      let listSelectedIds: number[] = [];
-      try {
-        const zp = win.ZoteroPane || (typeof ZoteroPane !== 'undefined' ? ZoteroPane : null);
-        const rawSel =
-          zp?.getSelectedItems?.(true) ||
-          zp?.itemsView?.getSelectedItems?.(true) ||
-          zp?.getSelectedItems?.();
-        if (Array.isArray(rawSel) && rawSel.length > 0) {
-          listSelectedIds = rawSel
-            .map((it: any) => (typeof it === 'object' && it ? Number(it.id) : Number(it)))
-            .filter((n: number) => !isNaN(n) && n > 0);
-        }
-      } catch {}
+      const listSelectedIds = extractNativeSelectedIds(win);
 
       btnList.classList.remove('active');
       btnList.setAttribute('aria-pressed', 'false');
@@ -199,27 +201,10 @@ export function injectToolbarControls(win: any): ToolbarController | null {
       }
 
       // Sync selected items & scroll position into grid (both immediately and after async reload settles)
-      const scroller = win.__zoteroCoverGridInstance?.scroller;
-      const controller = win.__zoteroCoverGridInstance?.controller;
-      if (scroller?.setSelectedIds) {
-        scroller.setSelectedIds(listSelectedIds, { scrollIntoView: listSelectedIds.length > 0 });
-      }
-
-      // Trigger collection reload!
-      if (controller?.reloadCurrentCollection) {
-        const res = controller.reloadCurrentCollection();
-        if (res && typeof res.then === 'function') {
-          res.then(() => {
-            if (currentView === 'grid' && listSelectedIds.length > 0 && scroller?.setSelectedIds) {
-              scroller.setSelectedIds(listSelectedIds, { scrollIntoView: true });
-            }
-          }).catch(() => {});
-        }
-      }
+      syncListToGrid({ win, selectedIds: listSelectedIds, getCurrentView: () => currentView });
     } else {
       // Capture currently selected item IDs from Cover Grid before switching back to list view
-      const gridSelectedIds: number[] =
-        win.__zoteroCoverGridInstance?.scroller?.getSelectedIds?.() || [];
+      const gridSelectedIds = extractGridSelectedIds(win);
 
       btnGrid.classList.remove('active');
       btnGrid.setAttribute('aria-pressed', 'false');
@@ -245,60 +230,8 @@ export function injectToolbarControls(win: any): ToolbarController | null {
         itemsTree.style.removeProperty('display');
         itemsTree.style.display = '';
 
-        // Force synchronous reflow so Gecko updates bounding rect and dimensions
-        try {
-          void itemsTree.offsetHeight;
-        } catch {}
-
-        const zp = win.ZoteroPane || (typeof ZoteroPane !== 'undefined' ? ZoteroPane : null);
-        const instantPaintTree = () => {
-          try {
-            void itemsTree.offsetHeight;
-            if (typeof zp?.updateLayoutConstraints === 'function') {
-              zp.updateLayoutConstraints();
-            }
-            const iv = zp?.itemsView;
-            if (iv?.tree) {
-              try { iv.tree.rerender?.(); } catch {}
-              try { iv.tree._jsWindow?.render?.(); } catch {}
-            }
-            if (itemsTree.treeBoxObject && typeof itemsTree.treeBoxObject.invalidate === 'function') {
-              itemsTree.treeBoxObject.invalidate();
-            }
-            // Restore selection and scroll position in native list view
-            if (gridSelectedIds.length > 0) {
-              if (gridSelectedIds.length > 1 && typeof iv?.selectItems === 'function') {
-                try { iv.selectItems(gridSelectedIds); } catch {}
-                try { zp?.itemSelected?.(); } catch {}
-              } else if (typeof zp?.selectItem === 'function') {
-                try { zp.selectItem(gridSelectedIds[0], false, false); } catch {}
-              } else if (typeof iv?.selectItem === 'function') {
-                try { iv.selectItem(gridSelectedIds[0]); } catch {}
-              }
-              if (typeof iv?.getRowIndexByID === 'function') {
-                try {
-                  const rowIdx = iv.getRowIndexByID(gridSelectedIds[0]);
-                  if (typeof rowIdx === 'number' && rowIdx >= 0) {
-                    iv.ensureRowIsVisible?.(rowIdx);
-                    iv.tree?.scrollToRow?.(rowIdx);
-                  }
-                } catch {}
-              }
-            }
-            try { (itemsTree as any).focus?.(); } catch {}
-            itemsTree.dispatchEvent(new Event('resize', { bubbles: true }));
-            win.dispatchEvent(new Event('resize'));
-          } catch {}
-        };
-
-        // 1. Synchronous 0ms instant paint (No database I/O, renders from memory in < 1ms)
-        instantPaintTree();
-
-        // 2. Next animation frame (Guarantees Gecko layout pass after pane dimension change)
-        const raf = win?.requestAnimationFrame || (typeof requestAnimationFrame === 'function' ? requestAnimationFrame : null);
-        if (raf) {
-          raf(instantPaintTree);
-        }
+        // Synchronous 0ms instant paint and requestAnimationFrame reflow
+        syncGridToList({ win, itemsTree, selectedIds: gridSelectedIds });
       }
     }
   };
