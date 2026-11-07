@@ -25,14 +25,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Package Extension XPI
+        run: npm run package
+
       - name: Run Test Suite
         run: npm run test
 
       - name: Run TypeScript Check
         run: npm run type-check
-
-      - name: Package Extension XPI
-        run: npm run package
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
