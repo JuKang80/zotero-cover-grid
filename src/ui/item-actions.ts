@@ -131,6 +131,165 @@ export function selectItemInZotero(win: any, itemId: number): void {
   }
 }
 
+export function selectItemsInZotero(win: any, itemIds: number[]): void {
+  if (!Array.isArray(itemIds) || itemIds.length === 0) return;
+  if (itemIds.length === 1) {
+    selectItemInZotero(win, itemIds[0]);
+    return;
+  }
+
+  const zp = win?.ZoteroPane || (typeof (globalThis as any).ZoteroPane !== 'undefined' ? (globalThis as any).ZoteroPane : null);
+  const z = win?.Zotero || (typeof (globalThis as any).Zotero !== 'undefined' ? (globalThis as any).Zotero : null);
+  const doc = win?.document || (typeof document !== 'undefined' ? document : null);
+  if (!z && !zp) return;
+
+  try {
+    // 1. Sync multi-selection with Zotero itemsView so top menus & actions reflect N selected items
+    try {
+      if (typeof zp?.itemsView?.selectItems === 'function') {
+        zp.itemsView.selectItems(itemIds, false, true);
+      }
+    } catch {}
+
+    // 2. Update right-hand Item Pane with multi-item summary ("N items selected")
+    const domItemPane = doc?.getElementById?.('zotero-item-pane') as any;
+    const domItemPaneContent = doc?.getElementById?.('zotero-item-pane-content') as any;
+    const itemPane =
+      win?.ZoteroItemPane ||
+      zp?.itemPane ||
+      domItemPane ||
+      domItemPaneContent ||
+      (typeof (globalThis as any).ZoteroItemPane !== 'undefined' ? (globalThis as any).ZoteroItemPane : null);
+
+    const locale = String(z?.locale || win?.navigator?.language || '').toLowerCase();
+    const msg = locale.startsWith('ko')
+      ? `${itemIds.length}개 항목 선택됨`
+      : `${itemIds.length} items selected`;
+
+    const loadedItems = itemIds
+      .map((id) => {
+        try {
+          return z?.Items?.get ? z.Items.get(id) : null;
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean);
+
+    let handled = false;
+    for (const target of [domItemPane, domItemPaneContent, itemPane]) {
+      if (!target) continue;
+      if (typeof target.showMessage === 'function') {
+        try {
+          target.showMessage(msg);
+          handled = true;
+          break;
+        } catch {}
+      }
+      if (typeof target.viewItems === 'function' && loadedItems.length > 0) {
+        try {
+          target.viewItems(loadedItems);
+          handled = true;
+          break;
+        } catch {}
+      }
+      if (typeof target.setItems === 'function' && loadedItems.length > 0) {
+        try {
+          target.setItems(loadedItems);
+          handled = true;
+          break;
+        } catch {}
+      }
+    }
+
+    if (!handled && typeof zp?.itemSelected === 'function') {
+      try {
+        zp.itemSelected();
+      } catch {}
+    }
+
+    // 3. Keep Grid View visible
+    const itemsTree = doc?.getElementById?.('zotero-items-tree');
+    const coverGrid = doc?.getElementById?.('zotero-cover-grid');
+    if (coverGrid && !coverGrid.hidden && coverGrid.style?.display !== 'none') {
+      if (itemsTree) {
+        itemsTree.hidden = true;
+        itemsTree.setAttribute('hidden', 'true');
+        itemsTree.style?.setProperty?.('display', 'none', 'important');
+      }
+    }
+  } catch (err) {
+    z?.logError?.(err);
+  }
+}
+
+export async function deleteItemsInZotero(win: any, itemIds: number[], forceTrash = false): Promise<void> {
+  if (!Array.isArray(itemIds) || itemIds.length === 0) return;
+  const zp = win?.ZoteroPane || (typeof (globalThis as any).ZoteroPane !== 'undefined' ? (globalThis as any).ZoteroPane : null);
+  const z = win?.Zotero || (typeof (globalThis as any).Zotero !== 'undefined' ? (globalThis as any).Zotero : null);
+
+  try {
+    // Ensure Zotero itemsView has the target items selected before invoking native delete
+    try {
+      if (typeof zp?.itemsView?.selectItems === 'function') {
+        zp.itemsView.selectItems(itemIds, false, true);
+      } else if (itemIds.length === 1 && typeof zp?.itemsView?.selectItem === 'function') {
+        zp.itemsView.selectItem(itemIds[0]);
+      }
+    } catch {}
+
+    const selectedCol =
+      zp?.getSelectedCollection?.() ||
+      (Array.isArray(zp?.getSelectedCollections?.()) ? zp.getSelectedCollections()[0] : null);
+
+    let handledByPane = false;
+    if (typeof zp?.deleteSelectedItems === 'function') {
+      if (forceTrash) {
+        await zp.deleteSelectedItems(true);
+      } else {
+        await zp.deleteSelectedItems();
+      }
+      handledByPane = true;
+    } else if (typeof zp?.deleteSelectedItem === 'function') {
+      await zp.deleteSelectedItem();
+      handledByPane = true;
+    }
+
+    // When in a collection and plain Backspace (forceTrash = false) is pressed without ZoteroPane helper: remove from collection only
+    if (!handledByPane && !forceTrash && selectedCol) {
+      if (typeof selectedCol.removeItems === 'function') {
+        await selectedCol.removeItems(itemIds);
+      } else if (typeof selectedCol.removeItem === 'function') {
+        for (const id of itemIds) {
+          await selectedCol.removeItem(id);
+        }
+      }
+      if (typeof selectedCol.saveTx === 'function') {
+        await selectedCol.saveTx();
+      }
+      handledByPane = true;
+    }
+
+    // When forceTrash is true (Cmd+Backspace / Shift+Delete) or fallback is needed: guarantee items are moved to trash
+    if ((!handledByPane || (forceTrash && selectedCol)) && z?.Items) {
+      for (const id of itemIds) {
+        const zItem = z.Items.getAsync ? await z.Items.getAsync(id) : z.Items.get?.(id);
+        if (zItem && !zItem.deleted) {
+          zItem.deleted = true;
+          if (typeof zItem.saveTx === 'function') {
+            await zItem.saveTx();
+          }
+        }
+      }
+    }
+
+    // Immediately remove deleted cards from the active grid view
+    win?.__zoteroCoverGridInstance?.controller?.removeItems?.(itemIds);
+  } catch (err) {
+    z?.logError?.(err);
+  }
+}
+
 export async function openItemInZotero(win: any, itemId: number): Promise<void> {
   const zp = win?.ZoteroPane || (typeof (globalThis as any).ZoteroPane !== 'undefined' ? (globalThis as any).ZoteroPane : null);
   const z = win?.Zotero || (typeof (globalThis as any).Zotero !== 'undefined' ? (globalThis as any).Zotero : null);

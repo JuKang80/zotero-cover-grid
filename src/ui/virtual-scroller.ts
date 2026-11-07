@@ -4,7 +4,8 @@ import {
   updatePaperCardMetadata,
   updatePaperCardBadge,
   updatePaperCardThumbnail,
-  updatePaperCardColorTags
+  updatePaperCardColorTags,
+  isMacEnvironment
 } from './paper-card';
 
 export interface VirtualScrollerOptions {
@@ -12,7 +13,8 @@ export interface VirtualScrollerOptions {
   viewport: HTMLElement;
   onSelect?: (selectedItems: PaperCardData[]) => void;
   onOpenPdf?: (item: PaperCardData) => void;
-  onDeleteItem?: (items: PaperCardData[]) => void;
+  onDeleteItem?: (items: PaperCardData[], forceTrash?: boolean) => void;
+  onCopyCitation?: (items: PaperCardData[], asCitation?: boolean) => void;
   onStatusChange?: (item: PaperCardData, nextStatus: ReadStatus) => void;
   onToggleColorTag?: (item: PaperCardData, position: number) => void;
   onContextMenu?: (item: PaperCardData, event: MouseEvent) => void;
@@ -25,6 +27,7 @@ export class VirtualGridScroller {
   private cardMap = new Map<number, HTMLElement>();
   private selectedIds = new Set<number>();
   private prevSelectedIds = new Set<number>();
+  private pendingScrollToSelected = false;
   private anchorIndex = 0;
   private focusedIndex = -1;
   private options: VirtualScrollerOptions;
@@ -96,10 +99,58 @@ export class VirtualGridScroller {
       return;
     }
 
-    // Only forward number tag keys (0-9) when a card is selected/focused
+    // Do not intercept arrow/navigation keys when focus is inside left collection tree, tag selector, or item pane
+    const inSidePane = Boolean(
+      target?.closest?.('#zotero-collections-tree, #zotero-tag-selector, #zotero-item-pane')
+    );
+
+    // 1. Forward Cmd/Ctrl + A (Select All) when grid is visible
+    if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'a') {
+      if (!inSidePane) {
+        this.handleKeyDown(e);
+      }
+      return;
+    }
+
+    // 2. Forward Arrow / Home / End navigation keys to grid
+    if (['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) {
+      if (!inSidePane) {
+        this.handleKeyDown(e);
+      }
+      return;
+    }
+
+    // 3. Forward Delete / Backspace when cards are selected/focused
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      if (!inSidePane && (this.selectedIds.size > 0 || this.focusedIndex >= 0)) {
+        this.handleKeyDown(e);
+      }
+      return;
+    }
+
+    // 4. Forward Enter / Space to open PDF when a card is selected/focused (unless a button is focused)
+    if (e.key === 'Enter' || e.key === ' ' || e.key === 'Space') {
+      const tag = String(target?.tagName || '').toLowerCase();
+      if (!inSidePane && tag !== 'button' && (this.selectedIds.size > 0 || this.focusedIndex >= 0)) {
+        this.handleKeyDown(e);
+      }
+      return;
+    }
+
+    // 5. Forward number tag keys (0-9) and Quick Copy (Cmd/Ctrl+C) when a card is selected/focused
     if (/^[0-9]$/.test(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey) {
       if (this.selectedIds.size > 0 || this.focusedIndex >= 0) {
         this.handleKeyDown(e);
+      }
+      return;
+    }
+
+    if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'c') {
+      const sel = this.container?.ownerDocument?.defaultView?.getSelection?.();
+      if (!sel || sel.isCollapsed) {
+        if (this.selectedIds.size > 0 || this.focusedIndex >= 0) {
+          this.handleKeyDown(e);
+        }
       }
     }
   }
@@ -143,11 +194,27 @@ export class VirtualGridScroller {
     }
     this.container.querySelector('.grid-empty-placeholder')?.remove();
 
-    if (this.focusedIndex >= this.items.length) {
+    if (this.selectedIds.size === 0) {
       this.focusedIndex = -1;
-    }
-    if (this.anchorIndex >= this.items.length) {
-      this.anchorIndex = Math.max(0, this.items.length - 1);
+      this.anchorIndex = 0;
+    } else {
+      const firstSelectedId = Array.from(this.selectedIds)[0];
+      const idx = this.items.findIndex((it) => it.id === firstSelectedId);
+      if (idx !== -1) {
+        if (
+          this.focusedIndex < 0 ||
+          this.focusedIndex >= this.items.length ||
+          !this.selectedIds.has(this.items[this.focusedIndex]?.id)
+        ) {
+          this.focusedIndex = idx;
+        }
+        if (this.anchorIndex < 0 || this.anchorIndex >= this.items.length) {
+          this.anchorIndex = idx;
+        }
+      } else {
+        this.focusedIndex = -1;
+        this.anchorIndex = 0;
+      }
     }
 
     for (let i = 0; i < this.items.length; i++) {
@@ -175,7 +242,31 @@ export class VirtualGridScroller {
               }
               this.options.onContextMenu?.(c, e);
             },
-            onStatusChange: (c, s) => this.options.onStatusChange?.(c, s)
+            onStatusChange: (c, s) => this.options.onStatusChange?.(c, s),
+            onDragStart: (c, e) => {
+              if (!this.selectedIds.has(c.id)) {
+                const curIdx = this.items.findIndex((it) => it.id === c.id);
+                this.selectedIds.clear();
+                this.selectedIds.add(c.id);
+                this.focusedIndex = curIdx !== -1 ? curIdx : 0;
+                this.anchorIndex = this.focusedIndex;
+                this.updateSelectionClasses();
+                this.notifySelection();
+              }
+              const draggedItems = this.items.filter((it) => this.selectedIds.has(it.id));
+              const dragIds = draggedItems.length > 0 ? draggedItems.map((it) => it.id) : [c.id];
+              if (e.dataTransfer) {
+                try {
+                  e.dataTransfer.effectAllowed = 'copyMove';
+                  e.dataTransfer.setData('zotero/item', dragIds.join(','));
+                  e.dataTransfer.setData('text/x-zotero-drag-item', JSON.stringify({ itemIDs: dragIds }));
+                  const plainLines = (draggedItems.length > 0 ? draggedItems : [c]).map(
+                    (it) => `${it.authorText} (${it.year || 'n.d.'}) - ${it.title}`
+                  );
+                  e.dataTransfer.setData('text/plain', plainLines.join('\n'));
+                } catch {}
+              }
+            }
           },
           doc
         );
@@ -205,7 +296,27 @@ export class VirtualGridScroller {
 
     this.prevSelectedIds = new Set(this.selectedIds);
 
-    // 3. Scroll Anchoring Restoration
+    // 3. Scroll Anchoring Restoration or Pending View-Switch Scroll Sync
+    if (this.pendingScrollToSelected && this.selectedIds.size > 0) {
+      this.pendingScrollToSelected = false;
+      const firstSelectedId = Array.from(this.selectedIds)[0];
+      const targetIdx = this.items.findIndex((it) => it.id === firstSelectedId);
+      if (targetIdx !== -1) {
+        this.focusedIndex = targetIdx;
+        this.anchorIndex = targetIdx;
+      }
+      const targetEl = this.cardMap.get(firstSelectedId);
+      if (targetEl) {
+        try {
+          targetEl.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+          targetEl.focus({ preventScroll: true });
+        } catch {
+          targetEl.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+        }
+      }
+      return;
+    }
+
     if (anchor && this.cardMap.has(anchor.id)) {
       const newAnchorOffset = this.getItemOffset(anchor.id);
       const delta = newAnchorOffset - oldAnchorOffset;
@@ -233,14 +344,35 @@ export class VirtualGridScroller {
   }
 
   public handleCardClick(card: PaperCardData, index: number, event: MouseEvent) {
+    // On macOS, Control + Click is a secondary (right) click when contextMenu handler is bound
+    if (
+      event.ctrlKey &&
+      !event.metaKey &&
+      this.options.onContextMenu &&
+      isMacEnvironment(this.container?.ownerDocument)
+    ) {
+      if (!this.selectedIds.has(card.id)) {
+        this.selectedIds.clear();
+        this.selectedIds.add(card.id);
+        this.focusedIndex = index;
+        this.anchorIndex = index;
+        this.updateSelectionClasses();
+        this.notifySelection();
+      }
+      this.options.onContextMenu(card, event);
+      return;
+    }
+
     if (event.metaKey || event.ctrlKey) {
       // Toggle single item selection
       if (this.selectedIds.has(card.id)) {
         this.selectedIds.delete(card.id);
+        this.focusedIndex = this.selectedIds.size > 0 ? index : -1;
       } else {
         this.selectedIds.add(card.id);
+        this.focusedIndex = index;
+        this.anchorIndex = index;
       }
-      this.anchorIndex = index;
     } else if (event.shiftKey && this.anchorIndex >= 0) {
       // Range selection
       const start = Math.min(this.anchorIndex, index);
@@ -251,14 +383,15 @@ export class VirtualGridScroller {
           this.selectedIds.add(this.items[i].id);
         }
       }
+      this.focusedIndex = index;
     } else {
       // Single selection
       this.selectedIds.clear();
       this.selectedIds.add(card.id);
       this.anchorIndex = index;
+      this.focusedIndex = index;
     }
 
-    this.focusedIndex = index;
     this.updateSelectionClasses();
     this.notifySelection();
 
@@ -300,8 +433,25 @@ export class VirtualGridScroller {
       for (const it of this.items) {
         this.selectedIds.add(it.id);
       }
+      if (this.focusedIndex === -1 && this.items.length > 0) {
+        this.focusedIndex = 0;
+        this.anchorIndex = 0;
+      }
       this.updateSelectionClasses();
       this.notifySelection();
+      return;
+    }
+
+    // Cmd/Ctrl + C: Quick Copy citation / bibliography to clipboard
+    if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'c') {
+      const targets = this.items.filter((it) => this.selectedIds.has(it.id));
+      if (targets.length === 0 && this.focusedIndex >= 0 && this.items[this.focusedIndex]) {
+        targets.push(this.items[this.focusedIndex]);
+      }
+      if (targets.length > 0 && this.options.onCopyCitation) {
+        e.preventDefault();
+        this.options.onCopyCitation(targets, e.shiftKey);
+      }
       return;
     }
 
@@ -309,34 +459,34 @@ export class VirtualGridScroller {
 
     if (this.focusedIndex === -1 && ['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) {
       e.preventDefault();
-      this.moveFocus(e.key === 'End' ? this.items.length - 1 : 0);
+      this.moveFocus(e.key === 'End' ? this.items.length - 1 : 0, e.shiftKey);
       return;
     }
 
     switch (e.key) {
       case 'ArrowRight':
         e.preventDefault();
-        this.moveFocus(this.focusedIndex + 1);
+        this.moveFocus(this.focusedIndex + 1, e.shiftKey);
         break;
       case 'ArrowLeft':
         e.preventDefault();
-        this.moveFocus(this.focusedIndex - 1);
+        this.moveFocus(this.focusedIndex - 1, e.shiftKey);
         break;
       case 'ArrowDown':
         e.preventDefault();
-        this.moveFocus(this.focusedIndex + cols);
+        this.moveFocus(this.focusedIndex + cols, e.shiftKey);
         break;
       case 'ArrowUp':
         e.preventDefault();
-        this.moveFocus(this.focusedIndex - 1 * cols);
+        this.moveFocus(this.focusedIndex - 1 * cols, e.shiftKey);
         break;
       case 'Home':
         e.preventDefault();
-        this.moveFocus(0);
+        this.moveFocus(0, e.shiftKey);
         break;
       case 'End':
         e.preventDefault();
-        this.moveFocus(this.items.length - 1);
+        this.moveFocus(this.items.length - 1, e.shiftKey);
         break;
       case 'Enter':
       case ' ':
@@ -369,13 +519,22 @@ export class VirtualGridScroller {
         break;
       }
       case 'Delete':
-      case 'Backspace':
+      case 'Backspace': {
         e.preventDefault();
         const selected = this.items.filter((it) => this.selectedIds.has(it.id));
+        if (selected.length === 0 && this.focusedIndex >= 0 && this.items[this.focusedIndex]) {
+          selected.push(this.items[this.focusedIndex]);
+        }
         if (selected.length > 0) {
-          this.options.onDeleteItem?.(selected);
+          const forceTrash = Boolean(e.metaKey || e.ctrlKey || e.shiftKey);
+          if (forceTrash) {
+            this.options.onDeleteItem?.(selected, true);
+          } else {
+            this.options.onDeleteItem?.(selected);
+          }
         }
         break;
+      }
     }
   }
 
@@ -408,7 +567,7 @@ export class VirtualGridScroller {
     return Math.max(1, Math.floor(containerWidth / cardWidth));
   }
 
-  public moveFocus(newIndex: number) {
+  public moveFocus(newIndex: number, extendSelection = false) {
     if (newIndex < 0) newIndex = 0;
     if (newIndex >= this.items.length) newIndex = this.items.length - 1;
 
@@ -416,9 +575,20 @@ export class VirtualGridScroller {
     const item = this.items[newIndex];
     if (!item) return;
 
-    this.selectedIds.clear();
-    this.selectedIds.add(item.id);
-    this.anchorIndex = newIndex;
+    if (extendSelection && this.anchorIndex >= 0) {
+      const start = Math.min(this.anchorIndex, newIndex);
+      const end = Math.max(this.anchorIndex, newIndex);
+      this.selectedIds.clear();
+      for (let i = start; i <= end; i++) {
+        if (this.items[i]) {
+          this.selectedIds.add(this.items[i].id);
+        }
+      }
+    } else {
+      this.selectedIds.clear();
+      this.selectedIds.add(item.id);
+      this.anchorIndex = newIndex;
+    }
 
     this.updateSelectionClasses();
     this.notifySelection();
@@ -430,8 +600,58 @@ export class VirtualGridScroller {
     }
   }
 
+  public setSelectedIds(
+    ids: number[],
+    options: { scrollIntoView?: boolean; notify?: boolean } = {}
+  ) {
+    const cleanIds = (ids || []).map(Number).filter((n) => !isNaN(n) && n > 0);
+    this.selectedIds = new Set(cleanIds);
+
+    if (cleanIds.length === 0) {
+      this.pendingScrollToSelected = false;
+      this.focusedIndex = -1;
+      this.updateSelectionClasses();
+      if (options.notify) {
+        this.notifySelection();
+      }
+      return;
+    }
+
+    if (options.scrollIntoView && cleanIds.length > 0) {
+      this.pendingScrollToSelected = true;
+    }
+
+    if (this.items.length > 0 && cleanIds.length > 0) {
+      const firstIdx = this.items.findIndex((it) => it.id === cleanIds[0]);
+      if (firstIdx !== -1) {
+        this.focusedIndex = firstIdx;
+        this.anchorIndex = firstIdx;
+      }
+      this.updateSelectionClasses();
+      if (options.scrollIntoView) {
+        const targetEl = this.cardMap.get(cleanIds[0]);
+        if (targetEl) {
+          this.pendingScrollToSelected = false;
+          try {
+            targetEl.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+            targetEl.focus({ preventScroll: true });
+          } catch {
+            targetEl.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+          }
+        }
+      }
+      if (options.notify) {
+        this.notifySelection();
+      }
+    }
+  }
+
   public getSelectedIds(): number[] {
     return Array.from(this.selectedIds);
+  }
+
+  public getSelectedItems(): PaperCardData[] {
+    return this.items.filter((it) => this.selectedIds.has(it.id));
   }
 
   public getCardElement(id: number): HTMLElement | undefined {

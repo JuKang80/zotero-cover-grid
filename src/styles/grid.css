@@ -84,90 +84,113 @@ zotero-cover-grid[hidden]:not([hidden="false"]),
   line-height: 1.6 !important;
 }
 
-/* Zotero 순정 테마 변수 연동 & 앰비언트 틴트 제어 */
+/* Zotero 순정 테마 변수 연동 & 앰비언트 틴트 제어 (macOS Sequoia & Zotero 10 Native Tokens) */
 :root {
   --card-bg: var(--material-background, #ffffff);
+  --card-bg-hover: var(--material-background, #fafafa);
+  --card-bg-selected: rgba(10, 132, 255, 0.08);
   --surface-elevated: var(--material-side, #ffffff);
-  --surface-subtle: rgba(0, 0, 0, 0.05);
-  --border-color: var(--color-border, rgba(0, 0, 0, 0.12));
-  --border-color-hover: var(--color-border, rgba(0, 0, 0, 0.22));
-  --text-color: var(--fill-primary, #111827);
-  --text-muted: var(--fill-secondary, #6b7280);
+  --surface-subtle: rgba(0, 0, 0, 0.045);
+  --border-color: var(--color-border, rgba(0, 0, 0, 0.1));
+  --border-color-hover: var(--color-border, rgba(0, 0, 0, 0.2));
+  --text-color: var(--fill-primary, #1d1d1f);
+  --text-muted: var(--fill-secondary, #6e6e73);
   --accent-color: var(--accent-blue, #0a84ff);
-  --badge-unread-bg: #f3f4f6;
-  --badge-unread-fg: #4b5563;
-  --badge-reading-bg: #fef3c7;
-  --badge-reading-fg: #d97706;
-  --badge-read-bg: #d1fae5;
-  --badge-read-fg: #059669;
+  --badge-unread-bg: rgba(0, 0, 0, 0.045);
+  --badge-unread-fg: #515154;
+  --badge-unread-border: rgba(0, 0, 0, 0.08);
+  --badge-reading-bg: rgba(245, 158, 11, 0.12);
+  --badge-reading-fg: #b45309;
+  --badge-reading-border: rgba(245, 158, 11, 0.24);
+  --badge-read-bg: rgba(16, 185, 129, 0.12);
+  --badge-read-fg: #047857;
+  --badge-read-border: rgba(16, 185, 129, 0.24);
   /* 앰비언트 틴트 불투명도: 언제든 0으로 설정하면 완전 무채색 슬레이트/차콜 북커버로 전환 */
-  --ambient-tint-opacity: 0.22;
+  --ambient-tint-opacity: 0.18;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --card-bg: var(--material-background, #1f2023);
+    --card-bg: var(--material-background, #1e1f22);
+    --card-bg-hover: #25262a;
+    --card-bg-selected: rgba(10, 132, 255, 0.16);
     --surface-elevated: var(--material-side, #2b2d31);
-    --surface-subtle: rgba(255, 255, 255, 0.08);
-    --border-color: var(--color-border, rgba(255, 255, 255, 0.12));
-    --border-color-hover: var(--color-border, rgba(255, 255, 255, 0.25));
-    --text-color: var(--fill-primary, #f3f4f6);
-    --text-muted: var(--fill-secondary, #9ca3af);
-    --badge-unread-bg: rgba(255, 255, 255, 0.1);
-    --badge-unread-fg: #d1d5db;
-    --badge-reading-bg: rgba(245, 158, 11, 0.2);
+    --surface-subtle: rgba(255, 255, 255, 0.07);
+    --border-color: var(--color-border, rgba(255, 255, 255, 0.1));
+    --border-color-hover: var(--color-border, rgba(255, 255, 255, 0.22));
+    --text-color: var(--fill-primary, #f5f5f7);
+    --text-muted: var(--fill-secondary, #98989d);
+    --badge-unread-bg: rgba(255, 255, 255, 0.08);
+    --badge-unread-fg: #d1d1d6;
+    --badge-unread-border: rgba(255, 255, 255, 0.12);
+    --badge-reading-bg: rgba(245, 158, 11, 0.16);
     --badge-reading-fg: #fbbf24;
-    --badge-read-bg: rgba(16, 185, 129, 0.2);
+    --badge-reading-border: rgba(245, 158, 11, 0.28);
+    --badge-read-bg: rgba(16, 185, 129, 0.16);
     --badge-read-fg: #34d399;
-    --ambient-tint-opacity: 0.28;
+    --badge-read-border: rgba(16, 185, 129, 0.28);
+    --ambient-tint-opacity: 0.24;
   }
 }
 
 :root[data-color-scheme="dark"],
 :root[lwthemetextcolor="bright"] {
-  --card-bg: var(--material-background, #1f2023);
+  --card-bg: var(--material-background, #1e1f22);
+  --card-bg-hover: #25262a;
+  --card-bg-selected: rgba(10, 132, 255, 0.16);
   --surface-elevated: var(--material-side, #2b2d31);
-  --surface-subtle: rgba(255, 255, 255, 0.08);
-  --border-color: var(--color-border, rgba(255, 255, 255, 0.12));
-  --border-color-hover: var(--color-border, rgba(255, 255, 255, 0.25));
-  --text-color: var(--fill-primary, #f3f4f6);
-  --text-muted: var(--fill-secondary, #9ca3af);
-  --badge-unread-bg: rgba(255, 255, 255, 0.1);
-  --badge-unread-fg: #d1d5db;
-  --badge-reading-bg: rgba(245, 158, 11, 0.2);
+  --surface-subtle: rgba(255, 255, 255, 0.07);
+  --border-color: var(--color-border, rgba(255, 255, 255, 0.1));
+  --border-color-hover: var(--color-border, rgba(255, 255, 255, 0.22));
+  --text-color: var(--fill-primary, #f5f5f7);
+  --text-muted: var(--fill-secondary, #98989d);
+  --badge-unread-bg: rgba(255, 255, 255, 0.08);
+  --badge-unread-fg: #d1d1d6;
+  --badge-unread-border: rgba(255, 255, 255, 0.12);
+  --badge-reading-bg: rgba(245, 158, 11, 0.16);
   --badge-reading-fg: #fbbf24;
-  --badge-read-bg: rgba(16, 185, 129, 0.2);
+  --badge-reading-border: rgba(245, 158, 11, 0.28);
+  --badge-read-bg: rgba(16, 185, 129, 0.16);
   --badge-read-fg: #34d399;
-  --ambient-tint-opacity: 0.28;
+  --badge-read-border: rgba(16, 185, 129, 0.28);
+  --ambient-tint-opacity: 0.24;
 }
 
-/* 개별 논문 카드 (60fps 가상 렌더링 & 고정 높이 그리드) */
+/* 개별 논문 카드 (macOS Finder / Apple Books 순정 절제미 & 60fps 가상 렌더링) */
 .paper-card {
   display: flex !important;
   flex-direction: column !important;
   background: var(--card-bg, #ffffff) !important;
-  border-radius: 6px !important;
+  border-radius: 7px !important;
   box-sizing: border-box !important;
   padding: 8px !important;
-  cursor: pointer !important;
+  cursor: default !important;
   user-select: none !important;
-  transition: transform 0.15s ease-out, box-shadow 0.15s ease-out, border-color 0.15s ease-out !important;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04) !important;
-  border: 1px solid var(--border-color, #e5e7eb) !important;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif !important;
+  transition: background-color 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease, opacity 0.12s ease !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+  border: 1px solid var(--border-color, rgba(0, 0, 0, 0.1)) !important;
   content-visibility: auto !important;
   contain-intrinsic-size: 180px 290px !important;
 }
 
 .paper-card:hover {
-  transform: translateY(-3px) !important;
-  box-shadow: 0 8px 16px -4px rgba(0, 0, 0, 0.12), 0 3px 6px -2px rgba(0, 0, 0, 0.06) !important;
-  border-color: var(--border-color-hover, rgba(0, 0, 0, 0.25)) !important;
+  background: var(--card-bg-hover, #fafafa) !important;
+  box-shadow: 0 3px 8px -2px rgba(0, 0, 0, 0.09), 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+  border-color: var(--border-color-hover, rgba(0, 0, 0, 0.2)) !important;
 }
 
 .paper-card.selected,
 .paper-card:focus-visible {
-  outline: 2px solid var(--accent-color, #0a84ff) !important;
-  outline-offset: 1px !important;
+  background: var(--card-bg-selected, rgba(10, 132, 255, 0.08)) !important;
+  border-color: var(--accent-color, #0a84ff) !important;
+  outline: 1.5px solid var(--accent-color, #0a84ff) !important;
+  outline-offset: 0px !important;
+}
+
+.paper-card.is-dragging {
+  opacity: 0.55 !important;
+  transform: scale(0.98) !important;
 }
 
 /* 카드 표지 래퍼 */
@@ -316,6 +339,18 @@ zotero-cover-grid[hidden]:not([hidden="false"]),
   }
 }
 
+:root[data-color-scheme="dark"] .paper-card .card-book-cover.is-note,
+:root[lwthemetextcolor="bright"] .paper-card .card-book-cover.is-note {
+  background: #252422 !important;
+  color: #e7e5e4 !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background-image: repeating-linear-gradient(
+    transparent,
+    transparent 17px,
+    rgba(75, 71, 67, 0.35) 18px
+  ) !important;
+}
+
 .paper-card .card-book-cover.is-note::before {
   background: linear-gradient(to right, rgba(180, 83, 9, 0.3), rgba(180, 83, 9, 0.05) 80%, rgba(255,255,255,0.2)) !important;
 }
@@ -333,6 +368,12 @@ zotero-cover-grid[hidden]:not([hidden="false"]),
   }
 }
 
+:root[data-color-scheme="dark"] .paper-card .card-book-cover.is-note .book-cover-header,
+:root[lwthemetextcolor="bright"] .paper-card .card-book-cover.is-note .book-cover-header {
+  color: #a8a29e !important;
+  border-bottom: 1px solid rgba(168, 162, 158, 0.2) !important;
+}
+
 .paper-card .card-book-cover.is-note .book-cover-title {
   color: #1c1917 !important;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
@@ -346,6 +387,11 @@ zotero-cover-grid[hidden]:not([hidden="false"]),
   .paper-card .card-book-cover.is-note .book-cover-title {
     color: #f5f5f4 !important;
   }
+}
+
+:root[data-color-scheme="dark"] .paper-card .card-book-cover.is-note .book-cover-title,
+:root[lwthemetextcolor="bright"] .paper-card .card-book-cover.is-note .book-cover-title {
+  color: #f5f5f4 !important;
 }
 
 .paper-card .book-cover-note-body {
@@ -370,6 +416,11 @@ zotero-cover-grid[hidden]:not([hidden="false"]),
   }
 }
 
+:root[data-color-scheme="dark"] .paper-card .book-cover-note-body,
+:root[lwthemetextcolor="bright"] .paper-card .book-cover-note-body {
+  color: #a8a29e !important;
+}
+
 .paper-card .card-book-cover.is-note .book-cover-footer {
   color: #78716c !important;
   border-top: 1px solid rgba(120, 113, 108, 0.2) !important;
@@ -380,6 +431,12 @@ zotero-cover-grid[hidden]:not([hidden="false"]),
     color: #a8a29e !important;
     border-top: 1px solid rgba(168, 162, 158, 0.2) !important;
   }
+}
+
+:root[data-color-scheme="dark"] .paper-card .card-book-cover.is-note .book-cover-footer,
+:root[lwthemetextcolor="bright"] .paper-card .card-book-cover.is-note .book-cover-footer {
+  color: #a8a29e !important;
+  border-top: 1px solid rgba(168, 162, 158, 0.2) !important;
 }
 
 /* 썸네일 이미지: 가로형 및 회전 대응 */
@@ -404,10 +461,16 @@ zotero-cover-grid[hidden]:not([hidden="false"]),
   }
 }
 
+:root[data-color-scheme="dark"] .paper-card .card-cover-img,
+:root[lwthemetextcolor="bright"] .paper-card .card-cover-img {
+  filter: brightness(0.9) contrast(1.05) !important;
+}
+
 /* 1. 균일한 2줄 고정 높이 논문 제목 (어떤 논문이든 100% 일치) */
 .paper-card .card-title {
-  font-size: 12.5px !important;
+  font-size: 12px !important;
   font-weight: 600 !important;
+  letter-spacing: -0.01em !important;
   line-height: 1.35 !important;
   height: 2.7em !important;
   display: -webkit-box !important;
@@ -417,25 +480,27 @@ zotero-cover-grid[hidden]:not([hidden="false"]),
   text-overflow: ellipsis !important;
   word-break: keep-all !important;
   overflow-wrap: anywhere !important;
-  color: var(--text-color, #111827) !important;
-  margin-top: 5px !important;
+  color: var(--text-color, #1d1d1f) !important;
+  margin-top: 6px !important;
 }
 
-/* 2. 저자 및 연도 (1줄 말줄임 보장) */
+/* 2. 저자 및 연도 (1줄 말줄임 보장, 숫자 정렬) */
 .paper-card .card-author {
   font-size: 11px !important;
-  font-weight: 500 !important;
+  font-weight: 400 !important;
+  font-variant-numeric: tabular-nums !important;
   white-space: nowrap !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
   line-height: 1.3 !important;
-  color: var(--text-muted, #6b7280) !important;
-  margin-top: 3px !important;
+  color: var(--text-muted, #6e6e73) !important;
+  margin-top: 2px !important;
 }
 
 .paper-card .card-badge-container {
   display: flex !important;
   align-items: center !important;
+  justify-content: space-between !important;
   margin-top: 6px !important;
   overflow: hidden !important;
 }
@@ -444,29 +509,29 @@ zotero-cover-grid[hidden]:not([hidden="false"]),
 .card-color-dots {
   display: inline-flex !important;
   align-items: center !important;
-  gap: 4px !important;
+  gap: 3.5px !important;
   margin-left: 6px !important;
   overflow: hidden !important;
 }
 
 .card-color-dot {
-  width: 9px !important;
-  height: 9px !important;
+  width: 8px !important;
+  height: 8px !important;
   border-radius: 50% !important;
   display: inline-block !important;
-  box-shadow: 0 0 1px rgba(0, 0, 0, 0.35), inset 0 0 1px rgba(255, 255, 255, 0.6) !important;
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.25) !important;
   flex-shrink: 0 !important;
   transition: transform 0.1s ease !important;
 }
 
 .card-color-dot:hover {
-  transform: scale(1.3) !important;
+  transform: scale(1.15) !important;
 }
 
 .card-color-dot-more {
   font-size: 9px !important;
   font-weight: 600 !important;
-  color: var(--text-muted, #6b7280) !important;
+  color: var(--text-muted, #6e6e73) !important;
   line-height: 1 !important;
   flex-shrink: 0 !important;
 }
@@ -477,56 +542,78 @@ zotero-cover-grid[hidden]:not([hidden="false"]),
   white-space: nowrap !important;
   flex-shrink: 0 !important;
   font-size: 10px !important;
-  padding: 2px 6px !important;
+  line-height: 1.2 !important;
+  padding: 1.5px 6px !important;
   border-radius: 4px !important;
   font-weight: 500 !important;
+  letter-spacing: -0.01em !important;
   cursor: pointer !important;
+  border: 1px solid transparent !important;
+  transition: filter 0.1s ease !important;
 }
 
-/* 신호등 읽기 상태 배지 색상 (라이트/다크 자동 대응) */
+.paper-card .card-badge:hover {
+  filter: brightness(0.95) !important;
+}
+
+/* 신호등 읽기 상태 배지 색상 (라이트/다크 자동 대응, 절제된 네이티브 칩) */
 .card-badge.unread {
-  background: var(--badge-unread-bg, #f3f4f6) !important;
-  color: var(--badge-unread-fg, #4b5563) !important;
+  background: var(--badge-unread-bg, rgba(0, 0, 0, 0.045)) !important;
+  color: var(--badge-unread-fg, #515154) !important;
+  border-color: var(--badge-unread-border, rgba(0, 0, 0, 0.08)) !important;
 }
 .card-badge.reading {
-  background: var(--badge-reading-bg, #fef3c7) !important;
-  color: var(--badge-reading-fg, #d97706) !important;
+  background: var(--badge-reading-bg, rgba(245, 158, 11, 0.12)) !important;
+  color: var(--badge-reading-fg, #b45309) !important;
+  border-color: var(--badge-reading-border, rgba(245, 158, 11, 0.24)) !important;
 }
 .card-badge.read {
-  background: var(--badge-read-bg, #d1fae5) !important;
-  color: var(--badge-read-fg, #059669) !important;
+  background: var(--badge-read-bg, rgba(16, 185, 129, 0.12)) !important;
+  color: var(--badge-read-fg, #047857) !important;
+  border-color: var(--badge-read-border, rgba(16, 185, 129, 0.24)) !important;
 }
 
-/* 툴바 스위처 & 줌 슬라이더 컨테이너 */
+/* 툴바 스위처 & 줌 슬라이더 컨테이너 (Zotero 10 상단 검색바와 1:1 높이/곡률 일체화) */
 .cover-grid-toolbar-group {
   display: inline-flex !important;
   align-items: center !important;
-  gap: 8px !important;
-  margin-left: 8px !important;
+  gap: 6px !important;
+  margin-left: 6px !important;
+  height: 24px !important;
 }
 
 .view-segmented-toggle {
   display: inline-flex !important;
-  border-radius: 6px !important;
-  background: var(--surface-subtle, rgba(0, 0, 0, 0.06)) !important;
-  padding: 2px !important;
+  align-items: center !important;
+  border-radius: 5px !important;
+  background: var(--surface-subtle, rgba(0, 0, 0, 0.05)) !important;
+  border: 1px solid var(--border-color, rgba(0, 0, 0, 0.1)) !important;
+  padding: 1px !important;
+  height: 22px !important;
+  box-sizing: border-box !important;
 }
 
 .view-toggle-btn {
   border: none !important;
   background: transparent !important;
-  padding: 3px 8px !important;
-  border-radius: 4px !important;
-  cursor: pointer !important;
+  padding: 2px 7px !important;
+  height: 18px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 3.5px !important;
+  cursor: default !important;
   font-size: 12px !important;
+  font-weight: 500 !important;
   line-height: 1 !important;
-  color: var(--text-muted, #6b7280) !important;
+  color: var(--text-muted, #6e6e73) !important;
+  transition: background-color 0.1s ease, color 0.1s ease !important;
 }
 
 .view-toggle-btn.active {
   background: var(--surface-elevated, #ffffff) !important;
-  color: var(--text-color, #111827) !important;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.14) !important;
+  color: var(--text-color, #1d1d1f) !important;
+  box-shadow: 0 0.5px 2px rgba(0, 0, 0, 0.12), 0 0 0 0.5px rgba(0, 0, 0, 0.06) !important;
 }
 
 .zoom-slider-container:not([hidden]) {
@@ -535,9 +622,18 @@ zotero-cover-grid[hidden]:not([hidden="false"]),
   gap: 4px !important;
 }
 
+.zoom-slider-label {
+  font-size: 11px !important;
+  opacity: 0.65 !important;
+  cursor: default !important;
+  user-select: none !important;
+}
+
 .zoom-slider-container input[type="range"] {
-  width: 80px !important;
-  cursor: pointer !important;
+  width: 72px !important;
+  height: 14px !important;
+  accent-color: var(--accent-color, #0a84ff) !important;
+  cursor: default !important;
 }
 
 /* ==========================================================================
@@ -803,45 +899,67 @@ tab-content#zotero-cover-grid-tab:not([hidden]),
   background: #1d4ed8 !important;
 }
 
-/* 우클릭 컨텍스트 메뉴 */
+/* 우클릭 컨텍스트 메뉴 (macOS Sequoia Native Context Menu Finish) */
 .cover-grid-context-menu {
   position: fixed !important;
-  z-index: 10000 !important;
-  min-width: 220px !important;
-  background: var(--material-side, #ffffff) !important;
-  border: 1px solid rgba(0, 0, 0, 0.12) !important;
-  border-radius: 8px !important;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
-  padding: 6px 0 !important;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+  z-index: 2147483647 !important;
+  min-width: 216px !important;
+  background: var(--material-side, rgba(246, 246, 246, 0.92)) !important;
+  border: 0.5px solid var(--border-color, rgba(0, 0, 0, 0.16)) !important;
+  border-radius: 6px !important;
+  box-shadow: 0 10px 24px -4px rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.08) !important;
+  padding: 4px !important;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif !important;
   font-size: 13px !important;
-  color: var(--text-color, #1e293b) !important;
-  backdrop-filter: blur(12px) !important;
-  animation: contextMenuFade 0.1s ease-out !important;
+  line-height: 1.3 !important;
+  color: var(--text-color, #1d1d1f) !important;
+  backdrop-filter: blur(20px) saturate(180%) !important;
+  animation: contextMenuFade 0.08s ease-out !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  .cover-grid-context-menu {
+    background: var(--material-side, rgba(40, 41, 45, 0.94)) !important;
+    border: 0.5px solid rgba(255, 255, 255, 0.16) !important;
+    box-shadow: 0 12px 28px -4px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+  }
+}
+
+:root[data-color-scheme="dark"] .cover-grid-context-menu,
+:root[lwthemetextcolor="bright"] .cover-grid-context-menu {
+  background: var(--material-side, rgba(40, 41, 45, 0.94)) !important;
+  border: 0.5px solid rgba(255, 255, 255, 0.16) !important;
+  box-shadow: 0 12px 28px -4px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.3) !important;
 }
 
 @keyframes contextMenuFade {
-  from { opacity: 0; transform: scale(0.96); }
+  from { opacity: 0; transform: scale(0.98); }
   to { opacity: 1; transform: scale(1); }
 }
 
+.context-menu-separator {
+  height: 1px !important;
+  margin: 4px 6px !important;
+  background: var(--border-color, rgba(0, 0, 0, 0.1)) !important;
+}
+
 .context-menu-item {
-  padding: 8px 14px !important;
+  padding: 5px 10px !important;
+  border-radius: 4px !important;
   display: flex !important;
   align-items: center !important;
-  cursor: pointer !important;
+  cursor: default !important;
   user-select: none !important;
-  transition: background 0.1s ease !important;
   white-space: nowrap !important;
 }
 
 .context-menu-item:hover {
-  background: rgba(37, 99, 235, 0.08) !important;
-  color: #2563eb !important;
+  background: var(--accent-color, #0a84ff) !important;
+  color: #ffffff !important;
 }
 
 .context-menu-item.disabled {
-  opacity: 0.4 !important;
-  cursor: not-allowed !important;
+  opacity: 0.38 !important;
+  cursor: default !important;
   pointer-events: none !important;
 }
