@@ -171,14 +171,23 @@ export function injectToolbarControls(win: any): ToolbarController | null {
         tabsDeck.selectedIndex = 0;
       }
 
-      // Sync selected items & scroll position into grid
-      if (listSelectedIds.length > 0 && win.__zoteroCoverGridInstance?.scroller?.setSelectedIds) {
-        win.__zoteroCoverGridInstance.scroller.setSelectedIds(listSelectedIds, { scrollIntoView: true });
+      // Sync selected items & scroll position into grid (both immediately and after async reload settles)
+      const scroller = win.__zoteroCoverGridInstance?.scroller;
+      const controller = win.__zoteroCoverGridInstance?.controller;
+      if (scroller?.setSelectedIds) {
+        scroller.setSelectedIds(listSelectedIds, { scrollIntoView: listSelectedIds.length > 0 });
       }
 
       // Trigger collection reload!
-      if (win.__zoteroCoverGridInstance?.controller) {
-        win.__zoteroCoverGridInstance.controller.reloadCurrentCollection();
+      if (controller?.reloadCurrentCollection) {
+        const res = controller.reloadCurrentCollection();
+        if (res && typeof res.then === 'function') {
+          res.then(() => {
+            if (currentView === 'grid' && listSelectedIds.length > 0 && scroller?.setSelectedIds) {
+              scroller.setSelectedIds(listSelectedIds, { scrollIntoView: true });
+            }
+          }).catch(() => {});
+        }
       }
     } else {
       // Capture currently selected item IDs from Cover Grid before switching back to list view
@@ -233,6 +242,7 @@ export function injectToolbarControls(win: any): ToolbarController | null {
             if (gridSelectedIds.length > 0) {
               if (gridSelectedIds.length > 1 && typeof iv?.selectItems === 'function') {
                 try { iv.selectItems(gridSelectedIds); } catch {}
+                try { zp?.itemSelected?.(); } catch {}
               } else if (typeof zp?.selectItem === 'function') {
                 try { zp.selectItem(gridSelectedIds[0], false, false); } catch {}
               } else if (typeof iv?.selectItem === 'function') {
@@ -248,6 +258,7 @@ export function injectToolbarControls(win: any): ToolbarController | null {
                 } catch {}
               }
             }
+            try { (itemsTree as any).focus?.(); } catch {}
             itemsTree.dispatchEvent(new Event('resize', { bubbles: true }));
             win.dispatchEvent(new Event('resize'));
           } catch {}
@@ -286,11 +297,13 @@ export function injectToolbarControls(win: any): ToolbarController | null {
   btnList.addEventListener('click', (e: Event) => {
     e.preventDefault();
     e.stopPropagation();
+    btnList.blur?.();
     setView('list');
   });
   btnGrid.addEventListener('click', (e: Event) => {
     e.preventDefault();
     e.stopPropagation();
+    btnGrid.blur?.();
     setView('grid');
   });
   zoomSlider.addEventListener('input', (e: Event) => {

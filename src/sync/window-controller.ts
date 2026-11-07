@@ -96,16 +96,44 @@ export class WindowCoverGridController {
             if (itemIDs.length === 0) return;
 
             const targetEl = e.target as HTMLElement | null;
+            const rowEl = targetEl?.closest?.(
+              '[data-collection-id], [data-row-index], .virtualized-table-row, [role="treeitem"], [role="row"]'
+            ) as HTMLElement | null;
             const colIdAttr =
               targetEl?.getAttribute?.('data-collection-id') ||
-              targetEl?.closest?.('[data-collection-id]')?.getAttribute?.('data-collection-id');
+              rowEl?.getAttribute?.('data-collection-id');
             const z = this.win?.Zotero || (typeof Zotero !== 'undefined' ? Zotero : null);
+            const zpRef = this.win?.ZoteroPane || (typeof ZoteroPane !== 'undefined' ? ZoteroPane : null);
             let targetCol = colIdAttr && z?.Collections?.get ? z.Collections.get(Number(colIdAttr)) : null;
+
+            // Fallback: Zotero 10 VirtualizedTable row index -> collectionsView.getRow(idx).ref
+            if (!targetCol && zpRef?.collectionsView) {
+              const cv = zpRef.collectionsView;
+              let rowIdx = -1;
+              const idxAttr = rowEl?.getAttribute?.('data-row-index') ?? rowEl?.getAttribute?.('aria-rowindex');
+              if (idxAttr != null && !isNaN(Number(idxAttr))) {
+                rowIdx = Number(idxAttr);
+              } else if (typeof cv.tree?.getRowAtClientY === 'function' && typeof e.clientY === 'number') {
+                rowIdx = cv.tree.getRowAtClientY(e.clientY);
+              }
+              if (rowIdx >= 0 && typeof cv.getRow === 'function') {
+                const treeRow = cv.getRow(rowIdx);
+                const candidate = treeRow?.ref || treeRow;
+                if (candidate && (typeof candidate.addItems === 'function' || typeof candidate.addItem === 'function')) {
+                  targetCol = candidate;
+                } else if (candidate?.id && z?.Collections?.get) {
+                  targetCol = z.Collections.get(Number(candidate.id));
+                }
+              }
+            }
+
             if (!targetCol && typeof (colTree as any).onDrop === 'function') {
               (colTree as any).onDrop(e, itemIDs);
               return;
             }
             if (targetCol) {
+              e.preventDefault?.();
+              e.stopPropagation?.();
               if (typeof targetCol.addItems === 'function') {
                 await targetCol.addItems(itemIDs);
               } else if (typeof targetCol.addItem === 'function') {
@@ -205,7 +233,7 @@ export class WindowCoverGridController {
     this.applyFilter();
   }
 
-  private removeItems(ids: number[]) {
+  public removeItems(ids: number[]) {
     const idSet = new Set(ids);
     this.allItems = this.allItems.filter((it) => !idSet.has(it.id));
     this.applyFilter();
@@ -739,9 +767,15 @@ export class WindowCoverGridController {
       doc.querySelector?.('tag-selector');
     if (!tagSelectorEl || typeof tagSelectorEl.addEventListener !== 'function') return;
 
+    let tagTickTimer: any = null;
     const handleTagEvent = () => {
       if (this.isDestroyed) return;
       this.applyFilter();
+      if (tagTickTimer) clearTimeout(tagTickTimer);
+      tagTickTimer = setTimeout(() => {
+        tagTickTimer = null;
+        if (!this.isDestroyed) this.applyFilter();
+      }, 0);
     };
 
     tagSelectorEl.addEventListener('click', handleTagEvent);
@@ -750,6 +784,7 @@ export class WindowCoverGridController {
     tagSelectorEl.addEventListener('change', handleTagEvent);
 
     this.tagSelectorCleanup = () => {
+      if (tagTickTimer) clearTimeout(tagTickTimer);
       tagSelectorEl.removeEventListener('click', handleTagEvent);
       tagSelectorEl.removeEventListener('command', handleTagEvent);
       tagSelectorEl.removeEventListener('select', handleTagEvent);
@@ -916,10 +951,18 @@ export class WindowCoverGridController {
 
       zItem.addTag?.(tagToAdd);
       card.readStatus = nextStatus;
+      const readingTagSet = new Set(readingTags.map((t) => t.toLowerCase()));
+      const nextTags = (card.tags || []).filter((t) => !readingTagSet.has(t.toLowerCase()));
+      nextTags.push(tagToAdd);
+      card.tags = nextTags;
 
       const cardEl = this.scroller?.getCardElement(card.id);
       if (cardEl) {
         updatePaperCardBadge(cardEl, nextStatus);
+      }
+
+      if (this.getActiveFilterTags().length > 0) {
+        this.applyFilter();
       }
 
       if (typeof zItem.saveTx === 'function') {
@@ -965,11 +1008,15 @@ export class WindowCoverGridController {
           const name = typeof t === 'string' ? t : t?.tag;
           return name && !toRemove.has(name);
         });
+        card.tags = (card.tags || []).filter((t) => !toRemove.has(t));
         card.readStatus = extractReadStatusFromTags(remainingTags);
         const cardEl = this.scroller?.getCardElement(card.id);
         if (cardEl) {
           updatePaperCardColorTags(cardEl, []);
           updatePaperCardBadge(cardEl, card.readStatus);
+        }
+        if (this.getActiveFilterTags().length > 0) {
+          this.applyFilter();
         }
         if (typeof zItem.saveTx === 'function') {
           await zItem.saveTx();
@@ -1024,19 +1071,30 @@ export class WindowCoverGridController {
         card.colorTags.sort((a, b) => (posMap.get(a.tag) ?? 99) - (posMap.get(b.tag) ?? 99));
       }
 
-      // Compute updated tags to also keep readStatus badge in sync if colored tag is unread/reading/read
-      let updatedTagNames = existingItemTags.map((t: any) => (typeof t === 'string' ? t : t?.tag)).filter(Boolean);
+      // Compute updated tags to also keep readStatus badge and card.tags in sync
+      const baseTagNames = Array.from(
+        new Set([
+          ...(card.tags || []),
+          ...existingItemTags.map((t: any) => (typeof t === 'string' ? t : t?.tag)).filter(Boolean)
+        ])
+      );
+      let updatedTagNames = baseTagNames;
       if (isRemoving) {
         updatedTagNames = updatedTagNames.filter((name) => name !== targetColor!.tag);
       } else if (!updatedTagNames.includes(targetColor.tag)) {
         updatedTagNames.push(targetColor.tag);
       }
+      card.tags = updatedTagNames;
       card.readStatus = extractReadStatusFromTags(updatedTagNames);
 
       const cardEl = this.scroller?.getCardElement(card.id);
       if (cardEl) {
         updatePaperCardColorTags(cardEl, card.colorTags);
         updatePaperCardBadge(cardEl, card.readStatus);
+      }
+
+      if (this.getActiveFilterTags().length > 0) {
+        this.applyFilter();
       }
 
       // 2. Persist to Zotero database with type 0 (manual user tag)

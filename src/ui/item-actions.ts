@@ -238,25 +238,43 @@ export async function deleteItemsInZotero(win: any, itemIds: number[], forceTras
       }
     } catch {}
 
+    const selectedCol =
+      zp?.getSelectedCollection?.() ||
+      (Array.isArray(zp?.getSelectedCollections?.()) ? zp.getSelectedCollections()[0] : null);
+
+    let handledByPane = false;
     if (typeof zp?.deleteSelectedItems === 'function') {
       if (forceTrash) {
         await zp.deleteSelectedItems(true);
       } else {
         await zp.deleteSelectedItems();
       }
-      return;
-    }
-
-    if (typeof zp?.deleteSelectedItem === 'function') {
+      handledByPane = true;
+    } else if (typeof zp?.deleteSelectedItem === 'function') {
       await zp.deleteSelectedItem();
-      return;
+      handledByPane = true;
     }
 
-    // Direct Zotero.Items fallback when ZoteroPane delete helper is unavailable
-    if (z?.Items) {
+    // When in a collection and plain Backspace (forceTrash = false) is pressed without ZoteroPane helper: remove from collection only
+    if (!handledByPane && !forceTrash && selectedCol) {
+      if (typeof selectedCol.removeItems === 'function') {
+        await selectedCol.removeItems(itemIds);
+      } else if (typeof selectedCol.removeItem === 'function') {
+        for (const id of itemIds) {
+          await selectedCol.removeItem(id);
+        }
+      }
+      if (typeof selectedCol.saveTx === 'function') {
+        await selectedCol.saveTx();
+      }
+      handledByPane = true;
+    }
+
+    // When forceTrash is true (Cmd+Backspace / Shift+Delete) or fallback is needed: guarantee items are moved to trash
+    if ((!handledByPane || (forceTrash && selectedCol)) && z?.Items) {
       for (const id of itemIds) {
         const zItem = z.Items.getAsync ? await z.Items.getAsync(id) : z.Items.get?.(id);
-        if (zItem) {
+        if (zItem && !zItem.deleted) {
           zItem.deleted = true;
           if (typeof zItem.saveTx === 'function') {
             await zItem.saveTx();
@@ -264,6 +282,9 @@ export async function deleteItemsInZotero(win: any, itemIds: number[], forceTras
         }
       }
     }
+
+    // Immediately remove deleted cards from the active grid view
+    win?.__zoteroCoverGridInstance?.controller?.removeItems?.(itemIds);
   } catch (err) {
     z?.logError?.(err);
   }

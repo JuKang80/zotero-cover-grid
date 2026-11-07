@@ -107,6 +107,17 @@ function isTagBandEnabled(): boolean {
   return true;
 }
 
+function isBadgeEnabled(): boolean {
+  try {
+    const z = (globalThis as any).Zotero;
+    if (z?.Prefs?.get) {
+      const val = z.Prefs.get('extensions.zotero.covergrid.showBadge', true);
+      if (val === false) return false;
+    }
+  } catch {}
+  return true;
+}
+
 export function createPaperCardElement(
   card: PaperCardData,
   handlers: CardEventHandlers = {},
@@ -218,6 +229,9 @@ export function createPaperCardElement(
   badgeEl.className = `card-badge ${card.readStatus}`;
   badgeEl.textContent = formatBadgeText(card.readStatus);
   badgeEl.title = `Reading Status: ${card.readStatus} (클릭하여 상태 변경)`;
+  if (!isBadgeEnabled()) {
+    badgeEl.style.display = 'none';
+  }
 
   badgeEl.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -238,21 +252,42 @@ export function createPaperCardElement(
 
   cardEl.appendChild(badgeContainer);
 
-  // Event Listeners (Zero-delay instant click dispatch for 60fps snappy responsiveness)
+  // Event Listeners (Zero-delay instant click dispatch & macOS Control+Click gesture guard)
   let lastContextMenuTs = 0;
+  let suppressNextClick = false;
+
   const dispatchContextMenu = (e: MouseEvent) => {
     const now = Date.now();
-    if (now - lastContextMenuTs < 60) return;
+    if (now - lastContextMenuTs < 80) return;
     lastContextMenuTs = now;
+    suppressNextClick = true;
     handlers.onContextMenu?.((cardEl as any).__cardData || card, e);
   };
 
-  cardEl.addEventListener('click', (e) => {
-    // Support macOS trackpad Control + Click as right-click context menu instead of multi-select
+  cardEl.addEventListener('mousedown', (e: MouseEvent) => {
+    if (e.button === 2 || (e.ctrlKey && !e.metaKey && handlers.onContextMenu && isMacEnvironment(targetDoc))) {
+      suppressNextClick = true;
+    } else {
+      suppressNextClick = false;
+    }
+  });
+
+  cardEl.addEventListener('click', (e: MouseEvent) => {
+    // If contextmenu already fired during this press gesture, swallow the trailing click completely (even if held >150ms or Control key released early)
+    if (suppressNextClick) {
+      suppressNextClick = false;
+      if (Date.now() - lastContextMenuTs < 1000) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+    }
+    // Support synthetic / standalone macOS trackpad Control + Click as right-click context menu instead of multi-select
     if (e.button === 2 || (e.ctrlKey && !e.metaKey && handlers.onContextMenu && isMacEnvironment(targetDoc))) {
       e.preventDefault();
       e.stopPropagation();
       dispatchContextMenu(e);
+      suppressNextClick = false;
       return;
     }
     handlers.onClick?.((cardEl as any).__cardData || card, e);

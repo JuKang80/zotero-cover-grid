@@ -190,6 +190,14 @@ export function injectCoverGridUI(win: any) {
       controller.toggleColorTag(item, position);
     },
     onContextMenu: (item, event) => {
+      const getTargetCards = (clickedCard: any) => {
+        const selected = scroller.getSelectedItems();
+        if (selected.length > 1 && selected.some((it) => it.id === clickedCard.id)) {
+          return selected;
+        }
+        return [clickedCard];
+      };
+
       showPaperCardContextMenu({
         event,
         card: item,
@@ -199,23 +207,30 @@ export function injectCoverGridUI(win: any) {
             await openItemInZotero(win, card.id);
           },
           onToggleRead: (card) => {
+            const targets = getTargetCards(card);
             const nextStatus = cycleReadStatus(card.readStatus);
-            card.readStatus = nextStatus;
-            controller.syncTagStatus(card, nextStatus);
+            for (const target of targets) {
+              target.readStatus = nextStatus;
+              controller.syncTagStatus(target, nextStatus);
+            }
           },
           onCopyCitation: async (card) => {
             const z = win.Zotero || (typeof Zotero !== 'undefined' ? Zotero : null);
-            const zItem = z?.Items?.get ? z.Items.get(card.id) : null;
-            if (card.itemType === 'note') {
-              const noteText = card.notePreview ? `${card.title}\n${card.notePreview}` : card.title;
-              await copyTextToClipboard(noteText, win);
-              return;
-            }
-            const citation = formatFullApa7Bibliography(card, zItem);
-            await copyTextToClipboard(citation, win);
+            const targets = getTargetCards(card);
+            const lines = targets.map((target) => {
+              const zItem = z?.Items?.get ? z.Items.get(target.id) : null;
+              if (target.itemType === 'note') {
+                return target.notePreview ? `${target.title}\n${target.notePreview}` : target.title;
+              }
+              return formatFullApa7Bibliography(target, zItem);
+            });
+            await copyTextToClipboard(lines.join('\n\n'), win);
           },
           onRegenerateCover: async (card) => {
-            await controller.regenerateCover(card);
+            const targets = getTargetCards(card);
+            for (const target of targets) {
+              await controller.regenerateCover(target);
+            }
           },
           onDelete: async (card) => {
             const targetIds = scroller.getSelectedIds().includes(card.id)

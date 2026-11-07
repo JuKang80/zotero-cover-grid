@@ -229,23 +229,46 @@ export function showPaperCardContextMenu(options: ContextMenuOptions): HTMLEleme
 
   const clickX = event.clientX || 0;
   const clickY = event.clientY || 0;
-  const menuWidth = 240;
-  const menuHeight = menuItems.length * 36;
+  const rect = typeof menuEl.getBoundingClientRect === 'function' ? menuEl.getBoundingClientRect() : null;
+  const measuredWidth = menuEl.offsetWidth || rect?.width || 0;
+  const measuredHeight = menuEl.offsetHeight || rect?.height || 0;
+  const separatorCount = menuItems.filter((m) => m.separatorBefore).length;
+  const menuWidth = measuredWidth > 0 ? measuredWidth : 280;
+  const menuHeight = measuredHeight > 0 ? measuredHeight : menuItems.length * 32 + separatorCount * 9 + 8;
   const winWidth = win?.innerWidth || doc.documentElement?.clientWidth || 1000;
   const winHeight = win?.innerHeight || doc.documentElement?.clientHeight || 800;
 
-  const left = clickX + menuWidth > winWidth ? Math.max(10, winWidth - menuWidth - 10) : clickX;
-  const top = clickY + menuHeight > winHeight ? Math.max(10, winHeight - menuHeight - 10) : clickY;
+  const left = clickX + menuWidth > winWidth ? Math.max(10, winWidth - menuWidth - 10) : Math.max(10, clickX);
+  const top = clickY + menuHeight > winHeight ? Math.max(10, winHeight - menuHeight - 10) : Math.max(10, clickY);
 
   menuEl.style.left = `${left}px`;
   menuEl.style.top = `${top}px`;
 
-  // Auto-dismiss on click outside or ESC
-  // Guard against macOS trackpad Control+Click or two-finger tap trailing click event in the same gesture
+  // Auto-dismiss on click/mousedown outside or ESC
+  // Guard against macOS trackpad Control+Click or two-finger tap trailing click event in the same gesture (even if held >150ms)
   const openedAt = Date.now();
+  const originTarget = event.target as Node | null;
+  let pointerDownOutside = false;
+
+  const handleOutsideMouseDown = (e: MouseEvent) => {
+    if (!menuEl.contains(e.target as Node)) {
+      pointerDownOutside = true;
+      closeActiveContextMenu();
+    }
+  };
+
   const handleOutsideClick = (e: MouseEvent) => {
-    if (Date.now() - openedAt < 120 && (e.ctrlKey || e.button === 2)) {
-      return;
+    const elapsed = Date.now() - openedAt;
+    if (!pointerDownOutside) {
+      if (e.ctrlKey || e.button === 2) return;
+      if (
+        elapsed < 600 &&
+        originTarget &&
+        (e.target === originTarget || (originTarget as HTMLElement)?.contains?.(e.target as Node))
+      ) {
+        return;
+      }
+      if (elapsed < 150) return;
     }
     if (!menuEl.contains(e.target as Node)) {
       closeActiveContextMenu();
@@ -258,10 +281,12 @@ export function showPaperCardContextMenu(options: ContextMenuOptions): HTMLEleme
     }
   };
 
+  win?.addEventListener?.('mousedown', handleOutsideMouseDown, true);
   win?.addEventListener?.('click', handleOutsideClick, true);
   win?.addEventListener?.('keydown', handleKeyDown, true);
 
   activeCleanup = () => {
+    win?.removeEventListener?.('mousedown', handleOutsideMouseDown, true);
     win?.removeEventListener?.('click', handleOutsideClick, true);
     win?.removeEventListener?.('keydown', handleKeyDown, true);
   };

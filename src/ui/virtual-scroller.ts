@@ -99,7 +99,45 @@ export class VirtualGridScroller {
       return;
     }
 
-    // Forward number tag keys (0-9) and Quick Copy (Cmd/Ctrl+C) when a card is selected/focused
+    // Do not intercept arrow/navigation keys when focus is inside left collection tree, tag selector, or item pane
+    const inSidePane = Boolean(
+      target?.closest?.('#zotero-collections-tree, #zotero-tag-selector, #zotero-item-pane')
+    );
+
+    // 1. Forward Cmd/Ctrl + A (Select All) when grid is visible
+    if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'a') {
+      if (!inSidePane) {
+        this.handleKeyDown(e);
+      }
+      return;
+    }
+
+    // 2. Forward Arrow / Home / End navigation keys to grid
+    if (['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) {
+      if (!inSidePane) {
+        this.handleKeyDown(e);
+      }
+      return;
+    }
+
+    // 3. Forward Delete / Backspace when cards are selected/focused
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      if (!inSidePane && (this.selectedIds.size > 0 || this.focusedIndex >= 0)) {
+        this.handleKeyDown(e);
+      }
+      return;
+    }
+
+    // 4. Forward Enter / Space to open PDF when a card is selected/focused (unless a button is focused)
+    if (e.key === 'Enter' || e.key === ' ' || e.key === 'Space') {
+      const tag = String(target?.tagName || '').toLowerCase();
+      if (!inSidePane && tag !== 'button' && (this.selectedIds.size > 0 || this.focusedIndex >= 0)) {
+        this.handleKeyDown(e);
+      }
+      return;
+    }
+
+    // 5. Forward number tag keys (0-9) and Quick Copy (Cmd/Ctrl+C) when a card is selected/focused
     if (/^[0-9]$/.test(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey) {
       if (this.selectedIds.size > 0 || this.focusedIndex >= 0) {
         this.handleKeyDown(e);
@@ -156,11 +194,27 @@ export class VirtualGridScroller {
     }
     this.container.querySelector('.grid-empty-placeholder')?.remove();
 
-    if (this.focusedIndex >= this.items.length) {
+    if (this.selectedIds.size === 0) {
       this.focusedIndex = -1;
-    }
-    if (this.anchorIndex >= this.items.length) {
-      this.anchorIndex = Math.max(0, this.items.length - 1);
+      this.anchorIndex = 0;
+    } else {
+      const firstSelectedId = Array.from(this.selectedIds)[0];
+      const idx = this.items.findIndex((it) => it.id === firstSelectedId);
+      if (idx !== -1) {
+        if (
+          this.focusedIndex < 0 ||
+          this.focusedIndex >= this.items.length ||
+          !this.selectedIds.has(this.items[this.focusedIndex]?.id)
+        ) {
+          this.focusedIndex = idx;
+        }
+        if (this.anchorIndex < 0 || this.anchorIndex >= this.items.length) {
+          this.anchorIndex = idx;
+        }
+      } else {
+        this.focusedIndex = -1;
+        this.anchorIndex = 0;
+      }
     }
 
     for (let i = 0; i < this.items.length; i++) {
@@ -313,10 +367,12 @@ export class VirtualGridScroller {
       // Toggle single item selection
       if (this.selectedIds.has(card.id)) {
         this.selectedIds.delete(card.id);
+        this.focusedIndex = this.selectedIds.size > 0 ? index : -1;
       } else {
         this.selectedIds.add(card.id);
+        this.focusedIndex = index;
+        this.anchorIndex = index;
       }
-      this.anchorIndex = index;
     } else if (event.shiftKey && this.anchorIndex >= 0) {
       // Range selection
       const start = Math.min(this.anchorIndex, index);
@@ -327,14 +383,15 @@ export class VirtualGridScroller {
           this.selectedIds.add(this.items[i].id);
         }
       }
+      this.focusedIndex = index;
     } else {
       // Single selection
       this.selectedIds.clear();
       this.selectedIds.add(card.id);
       this.anchorIndex = index;
+      this.focusedIndex = index;
     }
 
-    this.focusedIndex = index;
     this.updateSelectionClasses();
     this.notifySelection();
 
@@ -375,6 +432,10 @@ export class VirtualGridScroller {
       this.selectedIds.clear();
       for (const it of this.items) {
         this.selectedIds.add(it.id);
+      }
+      if (this.focusedIndex === -1 && this.items.length > 0) {
+        this.focusedIndex = 0;
+        this.anchorIndex = 0;
       }
       this.updateSelectionClasses();
       this.notifySelection();
@@ -461,6 +522,9 @@ export class VirtualGridScroller {
       case 'Backspace': {
         e.preventDefault();
         const selected = this.items.filter((it) => this.selectedIds.has(it.id));
+        if (selected.length === 0 && this.focusedIndex >= 0 && this.items[this.focusedIndex]) {
+          selected.push(this.items[this.focusedIndex]);
+        }
         if (selected.length > 0) {
           const forceTrash = Boolean(e.metaKey || e.ctrlKey || e.shiftKey);
           if (forceTrash) {
@@ -543,6 +607,16 @@ export class VirtualGridScroller {
     const cleanIds = (ids || []).map(Number).filter((n) => !isNaN(n) && n > 0);
     this.selectedIds = new Set(cleanIds);
 
+    if (cleanIds.length === 0) {
+      this.pendingScrollToSelected = false;
+      this.focusedIndex = -1;
+      this.updateSelectionClasses();
+      if (options.notify) {
+        this.notifySelection();
+      }
+      return;
+    }
+
     if (options.scrollIntoView && cleanIds.length > 0) {
       this.pendingScrollToSelected = true;
     }
@@ -574,6 +648,10 @@ export class VirtualGridScroller {
 
   public getSelectedIds(): number[] {
     return Array.from(this.selectedIds);
+  }
+
+  public getSelectedItems(): PaperCardData[] {
+    return this.items.filter((it) => this.selectedIds.has(it.id));
   }
 
   public getCardElement(id: number): HTMLElement | undefined {

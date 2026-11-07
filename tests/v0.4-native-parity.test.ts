@@ -316,4 +316,45 @@ describe('v0.4.0 Native Zotero Parity UX Suite', () => {
 
     controller.destroy();
   });
+
+  it('7. Multi-Agent Audit Edge Cases: Long-Hold Trackpad Click (>200ms), Document-Level Arrow/Cmd+A Forwarding, and Tag Mutation Sync', async () => {
+    document.body.innerHTML = `
+      <div id="zotero-cover-grid">
+        <div id="viewport"><div id="container"></div></div>
+      </div>
+    `;
+    const container = document.getElementById('container')!;
+    const viewport = document.getElementById('viewport')!;
+    const onContextMenu = vi.fn();
+    const onSelect = vi.fn();
+
+    const scroller = new VirtualGridScroller({
+      container,
+      viewport,
+      onContextMenu,
+      onSelect
+    });
+    scroller.setItems(sampleItems);
+
+    // Edge Case A: Document-level ArrowRight and Cmd+A work immediately after entering Grid before any card is clicked
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    expect(scroller.getSelectedIds()).toEqual([101]);
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', metaKey: true, bubbles: true }));
+    expect(scroller.getSelectedIds()).toEqual([101, 102, 103]);
+
+    // Edge Case B: MacBook Trackpad Control+Click held for >200ms and Control key released before mouseup/click
+    const card101 = scroller.getCardElement(101)!;
+    card101.dispatchEvent(new MouseEvent('mousedown', { button: 0, ctrlKey: true, bubbles: true }));
+    card101.dispatchEvent(new MouseEvent('contextmenu', { button: 2, ctrlKey: true, bubbles: true }));
+    expect(onContextMenu).toHaveBeenCalledTimes(1);
+
+    await new Promise((r) => setTimeout(r, 200));
+    // Trailing click after 200ms (even with ctrlKey released) must be swallowed and NOT reset multi-selection!
+    card101.dispatchEvent(new MouseEvent('click', { button: 0, ctrlKey: false, bubbles: true }));
+    expect(onContextMenu).toHaveBeenCalledTimes(1);
+    expect(scroller.getSelectedIds()).toEqual([101, 102, 103]);
+
+    scroller.destroy();
+  });
 });
