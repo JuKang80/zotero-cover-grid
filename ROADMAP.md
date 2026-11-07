@@ -6,7 +6,7 @@
 
 ## 📌 현재 개발 현황 요약
 
-- **현재 버전**: `v0.4.0` (Native Zotero Parity UX 7대 기능 및 macOS Sequoia 디자인 마감 완료)
+- **현재 버전**: `v0.4.1` (UI 단축키 툴팁·상태안내 마감 & CI 자동 배포 정상화)
 - **타깃 런타임**: Zotero 10.0+ (`Gecko 140.0 ESR`, XUL+XHTML 통합 환경)
 - **테스트 통과율**: **158 / 158 테스트 100% 통과** (25개 테스트 스위트)
 - **패키징 산출물**: `build/zotero-cover-grid.xpi`
