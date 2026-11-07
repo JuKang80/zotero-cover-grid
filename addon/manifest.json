@@ -11,7 +11,7 @@
   "applications": {
     "zotero": {
       "id": "zotero-cover-grid@antigravity.user",
-      "update_url": "https://raw.githubusercontent.com/JuKang80/zotero-cover-grid/feature/initial-scaffolding/addon/updates.json",
+      "update_url": "https://raw.githubusercontent.com/JuKang80/zotero-cover-grid/main/addon/updates.json",
       "strict_min_version": "6.999",
       "strict_max_version": "11.*"
     }
@@ -19,7 +19,7 @@
   "browser_specific_settings": {
     "zotero": {
       "id": "zotero-cover-grid@antigravity.user",
-      "update_url": "https://raw.githubusercontent.com/JuKang80/zotero-cover-grid/feature/initial-scaffolding/addon/updates.json",
+      "update_url": "https://raw.githubusercontent.com/JuKang80/zotero-cover-grid/main/addon/updates.json",
       "strict_min_version": "6.999",
       "strict_max_version": "11.*"
     }

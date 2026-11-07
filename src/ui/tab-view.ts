@@ -357,6 +357,11 @@ export function openCoverGridTab(win: any) {
               return formatFullApa7Bibliography(target, zItem);
             });
             await copyTextToClipboard(lines.join('\n\n'), win);
+            try {
+              if (typeof z?.updateStatusLabel === 'function') {
+                z.updateStatusLabel('인용이 클립보드에 복사되었습니다.');
+              }
+            } catch {}
           },
           onRegenerateCover: async (card) => {
             const targets = getTargetCards(card);

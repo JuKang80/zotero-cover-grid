@@ -4,6 +4,7 @@ import { WindowCoverGridController } from '../src/sync/window-controller';
 import { showPaperCardContextMenu, closeActiveContextMenu } from '../src/ui/context-menu';
 import { selectItemsInZotero, deleteItemsInZotero } from '../src/ui/item-actions';
 import { injectCoverGridUI, cleanupCoverGridUI } from '../src/ui/index';
+import { injectToolbarControls } from '../src/ui/toolbar';
 import { PaperCardData } from '../src/types';
 
 describe('v0.4.0 Native Zotero Parity UX Suite', () => {
@@ -355,6 +356,57 @@ describe('v0.4.0 Native Zotero Parity UX Suite', () => {
     expect(onContextMenu).toHaveBeenCalledTimes(1);
     expect(scroller.getSelectedIds()).toEqual([101, 102, 103]);
 
+    scroller.destroy();
+  });
+
+  it('8. Micro Polish: Native Tooltips, Empty State Placeholder, and Toolbar Status Feedback', () => {
+    document.body.innerHTML = `
+      <div id="zotero-items-toolbar"></div>
+      <div id="zotero-cover-grid">
+        <div id="viewport"><div id="container"></div></div>
+      </div>
+    `;
+    const container = document.getElementById('container')!;
+    const viewport = document.getElementById('viewport')!;
+    const scroller = new VirtualGridScroller({ container, viewport });
+
+    // 1. Empty state verification
+    scroller.setItems([]);
+    const placeholder = container.querySelector('.grid-empty-placeholder');
+    expect(placeholder).not.toBeNull();
+    expect(placeholder?.textContent).toContain('표시할 항목이 없습니다');
+
+    // 2. Card tooltips verification
+    scroller.setItems(sampleItems);
+    const cardEl = scroller.getCardElement(101)!;
+    expect(cardEl.title).toContain('Paper One');
+    expect(cardEl.title).toContain('더블 클릭: 열기');
+
+    const badgeEl = cardEl.querySelector('.card-badge') as HTMLElement;
+    expect(badgeEl?.title).toContain('읽기 상태:');
+    expect(badgeEl?.title).toContain('클릭 시 순환');
+
+    // 3. Toolbar status feedback & tooltips
+    const win = {
+      document,
+      Zotero: { Prefs: { get: () => 180, set: vi.fn() } },
+      ZoteroPane: {}
+    };
+    const toolbar = injectToolbarControls(win);
+    expect(toolbar).not.toBeNull();
+
+    const btnGrid = document.getElementById('zotero-cover-grid-btn-grid') as HTMLButtonElement;
+    expect(btnGrid.title).toContain('Cover Grid View');
+
+    const statusMsg = document.getElementById('zotero-cover-grid-status-msg') as HTMLElement;
+    expect(statusMsg).not.toBeNull();
+    expect(statusMsg.style.display).toBe('none');
+
+    toolbar?.showStatusMessage?.('✓ 인용 복사됨', 500);
+    expect(statusMsg.style.display).toBe('inline-block');
+    expect(statusMsg.textContent).toBe('✓ 인용 복사됨');
+
+    toolbar?.destroy();
     scroller.destroy();
   });
 });

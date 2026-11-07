@@ -135,6 +135,7 @@ export function createPaperCardElement(
   cardEl.setAttribute('data-item-id', String(card.id));
   cardEl.setAttribute('tabindex', '0');
   cardEl.setAttribute('draggable', 'true');
+  cardEl.title = `${card.title}\n${card.citationText || card.authorText} (더블 클릭: 열기)`;
   (cardEl as any).__cardData = card;
 
   // Cover image wrapper
@@ -228,7 +229,7 @@ export function createPaperCardElement(
   const badgeEl = targetDoc.createElementNS(HTML_NS, 'span');
   badgeEl.className = `card-badge ${card.readStatus}`;
   badgeEl.textContent = formatBadgeText(card.readStatus);
-  badgeEl.title = `Reading Status: ${card.readStatus} (클릭하여 상태 변경)`;
+  badgeEl.title = `읽기 상태: ${formatBadgeText(card.readStatus)} (클릭 시 순환)`;
   if (!isBadgeEnabled()) {
     badgeEl.style.display = 'none';
   }
@@ -325,6 +326,7 @@ export function createPaperCardElement(
 
 export function updatePaperCardMetadata(cardEl: HTMLElement, card: PaperCardData) {
   (cardEl as any).__cardData = card;
+  cardEl.title = `${card.title}\n${card.citationText || card.authorText} (더블 클릭: 열기)`;
   const titleEl = cardEl.querySelector('.card-title') as HTMLElement | null;
   if (titleEl && titleEl.textContent !== card.title) {
     titleEl.textContent = card.title;
@@ -377,7 +379,7 @@ export function updatePaperCardBadge(cardEl: HTMLElement, status: ReadStatus) {
   if (badge) {
     badge.className = `card-badge ${status}`;
     badge.textContent = formatBadgeText(status);
-    badge.setAttribute('title', `Reading Status: ${status} (클릭하여 상태 변경)`);
+    badge.setAttribute('title', `읽기 상태: ${formatBadgeText(status)} (클릭 시 순환)`);
   }
 }
 

@@ -182,6 +182,13 @@ export function injectCoverGridUI(win: any) {
         return asCitation ? card.citationText : formatFullApa7Bibliography(card, zItem);
       });
       await copyTextToClipboard(lines.join('\n\n'), win);
+      // 3. Subtle non-flashy notification
+      toolbar?.showStatusMessage?.('✓ 인용 복사됨');
+      try {
+        if (typeof z?.updateStatusLabel === 'function') {
+          z.updateStatusLabel('인용이 클립보드에 복사되었습니다.');
+        }
+      } catch {}
     },
     onStatusChange: (item, nextStatus) => {
       controller.syncTagStatus(item, nextStatus);
