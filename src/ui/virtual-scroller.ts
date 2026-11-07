@@ -187,7 +187,7 @@ export class VirtualGridScroller {
       if (!this.container.querySelector('.grid-empty-placeholder')) {
         const emptyEl = doc.createElementNS(HTML_NS, 'div');
         emptyEl.className = 'grid-empty-placeholder';
-        emptyEl.textContent = '표시할 논문이 없습니다. (No items to display)';
+        emptyEl.textContent = '표시할 항목이 없습니다. (No items to display)';
         this.container.appendChild(emptyEl);
       }
       return;

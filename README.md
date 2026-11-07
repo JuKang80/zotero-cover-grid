@@ -52,13 +52,20 @@
 
 | Input / Shortcut | Action |
 | :--- | :--- |
-| **Click** | Select card and sync right-hand metadata pane |
-| **Double-click / Enter** | Open PDF in Zotero's tabbed reader or default system viewer |
-| **Arrow Keys (↑, ↓, ←, →)** | Navigate cards without a mouse (auto-scrolls into view) |
+| **Click** | Select card and sync right-hand inspector pane |
+| **Double-click / Enter** | Open PDF reader or research note in Zotero |
+| **Arrow Keys (↑, ↓, ←, →)** | Keyboard navigation with automatic viewport scrolling |
+| **Shift + Arrow Keys** | Expand continuous range multi-selection |
+| **Cmd / Ctrl + Click** | Toggle selection of individual cards |
+| **Shift + Click** | Select a contiguous range of cards |
+| **Cmd / Ctrl + C** | Quick Copy citation / bibliography to clipboard |
+| **Number Keys (0 - 9)** | Assign or toggle Zotero native color tags |
+| **Drag to Left Collections** | Drag & drop cards directly into sidebar collection folders |
+| **Right-Click / Trackpad 2-finger tap / Control+Click** | Native Zotero context menu (contextual actions for notes & PDFs) |
+| **Backspace** | Remove item from current collection (preserves library copy) |
+| **Cmd + Backspace / Shift + Delete** | Move item directly to library trash |
 | **Badge Click** | Cycle reading status (`UNREAD` ➔ `READING` ➔ `READ`) |
-| **Cmd / Ctrl + Click** | Toggle selection of individual items |
-| **Shift + Click** | Select a contiguous range of items |
-| **Delete / Backspace** | Remove item (honors collection removal vs library trash) |
+| **Tag Selector Click** | Reactive 0ms real-time grid filtering from bottom-left tag pane |
 | **Search / ESC** | Instant freeze-free search (`ESC` resets to full library instantly) |
 
 ---

@@ -6,6 +6,7 @@ export interface ToolbarController {
   setView(mode: 'list' | 'grid'): void;
   getView(): 'list' | 'grid';
   setZoom(widthPx: number): void;
+  showStatusMessage?(msg: string, durationMs?: number): void;
   destroy(): void;
 }
 
@@ -48,14 +49,14 @@ export function injectToolbarControls(win: any): ToolbarController | null {
   btnList.className = 'view-toggle-btn active';
   btnList.id = 'zotero-cover-grid-btn-list';
   btnList.textContent = '≡';
-  btnList.title = 'List View';
+  btnList.title = '목록 뷰로 전환 (List View)';
   btnList.setAttribute('aria-pressed', 'true');
 
   const btnGrid = doc.createElementNS(HTML_NS, 'button');
   btnGrid.className = 'view-toggle-btn';
   btnGrid.id = 'zotero-cover-grid-btn-grid';
   btnGrid.textContent = '⊞';
-  btnGrid.title = 'Cover Grid View';
+  btnGrid.title = '바둑판 표지 뷰로 전환 (Cover Grid View)';
   btnGrid.setAttribute('aria-pressed', 'false');
 
   switcher.appendChild(btnList);
@@ -94,11 +95,37 @@ export function injectToolbarControls(win: any): ToolbarController | null {
   zoomSlider.min = '140';
   zoomSlider.max = '340';
   zoomSlider.value = String(initialCardWidth);
-  zoomSlider.title = 'Card Zoom (140px - 340px)';
+  zoomSlider.title = '표지 카드 크기 조절 (140px ~ 340px / 더블클릭 시 180px 복원)';
 
   zoomContainer.appendChild(zoomLabel);
   zoomContainer.appendChild(zoomSlider);
   toolbarGroup.appendChild(zoomContainer);
+
+  // Simple Subtle Status Indicator (No flashy animations, just plain text)
+  const statusMessageEl = doc.createElementNS(HTML_NS, 'span');
+  statusMessageEl.id = 'zotero-cover-grid-status-msg';
+  statusMessageEl.className = 'cover-grid-status-msg';
+  statusMessageEl.style.display = 'none';
+  statusMessageEl.style.fontSize = '12px';
+  statusMessageEl.style.marginLeft = '10px';
+  statusMessageEl.style.color = 'var(--text-secondary, #6b7280)';
+  statusMessageEl.style.userSelect = 'none';
+  toolbarGroup.appendChild(statusMessageEl);
+
+  let statusMsgTimer: any = null;
+  const showStatusMessage = (msg: string, durationMs = 1500) => {
+    if (statusMsgTimer) {
+      clearTimeout(statusMsgTimer);
+      statusMsgTimer = null;
+    }
+    statusMessageEl.textContent = msg;
+    statusMessageEl.style.display = 'inline-block';
+    statusMsgTimer = setTimeout(() => {
+      statusMessageEl.style.display = 'none';
+      statusMessageEl.textContent = '';
+      statusMsgTimer = null;
+    }, durationMs);
+  };
 
   // Insert after searchBox or inside toolbar
   if (searchBox.id === 'zotero-items-toolbar') {
@@ -321,7 +348,12 @@ export function injectToolbarControls(win: any): ToolbarController | null {
     setView,
     getView: () => currentView,
     setZoom,
+    showStatusMessage,
     destroy: () => {
+      if (statusMsgTimer) {
+        clearTimeout(statusMsgTimer);
+        statusMsgTimer = null;
+      }
       toolbarGroup.remove();
     }
   };
