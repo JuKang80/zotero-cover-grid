@@ -20,6 +20,7 @@ export class WindowCoverGridController {
   private isDestroyed = false;
   private searchBoxCleanup: (() => void) | null = null;
   private tagSelectorCleanup: (() => void) | null = null;
+  private colTreeCleanup: (() => void) | null = null;
   private refreshListener: (() => void) | null = null;
   public onCollectionChange?: (name: string) => void;
 
@@ -67,11 +68,11 @@ export class WindowCoverGridController {
     if (doc) {
       const colTree = doc.getElementById('zotero-collections-tree');
       if (colTree) {
-        colTree.addEventListener('click', () => {
+        const handleClick = () => {
           if (this.isDestroyed) return;
           setTimeout(() => this.reloadCurrentCollection(), 80);
-        });
-        colTree.addEventListener('dragover', (e: any) => {
+        };
+        const handleDragOver = (e: any) => {
           if (this.isDestroyed) return;
           if (
             e.dataTransfer?.types?.includes?.('zotero/item') ||
@@ -80,8 +81,8 @@ export class WindowCoverGridController {
             e.preventDefault();
             if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
           }
-        });
-        colTree.addEventListener('drop', async (e: any) => {
+        };
+        const handleDrop = async (e: any) => {
           if (this.isDestroyed) return;
           try {
             const rawJson = e.dataTransfer?.getData?.('text/x-zotero-drag-item');
@@ -146,7 +147,17 @@ export class WindowCoverGridController {
               }
             }
           } catch {}
-        });
+        };
+
+        colTree.addEventListener('click', handleClick);
+        colTree.addEventListener('dragover', handleDragOver);
+        colTree.addEventListener('drop', handleDrop);
+
+        this.colTreeCleanup = () => {
+          colTree.removeEventListener('click', handleClick);
+          colTree.removeEventListener('dragover', handleDragOver);
+          colTree.removeEventListener('drop', handleDrop);
+        };
       }
     }
   }
@@ -1130,6 +1141,8 @@ export class WindowCoverGridController {
     this.searchBoxCleanup = null;
     this.tagSelectorCleanup?.();
     this.tagSelectorCleanup = null;
+    this.colTreeCleanup?.();
+    this.colTreeCleanup = null;
     if (this.searchDebounceTimer) {
       clearTimeout(this.searchDebounceTimer);
     }

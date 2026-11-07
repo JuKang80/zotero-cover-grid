@@ -12,16 +12,25 @@ export interface Creator {
  * - 1 author: Kim (2026)
  * - 2 authors: Kim & Lee (2026)
  * - 3+ authors: Kim et al. (2026)
- * - No author: Untitled (2026)
+ * - No author: [Short Title] (2026) or (2026)
  * - No year: Kim (n.d.)
  */
-export function formatApa7Citation(creators: Creator[] = [], year?: string | number): string {
+export function formatApa7Citation(
+  creators: Creator[] = [],
+  year?: string | number,
+  fallbackTitle?: string
+): string {
   const safeYear = year ? String(year).trim() : 'n.d.';
   const authorNames = creators
     .map((c) => c.lastName || c.name || (c.firstName ? c.firstName : ''))
     .filter((n) => n.trim().length > 0);
 
   if (authorNames.length === 0) {
+    if (fallbackTitle && fallbackTitle.trim() && fallbackTitle.trim() !== 'Untitled') {
+      const cleanTitle = fallbackTitle.replace(/<[^>]*>/g, '').trim();
+      const shortTitle = cleanTitle.length > 28 ? `${cleanTitle.slice(0, 28).trim()}…` : cleanTitle;
+      return `${shortTitle} (${safeYear})`;
+    }
     return `(${safeYear})`;
   }
 
@@ -80,8 +89,10 @@ export function extractPaperCardData(item: any): PaperCardData {
     const yearMatch = String(rawDate).match(/\b\d{4}\b/);
     const year = yearMatch ? yearMatch[0] : '';
 
-    let citationText = formatApa7Citation(creators, year);
-    let authorText = creators.map((c) => c.lastName || c.name || c.firstName).filter(Boolean).join(', ') || 'Unknown Author';
+    let citationText = formatApa7Citation(creators, year, title);
+    let authorText =
+      creators.map((c) => c.lastName || c.name || c.firstName).filter(Boolean).join(', ') ||
+      (title && title !== 'Untitled' ? title : 'Unknown Author');
 
     let tags: any[] = [];
     try {

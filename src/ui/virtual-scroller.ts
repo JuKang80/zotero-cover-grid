@@ -152,6 +152,15 @@ export class VirtualGridScroller {
           this.handleKeyDown(e);
         }
       }
+      return;
+    }
+
+    // 6. Forward Escape key when multiple cards are selected to collapse multi-selection
+    if (e.key === 'Escape') {
+      if (!inSidePane && this.selectedIds.size > 1) {
+        this.handleKeyDown(e);
+      }
+      return;
     }
   }
 
@@ -425,6 +434,29 @@ export class VirtualGridScroller {
 
   public handleKeyDown(e: KeyboardEvent) {
     if (this.items.length === 0) return;
+
+    // Escape: Smart selection collapse (collapses multi-selection down to single focused item)
+    if (e.key === 'Escape') {
+      if (this.selectedIds.size > 1) {
+        e.preventDefault();
+        const keepId =
+          this.focusedIndex >= 0 && this.items[this.focusedIndex]
+            ? this.items[this.focusedIndex].id
+            : Array.from(this.selectedIds)[0];
+        this.selectedIds.clear();
+        if (keepId != null) {
+          this.selectedIds.add(keepId);
+          const idx = this.items.findIndex((it) => it.id === keepId);
+          if (idx !== -1) {
+            this.focusedIndex = idx;
+            this.anchorIndex = idx;
+          }
+        }
+        this.updateSelectionClasses();
+        this.notifySelection();
+        return;
+      }
+    }
 
     // Cmd/Ctrl + A: Select all items in current grid
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'a') {
