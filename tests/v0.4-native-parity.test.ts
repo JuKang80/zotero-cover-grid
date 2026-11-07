@@ -230,6 +230,7 @@ describe('v0.4.0 Native Zotero Parity UX Suite', () => {
   });
 
   it('5. MacBook Trackpad Control+Click & Standalone Note Context Menu Actions', () => {
+    (globalThis as any).Zotero = { isMac: true };
     const container = document.createElement('div');
     const viewport = document.createElement('div');
     const onContextMenu = vi.fn();
