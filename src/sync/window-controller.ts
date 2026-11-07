@@ -14,10 +14,12 @@ export class WindowCoverGridController {
   private abortController: AbortController | null = null;
   private searchDebounceTimer: any = null;
   private currentSearchQuery = '';
+  private selectedFilterTags = new Set<string>();
   private allItems: PaperCardData[] = [];
   private filteredItems: PaperCardData[] = [];
   private isDestroyed = false;
   private searchBoxCleanup: (() => void) | null = null;
+  private tagSelectorCleanup: (() => void) | null = null;
   private refreshListener: (() => void) | null = null;
   public onCollectionChange?: (name: string) => void;
 
@@ -49,6 +51,7 @@ export class WindowCoverGridController {
     this.scroller = scroller;
     this.registerNotifier();
     this.bindSearchBox();
+    this.bindTagSelector();
 
     const zp = this.win?.ZoteroPane || (typeof ZoteroPane !== 'undefined' ? ZoteroPane : null);
     if (zp?.itemsView?.onRefresh?.addListener) {
@@ -59,7 +62,7 @@ export class WindowCoverGridController {
       zp.itemsView.onRefresh.addListener(this.refreshListener);
     }
 
-    // Auto-refresh when collection row is clicked in left collection tree
+    // Auto-refresh when collection row is clicked or items are dropped in left collection tree
     const doc = this.win?.document;
     if (doc) {
       const colTree = doc.getElementById('zotero-collections-tree');
@@ -67,6 +70,54 @@ export class WindowCoverGridController {
         colTree.addEventListener('click', () => {
           if (this.isDestroyed) return;
           setTimeout(() => this.reloadCurrentCollection(), 80);
+        });
+        colTree.addEventListener('dragover', (e: any) => {
+          if (this.isDestroyed) return;
+          if (
+            e.dataTransfer?.types?.includes?.('zotero/item') ||
+            e.dataTransfer?.types?.includes?.('text/x-zotero-drag-item')
+          ) {
+            e.preventDefault();
+            if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+          }
+        });
+        colTree.addEventListener('drop', async (e: any) => {
+          if (this.isDestroyed) return;
+          try {
+            const rawJson = e.dataTransfer?.getData?.('text/x-zotero-drag-item');
+            const rawIds = e.dataTransfer?.getData?.('zotero/item');
+            let itemIDs: number[] = [];
+            if (rawJson) {
+              const parsed = JSON.parse(rawJson);
+              if (Array.isArray(parsed?.itemIDs)) itemIDs = parsed.itemIDs.map(Number).filter(Boolean);
+            } else if (rawIds) {
+              itemIDs = String(rawIds).split(',').map(Number).filter(Boolean);
+            }
+            if (itemIDs.length === 0) return;
+
+            const targetEl = e.target as HTMLElement | null;
+            const colIdAttr =
+              targetEl?.getAttribute?.('data-collection-id') ||
+              targetEl?.closest?.('[data-collection-id]')?.getAttribute?.('data-collection-id');
+            const z = this.win?.Zotero || (typeof Zotero !== 'undefined' ? Zotero : null);
+            let targetCol = colIdAttr && z?.Collections?.get ? z.Collections.get(Number(colIdAttr)) : null;
+            if (!targetCol && typeof (colTree as any).onDrop === 'function') {
+              (colTree as any).onDrop(e, itemIDs);
+              return;
+            }
+            if (targetCol) {
+              if (typeof targetCol.addItems === 'function') {
+                await targetCol.addItems(itemIDs);
+              } else if (typeof targetCol.addItem === 'function') {
+                for (const id of itemIDs) {
+                  await targetCol.addItem(id);
+                }
+              }
+              if (typeof targetCol.saveTx === 'function') {
+                await targetCol.saveTx();
+              }
+            }
+          } catch {}
         });
       }
     }
@@ -679,6 +730,77 @@ export class WindowCoverGridController {
     };
   }
 
+  public bindTagSelector() {
+    const doc = this.win?.document;
+    if (!doc) return;
+    const tagSelectorEl =
+      doc.getElementById?.('zotero-tag-selector') ||
+      doc.getElementById?.('zotero-tag-selector-container') ||
+      doc.querySelector?.('tag-selector');
+    if (!tagSelectorEl || typeof tagSelectorEl.addEventListener !== 'function') return;
+
+    const handleTagEvent = () => {
+      if (this.isDestroyed) return;
+      this.applyFilter();
+    };
+
+    tagSelectorEl.addEventListener('click', handleTagEvent);
+    tagSelectorEl.addEventListener('command', handleTagEvent);
+    tagSelectorEl.addEventListener('select', handleTagEvent);
+    tagSelectorEl.addEventListener('change', handleTagEvent);
+
+    this.tagSelectorCleanup = () => {
+      tagSelectorEl.removeEventListener('click', handleTagEvent);
+      tagSelectorEl.removeEventListener('command', handleTagEvent);
+      tagSelectorEl.removeEventListener('select', handleTagEvent);
+      tagSelectorEl.removeEventListener('change', handleTagEvent);
+    };
+  }
+
+  public setSelectedFilterTags(tags: string[] | Set<string>) {
+    this.selectedFilterTags = new Set(
+      Array.from(tags || [])
+        .map((t) => String(t).trim().toLowerCase())
+        .filter(Boolean)
+    );
+    this.applyFilter();
+  }
+
+  private getActiveFilterTags(): string[] {
+    const result = new Set<string>(this.selectedFilterTags);
+    try {
+      const zp = this.win?.ZoteroPane || (typeof ZoteroPane !== 'undefined' ? ZoteroPane : null);
+      const doc = this.win?.document;
+      const tagSelector: any =
+        zp?.tagSelector ||
+        doc?.getElementById?.('zotero-tag-selector') ||
+        doc?.querySelector?.('tag-selector');
+
+      if (tagSelector) {
+        const rawSelected =
+          tagSelector.selectedTags ||
+          tagSelector.selection ||
+          (typeof tagSelector.getSelectedTags === 'function' ? tagSelector.getSelectedTags() : null);
+        if (rawSelected && typeof rawSelected[Symbol.iterator] === 'function') {
+          for (const t of rawSelected) {
+            const name = typeof t === 'string' ? t : t?.tag || t?.name;
+            if (name) result.add(String(name).trim().toLowerCase());
+          }
+        }
+        if (typeof tagSelector.querySelectorAll === 'function') {
+          const selectedNodes = tagSelector.querySelectorAll(
+            '.tag-selector-item.selected, [aria-selected="true"], .selected[data-tag]'
+          );
+          for (const node of Array.from(selectedNodes) as HTMLElement[]) {
+            const tagVal = node.getAttribute?.('data-tag') || node.textContent;
+            if (tagVal) result.add(String(tagVal).trim().toLowerCase());
+          }
+        }
+      }
+    } catch {}
+    return Array.from(result);
+  }
+
   public handleSearchInput(query: string, fastPath = false) {
     if (this.searchDebounceTimer) {
       clearTimeout(this.searchDebounceTimer);
@@ -702,16 +824,30 @@ export class WindowCoverGridController {
 
   public applyFilter() {
     const q = this.currentSearchQuery;
-    if (!q) {
+    const activeTags = this.getActiveFilterTags();
+
+    if (!q && activeTags.length === 0) {
       this.filteredItems = [...this.allItems];
     } else {
       this.filteredItems = this.allItems.filter((it) => {
-        return (
-          it.title.toLowerCase().includes(q) ||
-          it.authorText.toLowerCase().includes(q) ||
-          it.citationText.toLowerCase().includes(q) ||
-          (it.notePreview && it.notePreview.toLowerCase().includes(q))
-        );
+        if (q) {
+          const matchesQuery =
+            it.title.toLowerCase().includes(q) ||
+            it.authorText.toLowerCase().includes(q) ||
+            it.citationText.toLowerCase().includes(q) ||
+            (it.notePreview && it.notePreview.toLowerCase().includes(q));
+          if (!matchesQuery) return false;
+        }
+        if (activeTags.length > 0) {
+          const itemTagSet = new Set<string>([
+            ...(it.tags || []).map((t) => t.toLowerCase()),
+            ...(it.colorTags || []).map((c) => c.tag.toLowerCase())
+          ]);
+          for (const reqTag of activeTags) {
+            if (!itemTagSet.has(reqTag)) return false;
+          }
+        }
+        return true;
       });
     }
     this.scroller?.setItems(this.filteredItems);
@@ -934,6 +1070,8 @@ export class WindowCoverGridController {
     this.isDestroyed = true;
     this.searchBoxCleanup?.();
     this.searchBoxCleanup = null;
+    this.tagSelectorCleanup?.();
+    this.tagSelectorCleanup = null;
     if (this.searchDebounceTimer) {
       clearTimeout(this.searchDebounceTimer);
     }

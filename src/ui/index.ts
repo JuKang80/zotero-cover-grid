@@ -2,7 +2,7 @@ import gridCss from '../styles/grid.css';
 import { injectToolbarControls } from './toolbar';
 import { VirtualGridScroller } from './virtual-scroller';
 import { WindowCoverGridController } from '../sync/window-controller';
-import { selectItemInZotero, openItemInZotero } from './item-actions';
+import { selectItemInZotero, selectItemsInZotero, openItemInZotero, deleteItemsInZotero } from './item-actions';
 import { showPaperCardContextMenu } from './context-menu';
 import { formatFullApa7Bibliography, copyTextToClipboard } from '../utils/apa-formatter';
 import { cycleReadStatus } from './paper-card';
@@ -143,20 +143,45 @@ export function injectCoverGridUI(win: any) {
     container: cardsContainer,
     viewport,
     onSelect: (selectedItems) => {
-      // Synchronize with Zotero right item pane / inspector
-      if (selectedItems.length > 0) {
+      // Synchronize with Zotero right item pane / inspector (single & multi-selection)
+      if (selectedItems.length === 1) {
         selectItemInZotero(win, selectedItems[0].id);
+      } else if (selectedItems.length > 1) {
+        selectItemsInZotero(
+          win,
+          selectedItems.map((it) => it.id)
+        );
       }
     },
     onOpenPdf: async (item) => {
       await openItemInZotero(win, item.id);
     },
-    onDeleteItem: (items) => {
-      // Respect native delete policy
+    onDeleteItem: (items, forceTrash) => {
+      // Respect native delete policy (Backspace vs Cmd+Backspace/Shift+Delete)
+      deleteItemsInZotero(
+        win,
+        items.map((it) => it.id),
+        Boolean(forceTrash)
+      );
+    },
+    onCopyCitation: async (items, asCitation) => {
       const zp = win.ZoteroPane || (typeof ZoteroPane !== 'undefined' ? ZoteroPane : null);
-      if (zp?.deleteSelectedItems) {
-        zp.deleteSelectedItems();
-      }
+      const z = win.Zotero || (typeof Zotero !== 'undefined' ? Zotero : null);
+      // 1. Try native Zotero Quick Copy if available
+      try {
+        if (typeof zp?.copySelectedItemsToClipboard === 'function') {
+          zp.copySelectedItemsToClipboard(Boolean(asCitation));
+        }
+      } catch {}
+      // 2. Reliable APA 7 / Note clipboard copy
+      const lines = items.map((card) => {
+        const zItem = z?.Items?.get ? z.Items.get(card.id) : null;
+        if (card.itemType === 'note') {
+          return card.notePreview ? `${card.title}\n${card.notePreview}` : card.title;
+        }
+        return asCitation ? card.citationText : formatFullApa7Bibliography(card, zItem);
+      });
+      await copyTextToClipboard(lines.join('\n\n'), win);
     },
     onStatusChange: (item, nextStatus) => {
       controller.syncTagStatus(item, nextStatus);
@@ -181,11 +206,22 @@ export function injectCoverGridUI(win: any) {
           onCopyCitation: async (card) => {
             const z = win.Zotero || (typeof Zotero !== 'undefined' ? Zotero : null);
             const zItem = z?.Items?.get ? z.Items.get(card.id) : null;
+            if (card.itemType === 'note') {
+              const noteText = card.notePreview ? `${card.title}\n${card.notePreview}` : card.title;
+              await copyTextToClipboard(noteText, win);
+              return;
+            }
             const citation = formatFullApa7Bibliography(card, zItem);
             await copyTextToClipboard(citation, win);
           },
           onRegenerateCover: async (card) => {
             await controller.regenerateCover(card);
+          },
+          onDelete: async (card) => {
+            const targetIds = scroller.getSelectedIds().includes(card.id)
+              ? scroller.getSelectedIds()
+              : [card.id];
+            await deleteItemsInZotero(win, targetIds, false);
           }
         }
       });

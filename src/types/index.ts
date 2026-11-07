@@ -21,6 +21,7 @@ export interface PaperCardData {
   hasPdf: boolean;
   bestAttachmentId?: number;
   coverThumbnailUrl?: string;
+  tags?: string[];
   colorTags?: Array<{ tag: string; color: string }>; // Zotero 순정 컬러 태그 (도트용)
 }
 

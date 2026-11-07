@@ -117,6 +117,21 @@ export function injectToolbarControls(win: any): ToolbarController | null {
     let coverGrid = doc.getElementById('zotero-cover-grid');
 
     if (mode === 'grid') {
+      // Capture currently selected item IDs from native Zotero list view before hiding it
+      let listSelectedIds: number[] = [];
+      try {
+        const zp = win.ZoteroPane || (typeof ZoteroPane !== 'undefined' ? ZoteroPane : null);
+        const rawSel =
+          zp?.getSelectedItems?.(true) ||
+          zp?.itemsView?.getSelectedItems?.(true) ||
+          zp?.getSelectedItems?.();
+        if (Array.isArray(rawSel) && rawSel.length > 0) {
+          listSelectedIds = rawSel
+            .map((it: any) => (typeof it === 'object' && it ? Number(it.id) : Number(it)))
+            .filter((n: number) => !isNaN(n) && n > 0);
+        }
+      } catch {}
+
       btnList.classList.remove('active');
       btnList.setAttribute('aria-pressed', 'false');
       btnGrid.classList.add('active');
@@ -156,11 +171,20 @@ export function injectToolbarControls(win: any): ToolbarController | null {
         tabsDeck.selectedIndex = 0;
       }
 
+      // Sync selected items & scroll position into grid
+      if (listSelectedIds.length > 0 && win.__zoteroCoverGridInstance?.scroller?.setSelectedIds) {
+        win.__zoteroCoverGridInstance.scroller.setSelectedIds(listSelectedIds, { scrollIntoView: true });
+      }
+
       // Trigger collection reload!
       if (win.__zoteroCoverGridInstance?.controller) {
         win.__zoteroCoverGridInstance.controller.reloadCurrentCollection();
       }
     } else {
+      // Capture currently selected item IDs from Cover Grid before switching back to list view
+      const gridSelectedIds: number[] =
+        win.__zoteroCoverGridInstance?.scroller?.getSelectedIds?.() || [];
+
       btnGrid.classList.remove('active');
       btnGrid.setAttribute('aria-pressed', 'false');
       btnList.classList.add('active');
@@ -204,6 +228,25 @@ export function injectToolbarControls(win: any): ToolbarController | null {
             }
             if (itemsTree.treeBoxObject && typeof itemsTree.treeBoxObject.invalidate === 'function') {
               itemsTree.treeBoxObject.invalidate();
+            }
+            // Restore selection and scroll position in native list view
+            if (gridSelectedIds.length > 0) {
+              if (gridSelectedIds.length > 1 && typeof iv?.selectItems === 'function') {
+                try { iv.selectItems(gridSelectedIds); } catch {}
+              } else if (typeof zp?.selectItem === 'function') {
+                try { zp.selectItem(gridSelectedIds[0], false, false); } catch {}
+              } else if (typeof iv?.selectItem === 'function') {
+                try { iv.selectItem(gridSelectedIds[0]); } catch {}
+              }
+              if (typeof iv?.getRowIndexByID === 'function') {
+                try {
+                  const rowIdx = iv.getRowIndexByID(gridSelectedIds[0]);
+                  if (typeof rowIdx === 'number' && rowIdx >= 0) {
+                    iv.ensureRowIsVisible?.(rowIdx);
+                    iv.tree?.scrollToRow?.(rowIdx);
+                  }
+                } catch {}
+              }
             }
             itemsTree.dispatchEvent(new Event('resize', { bubbles: true }));
             win.dispatchEvent(new Event('resize'));

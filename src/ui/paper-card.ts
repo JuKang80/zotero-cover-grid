@@ -5,6 +5,25 @@ export interface CardEventHandlers {
   onDoubleClick?: (card: PaperCardData, event: MouseEvent) => void;
   onContextMenu?: (card: PaperCardData, event: MouseEvent) => void;
   onStatusChange?: (card: PaperCardData, nextStatus: ReadStatus) => void;
+  onDragStart?: (card: PaperCardData, event: DragEvent) => void;
+}
+
+export function isMacEnvironment(doc?: any): boolean {
+  try {
+    const win = doc?.defaultView || (typeof window !== 'undefined' ? window : null);
+    const z = win?.Zotero || (globalThis as any).Zotero;
+    if (z?.isMac === true) return true;
+    if (z?.isMac === false) return false;
+    const platform = String(
+      win?.navigator?.platform ||
+      win?.navigator?.userAgent ||
+      (typeof navigator !== 'undefined' ? navigator.platform || navigator.userAgent : '')
+    );
+    if (/Mac|iPhone|iPod|iPad/i.test(platform)) return true;
+    if (typeof process !== 'undefined' && (process as any)?.platform === 'darwin') return true;
+    if (/Win|Linux/i.test(platform)) return false;
+  } catch {}
+  return true;
 }
 
 export function cycleReadStatus(current: ReadStatus): ReadStatus {
@@ -104,6 +123,7 @@ export function createPaperCardElement(
   cardEl.id = `paper-card-${card.id}`;
   cardEl.setAttribute('data-item-id', String(card.id));
   cardEl.setAttribute('tabindex', '0');
+  cardEl.setAttribute('draggable', 'true');
   (cardEl as any).__cardData = card;
 
   // Cover image wrapper
@@ -153,6 +173,7 @@ export function createPaperCardElement(
   const imgEl = targetDoc.createElementNS(HTML_NS, 'img') as HTMLImageElement;
   imgEl.className = 'card-cover-img';
   imgEl.alt = card.title;
+  imgEl.setAttribute('draggable', 'false');
   imgEl.addEventListener('error', () => {
     coverWrapper.classList.remove('is-loading');
     imgEl.classList.remove('is-loaded');
@@ -218,7 +239,22 @@ export function createPaperCardElement(
   cardEl.appendChild(badgeContainer);
 
   // Event Listeners (Zero-delay instant click dispatch for 60fps snappy responsiveness)
+  let lastContextMenuTs = 0;
+  const dispatchContextMenu = (e: MouseEvent) => {
+    const now = Date.now();
+    if (now - lastContextMenuTs < 60) return;
+    lastContextMenuTs = now;
+    handlers.onContextMenu?.((cardEl as any).__cardData || card, e);
+  };
+
   cardEl.addEventListener('click', (e) => {
+    // Support macOS trackpad Control + Click as right-click context menu instead of multi-select
+    if (e.button === 2 || (e.ctrlKey && !e.metaKey && handlers.onContextMenu && isMacEnvironment(targetDoc))) {
+      e.preventDefault();
+      e.stopPropagation();
+      dispatchContextMenu(e);
+      return;
+    }
     handlers.onClick?.((cardEl as any).__cardData || card, e);
   });
 
@@ -226,7 +262,28 @@ export function createPaperCardElement(
     handlers.onDoubleClick?.((cardEl as any).__cardData || card, e);
   });
 
-  cardEl.addEventListener('contextmenu', (e) => handlers.onContextMenu?.((cardEl as any).__cardData || card, e));
+  cardEl.addEventListener('contextmenu', (e) => {
+    dispatchContextMenu(e);
+  });
+
+  cardEl.addEventListener('dragstart', (e: DragEvent) => {
+    cardEl.classList.add('is-dragging');
+    const activeCard: PaperCardData = (cardEl as any).__cardData || card;
+    if (handlers.onDragStart) {
+      handlers.onDragStart(activeCard, e);
+    } else if (e.dataTransfer) {
+      try {
+        e.dataTransfer.effectAllowed = 'copyMove';
+        e.dataTransfer.setData('zotero/item', String(activeCard.id));
+        e.dataTransfer.setData('text/x-zotero-drag-item', JSON.stringify({ itemIDs: [activeCard.id] }));
+        e.dataTransfer.setData('text/plain', `${activeCard.authorText} (${activeCard.year || 'n.d.'}) - ${activeCard.title}`);
+      } catch {}
+    }
+  });
+
+  cardEl.addEventListener('dragend', () => {
+    cardEl.classList.remove('is-dragging');
+  });
 
   return cardEl;
 }

@@ -89,6 +89,9 @@ export function extractPaperCardData(item: any): PaperCardData {
     } catch {
       tags = [];
     }
+    const tagNames: string[] = tags
+      .map((t: any) => (typeof t === 'string' ? t : t?.tag))
+      .filter((name: any): name is string => typeof name === 'string' && name.length > 0);
     const readStatus = extractReadStatusFromTags(tags);
     let itemType = 'journalArticle';
     try {
@@ -217,6 +220,7 @@ export function extractPaperCardData(item: any): PaperCardData {
       notePreview,
       readStatus,
       hasPdf: false, // Will be updated when attachment is resolved
+      tags: tagNames,
       colorTags
     };
   } catch {
