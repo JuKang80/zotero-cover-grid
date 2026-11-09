@@ -104,11 +104,17 @@ export class CollectionTreeDnD {
     };
 
     colTree.addEventListener('click', handleClick);
+    colTree.addEventListener('select', handleClick);
+    colTree.addEventListener('keyup', handleClick);
+    colTree.addEventListener('mouseup', handleClick);
     colTree.addEventListener('dragover', handleDragOver);
     colTree.addEventListener('drop', handleDrop);
 
     this.cleanup = () => {
       colTree.removeEventListener('click', handleClick);
+      colTree.removeEventListener('select', handleClick);
+      colTree.removeEventListener('keyup', handleClick);
+      colTree.removeEventListener('mouseup', handleClick);
       colTree.removeEventListener('dragover', handleDragOver);
       colTree.removeEventListener('drop', handleDrop);
     };

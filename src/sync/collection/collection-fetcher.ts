@@ -85,7 +85,7 @@ export class CollectionFetcher {
       if (rawItems == null && typeof zp?.itemsView?.getSortedItems === 'function') {
         try {
           const treeItems = zp.itemsView.getSortedItems();
-          if (Array.isArray(treeItems)) {
+          if (Array.isArray(treeItems) && treeItems.length > 0) {
             rawItems = treeItems;
           }
         } catch {
@@ -94,10 +94,11 @@ export class CollectionFetcher {
       }
 
       // Step B: Priority 2 - Selected collection row or direct collection items
-      if (rawItems == null) {
+      let collectionChecked = false;
+      if (rawItems == null || rawItems.length === 0) {
         const selectedCols = zp?.getSelectedCollections ? zp.getSelectedCollections() : (zp?.getSelectedCollection ? [zp.getSelectedCollection()] : []);
         const selectedCol = Array.isArray(selectedCols) && selectedCols.length > 0 ? selectedCols[0] : null;
-        if (selectedCol) {
+        if (selectedCol && (selectedCol.id != null || typeof selectedCol.getChildItems === 'function')) {
           // Try getChildItems(true) - Passing true returns numeric item IDs without throwing UnloadedDataException
           if (typeof selectedCol.getChildItems === 'function') {
             try {
@@ -106,6 +107,7 @@ export class CollectionFetcher {
                 colItemsOrIDs = await colItemsOrIDs;
               }
               if (Array.isArray(colItemsOrIDs)) {
+                collectionChecked = true;
                 const hasObjects = colItemsOrIDs.some((it: any) => typeof it === 'object' && it !== null);
                 if (hasObjects) {
                   rawItems = colItemsOrIDs;
@@ -127,7 +129,7 @@ export class CollectionFetcher {
           }
 
           // Try native Zotero.Search with selected collectionID
-          if ((rawItems == null || rawItems.length === 0) && z?.Search) {
+          if ((rawItems == null || rawItems.length === 0) && z?.Search && selectedCol.id != null) {
             try {
               const s = new z.Search();
               s.libraryID = selectedCol.libraryID || zp?.getSelectedLibraryID?.() || z?.Libraries?.userLibraryID;
@@ -138,6 +140,7 @@ export class CollectionFetcher {
               }
               const itemIDs = await s.search();
               if (Array.isArray(itemIDs)) {
+                collectionChecked = true;
                 if (itemIDs.length > 0 && z.Items?.getAsync) {
                   rawItems = await z.Items.getAsync(itemIDs);
                 } else if (itemIDs.length > 0 && z.Items?.get) {
@@ -257,8 +260,8 @@ export class CollectionFetcher {
         }
       }
 
-      // Step F: Priority 6 - Library root fallback
-      if (rawItems == null) {
+      // Step F: Priority 6 - Library root fallback (ONLY when no specific collection was checked)
+      if (rawItems == null && !collectionChecked) {
         const libraryID = zp?.getSelectedLibraryID?.() || z?.Libraries?.userLibraryID;
         if (z?.Items?.getAll) {
           try {
@@ -344,7 +347,10 @@ export class CollectionFetcher {
       return it;
     }).filter((it: any) => {
       if (!it) return false;
-      if (typeof it.isAttachment === 'function' && it.isAttachment()) return false;
+      if (typeof it.isAttachment === 'function' && it.isAttachment()) {
+        // Child attachments (belonging to a parent) are excluded, but top-level standalone PDF attachments are displayed
+        return Boolean(it.id) && !it.parentItemID && !it.parentID;
+      }
       if (typeof it.isAnnotation === 'function' && it.isAnnotation()) return false;
       if (typeof it.isNote === 'function' && it.isNote()) {
         return Boolean(it.id) && !it.parentItemID && !it.parentID;
