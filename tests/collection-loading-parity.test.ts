@@ -209,4 +209,66 @@ describe('CollectionFetcher & Hidden Table Parity', () => {
     expect(result.length).toBe(2);
     expect(result.some((r) => r.title === 'Healthy Paper')).toBe(true);
   });
+
+  it('should recursively load 73 items via Zotero.Collections.getByLibrary BFS hierarchy when subcollections do not have getChildCollections', async () => {
+    // Parent collection has 4 direct items, and 2 subcollections (AI with 35 items, Memory with 34 items -> total 73)
+    const parentCol = {
+      id: 500,
+      name: 'personal inter...',
+      libraryID: 1,
+      getChildItems: vi.fn((asIDs) => asIDs ? [1, 2, 3, 4] : [])
+    };
+
+    const subColAI = {
+      id: 501,
+      parentID: 500,
+      libraryID: 1,
+      getChildItems: vi.fn((asIDs) => asIDs ? Array.from({ length: 35 }, (_, i) => 100 + i) : [])
+    };
+
+    const subColMemory = {
+      id: 502,
+      parentID: 500,
+      libraryID: 1,
+      getChildItems: vi.fn((asIDs) => asIDs ? Array.from({ length: 34 }, (_, i) => 200 + i) : [])
+    };
+
+    const allItems: Record<number, any> = {};
+    for (let i = 1; i <= 4; i++) {
+      allItems[i] = { id: i, isRegularItem: () => true, getField: () => `Root Paper ${i}` };
+    }
+    for (let i = 0; i < 35; i++) {
+      allItems[100 + i] = { id: 100 + i, isRegularItem: () => true, getField: () => `AI Paper ${i}` };
+    }
+    for (let i = 0; i < 34; i++) {
+      allItems[200 + i] = { id: 200 + i, isRegularItem: () => true, getField: () => `Memory Paper ${i}` };
+    }
+
+    const mockWin = {
+      ZoteroPane: {
+        itemsView: { rowCount: 0, getSortedItems: vi.fn(() => []) },
+        getSelectedCollections: vi.fn(() => [parentCol]),
+        getSelectedCollection: vi.fn(() => parentCol)
+      },
+      Zotero: {
+        Prefs: { get: vi.fn(() => true) },
+        Collections: {
+          getByLibrary: vi.fn(() => [parentCol, subColAI, subColMemory]),
+          get: vi.fn((id: number) => [parentCol, subColAI, subColMemory].find((c) => c.id === id))
+        },
+        Items: {
+          getAsync: vi.fn(async (ids: number[]) => ids.map((id) => allItems[id]).filter(Boolean)),
+          get: vi.fn((id: number) => allItems[id])
+        }
+      }
+    };
+
+    const fetcher = new CollectionFetcher(mockWin);
+    const result = await fetcher.fetchCollectionItems(new AbortController().signal);
+
+    expect(result.length).toBe(73);
+    expect(result.filter((r) => r.title.startsWith('Root Paper')).length).toBe(4);
+    expect(result.filter((r) => r.title.startsWith('AI Paper')).length).toBe(35);
+    expect(result.filter((r) => r.title.startsWith('Memory Paper')).length).toBe(34);
+  });
 });

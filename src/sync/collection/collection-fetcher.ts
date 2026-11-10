@@ -18,15 +18,9 @@ export async function getCollectionItemsRecursively(col: any, z?: any): Promise<
     z?.Prefs?.get?.('recursiveCollections') ??
     true;
 
-  async function traverse(targetCol: any) {
+  // Helper to extract items from a single collection
+  async function fetchItemsFromCol(targetCol: any) {
     if (!targetCol) return;
-    const colId = targetCol.id != null ? Number(targetCol.id) : null;
-    if (colId != null) {
-      if (visitedCols.has(colId)) return;
-      visitedCols.add(colId);
-    }
-
-    // 1. Fetch direct items from this collection
     if (typeof targetCol.getChildItems === 'function') {
       try {
         let direct = targetCol.getChildItems(true);
@@ -44,41 +38,160 @@ export async function getCollectionItemsRecursively(col: any, z?: any): Promise<
         }
       } catch {}
     }
+  }
 
-    // 2. Fetch subcollections recursively if recursiveCollections is enabled
-    if (recursive) {
-      let subCols: any[] = [];
-      if (typeof targetCol.getChildCollections === 'function') {
-        try {
-          const res = targetCol.getChildCollections();
-          subCols = res instanceof Promise ? await res : res;
-        } catch {}
-      }
+  // 1. Process root collection
+  await fetchItemsFromCol(col);
+  const rootColId = col?.id != null ? Number(col.id) : null;
+  if (rootColId != null) visitedCols.add(rootColId);
 
-      if (!Array.isArray(subCols) || subCols.length === 0) {
-        if (colId != null && typeof z?.Collections?.getByParent === 'function') {
-          try {
-            const res = z.Collections.getByParent(colId);
-            subCols = res instanceof Promise ? await res : res;
-          } catch {}
+  // 2. If recursive, collect all descendant subcollections
+  if (recursive && col) {
+    const descendantColObjects: any[] = [];
+    const descendantColIDs = new Set<number>();
+
+    // Strategy 1: Native Zotero col.getDescendents() or col.getDescendants()
+    if (typeof col.getDescendents === 'function' || typeof col.getDescendants === 'function') {
+      try {
+        const getDescFn = col.getDescendents ? col.getDescendents.bind(col) : col.getDescendants.bind(col);
+        let desc = getDescFn(false);
+        if (desc instanceof Promise) desc = await desc;
+        if (Array.isArray(desc) && desc.length > 0) {
+          for (const d of desc) {
+            if (typeof d === 'object' && d !== null) {
+              descendantColObjects.push(d);
+              if (d.id != null) descendantColIDs.add(Number(d.id));
+            } else if (typeof d === 'number') {
+              descendantColIDs.add(d);
+            }
+          }
+        } else {
+          let descIds = getDescFn(true);
+          if (descIds instanceof Promise) descIds = await descIds;
+          if (Array.isArray(descIds)) {
+            for (const did of descIds) {
+              if (did != null && !isNaN(Number(did))) descendantColIDs.add(Number(did));
+            }
+          }
         }
+      } catch {}
+    }
+
+    // Strategy 2: Zotero.Collections.getByLibrary(libId) with BFS on parentID (100% native parity across all Zotero versions)
+    const libId = col.libraryID ?? z?.Libraries?.userLibraryID;
+    if (rootColId != null && z?.Collections?.getByLibrary && libId != null) {
+      try {
+        let allLibCols = z.Collections.getByLibrary(libId);
+        if (allLibCols instanceof Promise) allLibCols = await allLibCols;
+        if (Array.isArray(allLibCols) && allLibCols.length > 0) {
+          const childrenMap = new Map<number, any[]>();
+          for (const c of allLibCols) {
+            const pid = c.parentID != null ? Number(c.parentID) : (c.parentCollectionID != null ? Number(c.parentCollectionID) : null);
+            if (pid != null && !isNaN(pid)) {
+              if (!childrenMap.has(pid)) childrenMap.set(pid, []);
+              childrenMap.get(pid)!.push(c);
+            }
+          }
+
+          const queue = [rootColId];
+          while (queue.length > 0) {
+            const currentPid = queue.shift()!;
+            const children = childrenMap.get(currentPid) || [];
+            for (const child of children) {
+              const cid = child.id != null ? Number(child.id) : null;
+              if (cid != null && !descendantColIDs.has(cid) && cid !== rootColId) {
+                descendantColIDs.add(cid);
+                descendantColObjects.push(child);
+                queue.push(cid);
+              }
+            }
+          }
+        }
+      } catch {}
+    }
+
+    // Strategy 3: Direct properties or methods on col: getChildCollections, subcollections, childCollections, getSubcollections
+    async function traverseDirect(c: any) {
+      if (!c) return;
+      let children: any[] = [];
+      if (typeof c.getChildCollections === 'function') {
+        try {
+          const res = c.getChildCollections();
+          children = res instanceof Promise ? await res : res;
+        } catch {}
+      } else if (typeof c.getSubcollections === 'function') {
+        try {
+          const res = c.getSubcollections();
+          children = res instanceof Promise ? await res : res;
+        } catch {}
+      } else if (Array.isArray(c.subcollections)) {
+        children = c.subcollections;
+      } else if (Array.isArray(c.childCollections)) {
+        children = c.childCollections;
       }
 
-      if (Array.isArray(subCols)) {
-        for (const sub of subCols) {
-          const subObj =
-            typeof sub === 'number' || typeof sub === 'string'
-              ? (z?.Collections?.get ? z.Collections.get(Number(sub)) : null)
-              : sub;
-          if (subObj) {
-            await traverse(subObj);
+      if (Array.isArray(children)) {
+        for (const child of children) {
+          const cid = typeof child === 'object' && child ? Number(child.id) : Number(child);
+          if (cid && !descendantColIDs.has(cid) && cid !== rootColId) {
+            descendantColIDs.add(cid);
+            if (typeof child === 'object' && child) {
+              descendantColObjects.push(child);
+            }
+          }
+          if (typeof child === 'object' && child) {
+            await traverseDirect(child);
           }
         }
       }
     }
+    await traverseDirect(col);
+
+    // Strategy 4: Fallback to z.Collections.getByParent
+    if (rootColId != null && typeof z?.Collections?.getByParent === 'function') {
+      try {
+        const queue = [rootColId];
+        while (queue.length > 0) {
+          const pid = queue.shift()!;
+          let kids = z.Collections.getByParent(pid);
+          if (kids instanceof Promise) kids = await kids;
+          if (Array.isArray(kids)) {
+            for (const k of kids) {
+              const kidObj = typeof k === 'number' || typeof k === 'string'
+                ? (z.Collections.get ? z.Collections.get(Number(k)) : null)
+                : k;
+              const kidId = kidObj?.id != null ? Number(kidObj.id) : (typeof k === 'number' ? k : null);
+              if (kidId != null && !descendantColIDs.has(kidId) && kidId !== rootColId) {
+                descendantColIDs.add(kidId);
+                if (kidObj) descendantColObjects.push(kidObj);
+                queue.push(kidId);
+              }
+            }
+          }
+        }
+      } catch {}
+    }
+
+    // Now fetch items from all resolved descendant collections
+    for (const dCol of descendantColObjects) {
+      const cid = dCol.id != null ? Number(dCol.id) : null;
+      if (cid != null && visitedCols.has(cid)) continue;
+      if (cid != null) visitedCols.add(cid);
+      await fetchItemsFromCol(dCol);
+    }
+
+    // If some descendant IDs don't have objects yet, get them via z.Collections.get
+    for (const cid of descendantColIDs) {
+      if (visitedCols.has(cid)) continue;
+      visitedCols.add(cid);
+      let colObj = z?.Collections?.get ? z.Collections.get(cid) : null;
+      if (colObj instanceof Promise) colObj = await colObj;
+      if (colObj) {
+        await fetchItemsFromCol(colObj);
+      }
+    }
   }
 
-  await traverse(col);
   return { ids: Array.from(itemIDs), items: itemsList };
 }
 
@@ -150,53 +263,17 @@ export class CollectionFetcher {
       (itemsTree && (itemsTree.hidden || itemsTree.style?.display === 'none'));
 
     try {
-      // Step A: Priority 1 - Native itemsView rows, rowProvider, getSortedItems
-      if (zp?.itemsView?.rowCount && typeof zp.itemsView.getRow === 'function') {
-        try {
-          const count = zp.itemsView.rowCount;
-          const ids: number[] = [];
-          for (let i = 0; i < count; i++) {
-            const r = zp.itemsView.getRow(i);
-            const id = typeof r === 'object' && r ? (r.id || r.itemID || r.ref?.id || r.item?.id) : r;
-            if (typeof id === 'number' && !ids.includes(id)) {
-              ids.push(id);
-            }
-          }
-          if (ids.length > 0) {
-            if (z?.Items?.getAsync) {
-              rawItems = await z.Items.getAsync(ids);
-            } else if (z?.Items?.get) {
-              rawItems = ids.map((id) => {
-                try { return z.Items.get(id); } catch { return null; }
-              }).filter(Boolean);
-            } else {
-              rawItems = ids;
-            }
-          }
-        } catch {}
-      }
-
-      if (rawItems == null && zp?.itemsView?.rowProvider?.items) {
-        const rowItems = zp.itemsView.rowProvider.items;
-        if (Array.isArray(rowItems) && rowItems.length > 0) {
-          rawItems = rowItems;
+      // 1. Resolve candidate collections from selection or collection tree row
+      const candidateCols: any[] = [];
+      const selectedCols = zp?.getSelectedCollections
+        ? zp.getSelectedCollections()
+        : (zp?.getSelectedCollection ? [zp.getSelectedCollection()] : []);
+      if (Array.isArray(selectedCols)) {
+        for (const c of selectedCols) {
+          if (c && (c.id != null || typeof c.getChildItems === 'function')) candidateCols.push(c);
         }
       }
 
-      if (rawItems == null && typeof zp?.itemsView?.getSortedItems === 'function') {
-        try {
-          const treeItems = zp.itemsView.getSortedItems();
-          if (Array.isArray(treeItems)) {
-            // When Cover Grid is active, Gecko's hidden VirtualizedTable always returns [].
-            // Only accept empty array if Cover Grid is NOT active (i.e. legitimate empty view).
-            if (treeItems.length > 0 || !isCoverGridActive) {
-              rawItems = treeItems;
-            }
-          }
-        } catch {}
-      }
-
-      // Step B: Priority 2 - Native collectionTreeRow (supports Collections, Recently Read, Saved Searches, Trash, Unfiled, Feeds)
       const treeRow =
         zp?.getCollectionTreeRow?.() ||
         zp?.getCollectionTreeRows?.()?.[0] ||
@@ -206,8 +283,66 @@ export class CollectionFetcher {
           ? zp.collectionsView.getRow(zp.collectionsView.selectedIndex)
           : null);
 
-      if ((rawItems == null || rawItems.length === 0) && treeRow) {
-        // 1. treeRow.getItems()
+      if (treeRow) {
+        if (treeRow.isCollection?.() || treeRow.type === 'collection') {
+          const colObj = treeRow.ref || (treeRow.id != null && z?.Collections?.get ? z.Collections.get(treeRow.id) : null);
+          if (colObj && !candidateCols.some((c) => c.id === colObj.id)) {
+            candidateCols.push(colObj);
+          }
+        }
+      }
+
+      // Step A: Priority 1 - If a collection is selected or Cover Grid is active, fetch from collection (+ subcollections)
+      if (candidateCols.length > 0) {
+        collectionChecked = true;
+        const allColItemIDs = new Set<number>();
+        const allColObjects: any[] = [];
+
+        for (const col of candidateCols) {
+          const collected = await getCollectionItemsRecursively(col, z);
+          for (const id of collected.ids) allColItemIDs.add(id);
+          for (const it of collected.items) allColObjects.push(it);
+
+          // Fallback: Zotero.Search with 'collection' or 'collectionID' condition
+          if (collected.ids.length === 0 && collected.items.length === 0 && z?.Search && col.id != null) {
+            try {
+              const s = new z.Search();
+              s.libraryID = col.libraryID || zp?.getSelectedLibraryID?.() || z?.Libraries?.userLibraryID;
+              try {
+                s.addCondition('collection', 'is', col.id);
+              } catch {
+                s.addCondition('collectionID', 'is', col.id);
+              }
+              s.addCondition('noChildren', 'true');
+              const searchItemIDs = await s.search();
+              if (Array.isArray(searchItemIDs)) {
+                for (const sid of searchItemIDs) allColItemIDs.add(Number(sid));
+              }
+            } catch {}
+          }
+        }
+
+        if (allColObjects.length > 0 && allColObjects.length >= allColItemIDs.size) {
+          rawItems = allColObjects;
+        } else if (allColItemIDs.size > 0) {
+          const idList = Array.from(allColItemIDs);
+          if (z?.Items?.getAsync) {
+            rawItems = await z.Items.getAsync(idList);
+          } else if (z?.Items?.get) {
+            rawItems = idList.map((id) => {
+              try { return z.Items.get(id); } catch { return null; }
+            }).filter(Boolean);
+          } else {
+            rawItems = idList;
+          }
+        } else {
+          rawItems = [];
+        }
+      }
+
+      // Step B: Priority 2 - Special treeRow handling (Search, Trash, Unfiled, Duplicates, Virtual rows)
+      if ((rawItems == null || rawItems.length === 0) && !collectionChecked && treeRow) {
+        // 1. treeRow.getItems() (e.g. Recently Read)
         if (typeof treeRow.getItems === 'function') {
           try {
             let rowItems = treeRow.getItems(true);
@@ -263,66 +398,67 @@ export class CollectionFetcher {
             rawItems = zp?.getDuplicates ? zp.getDuplicates() : (z?.Duplicates?.getAsync ? await z.Duplicates.getAsync(libraryID) : []);
           } catch {}
         }
+
+        // 6. treeRow is Library Root (e.g. "My Library")
+        if ((rawItems == null || rawItems.length === 0) && (treeRow.isLibrary?.() || treeRow.type === 'library' || treeRow.name === 'My Library')) {
+          try {
+            const libraryID = treeRow.libraryID || zp?.getSelectedLibraryID?.() || z?.Libraries?.userLibraryID;
+            if (z?.Items?.getAll) {
+              collectionChecked = true;
+              rawItems = await z.Items.getAll(libraryID, true, false);
+            }
+          } catch {}
+        }
       }
 
-      // Step C: Priority 3 - Selected collection(s) with full recursive subcollection support
-      if (rawItems == null || rawItems.length === 0) {
-        const selectedCols = zp?.getSelectedCollections
-          ? zp.getSelectedCollections()
-          : (zp?.getSelectedCollection ? [zp.getSelectedCollection()] : []);
-
-        const validCols = Array.isArray(selectedCols) ? selectedCols.filter((c: any) => c && (c.id != null || typeof c.getChildItems === 'function')) : [];
-
-        if (validCols.length > 0) {
-          const allColItemIDs = new Set<number>();
-          const allColObjects: any[] = [];
-
-          for (const col of validCols) {
-            collectionChecked = true;
-            const collected = await getCollectionItemsRecursively(col, z);
-            for (const id of collected.ids) allColItemIDs.add(id);
-            for (const it of collected.items) allColObjects.push(it);
-
-            // Fallback: Zotero.Search with 'collection' or 'collectionID' condition
-            if (collected.ids.length === 0 && collected.items.length === 0 && z?.Search && col.id != null) {
-              try {
-                const s = new z.Search();
-                s.libraryID = col.libraryID || zp?.getSelectedLibraryID?.() || z?.Libraries?.userLibraryID;
-                try {
-                  s.addCondition('collection', 'is', col.id);
-                } catch {
-                  s.addCondition('collectionID', 'is', col.id);
-                }
-                s.addCondition('noChildren', 'true');
-                const searchItemIDs = await s.search();
-                if (Array.isArray(searchItemIDs)) {
-                  for (const sid of searchItemIDs) allColItemIDs.add(Number(sid));
-                }
-              } catch {}
+      // Step C: Priority 3 - Native itemsView rows, rowProvider, getSortedItems (when not in a specific collection)
+      if (rawItems == null && !collectionChecked) {
+        if (zp?.itemsView?.rowCount && typeof zp.itemsView.getRow === 'function') {
+          try {
+            const count = zp.itemsView.rowCount;
+            const ids: number[] = [];
+            for (let i = 0; i < count; i++) {
+              const r = zp.itemsView.getRow(i);
+              const id = typeof r === 'object' && r ? (r.id || r.itemID || r.ref?.id || r.item?.id) : r;
+              if (typeof id === 'number' && !ids.includes(id)) {
+                ids.push(id);
+              }
             }
-          }
-
-          if (allColObjects.length > 0 && allColObjects.length >= allColItemIDs.size) {
-            rawItems = allColObjects;
-          } else if (allColItemIDs.size > 0) {
-            const idList = Array.from(allColItemIDs);
-            if (z?.Items?.getAsync) {
-              rawItems = await z.Items.getAsync(idList);
-            } else if (z?.Items?.get) {
-              rawItems = idList.map((id) => {
-                try { return z.Items.get(id); } catch { return null; }
-              }).filter(Boolean);
-            } else {
-              rawItems = idList;
+            if (ids.length > 0) {
+              if (z?.Items?.getAsync) {
+                rawItems = await z.Items.getAsync(ids);
+              } else if (z?.Items?.get) {
+                rawItems = ids.map((id) => {
+                  try { return z.Items.get(id); } catch { return null; }
+                }).filter(Boolean);
+              } else {
+                rawItems = ids;
+              }
             }
-          } else {
-            rawItems = [];
+          } catch {}
+        }
+
+        if (rawItems == null && zp?.itemsView?.rowProvider?.items) {
+          const rowItems = zp.itemsView.rowProvider.items;
+          if (Array.isArray(rowItems) && rowItems.length > 0) {
+            rawItems = rowItems;
           }
+        }
+
+        if (rawItems == null && typeof zp?.itemsView?.getSortedItems === 'function') {
+          try {
+            const treeItems = zp.itemsView.getSortedItems();
+            if (Array.isArray(treeItems)) {
+              if (treeItems.length > 0 || !isCoverGridActive) {
+                rawItems = treeItems;
+              }
+            }
+          } catch {}
         }
       }
 
       // Step D: Priority 4 - zp.getSortedItems / zp.getUnfilteredItems fallback
-      if (rawItems == null || rawItems.length === 0) {
+      if ((rawItems == null || rawItems.length === 0) && !collectionChecked) {
         if (typeof zp?.getSortedItems === 'function') {
           try {
             const sorted = zp.getSortedItems();
