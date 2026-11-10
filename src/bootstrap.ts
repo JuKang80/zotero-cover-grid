@@ -156,10 +156,39 @@ function patchFileGetContentsIfNeeded() {
 
 const initializingWindows = new WeakSet<any>();
 
+/**
+ * Robust check if a window is a Zotero main window across Zotero 7/10 versions and themes.
+ */
+function isZoteroMainWindow(win: any): boolean {
+  if (!win) return false;
+  const href = win.location?.href || '';
+  if (href && href !== 'about:blank') {
+    if (
+      href.includes('preferences.xhtml') ||
+      href.includes('progress.xhtml') ||
+      href.includes('dialog.xhtml') ||
+      href.includes('reader.xhtml')
+    ) {
+      return false;
+    }
+    return href.includes('zoteroPane.xhtml') || href.includes('standalone.xhtml');
+  }
+  return Boolean(win.ZoteroPane && (win.document?.getElementById('zotero-items-pane') || win.document?.getElementById('zotero-items-tree')));
+}
+
 async function initWindow(win: any) {
-  if (!win?.location?.href?.includes('zoteroPane.xhtml')) {
+  if (!isZoteroMainWindow(win)) {
+    // If location is not yet resolved (e.g. about:blank at window creation), hook load events
+    if (win?.addEventListener && (win.location?.href === 'about:blank' || !win.location?.href)) {
+      const retryListener = () => {
+        if (isZoteroMainWindow(win)) initWindow(win);
+      };
+      win.addEventListener('DOMContentLoaded', retryListener, { once: true });
+      win.addEventListener('load', retryListener, { once: true });
+    }
     return;
   }
+
   // Deduplicate window initialization against concurrent calls / race conditions
   if (
     win.__zoteroCoverGridInitializing ||
@@ -203,41 +232,44 @@ async function initWindow(win: any) {
           new Promise((resolve) => setTimeout(resolve, 600))
         ]);
       } catch {}
-    } else {
+    }
+
+    // Fast-path DOM injection with rapid retry loop if items pane is still rendering in XUL deck
+    const tryInject = () => {
+      const targetDoc = win.document;
+      if (!targetDoc) return false;
+      ensureMainWindowStability(targetDoc, win);
+      const itemsPane = targetDoc.getElementById('zotero-items-pane');
+      const itemsTree = targetDoc.getElementById('zotero-items-tree');
+      if (itemsTree || itemsPane) {
+        if (!win.__zoteroCoverGridInstance) {
+          if (targetDoc.getElementById('zotero-cover-grid')) {
+            targetDoc.getElementById('zotero-cover-grid')?.remove();
+          }
+          injectCoverGridUI(win);
+        }
+        ensureMainWindowStability(targetDoc, win);
+        return Boolean(win.__zoteroCoverGridInstance || targetDoc.getElementById('zotero-cover-grid'));
+      }
+      return false;
+    };
+
+    let injected = tryInject();
+    if (!injected && win.document) {
       await new Promise<void>((resolve) => {
         let attempts = 0;
-        const check = () => {
-          if (win.ZoteroPane?.loadedPromise) {
-            win.ZoteroPane.loadedPromise.then(() => resolve()).catch(() => resolve());
-          } else if (attempts++ > 25) {
+        const interval = (win.setInterval || setInterval)(() => {
+          if (tryInject() || ++attempts >= 30) {
+            clearInterval(interval);
             resolve();
-          } else {
-            (win.setTimeout || setTimeout)(check, 20);
           }
-        };
-        check();
+        }, 15);
       });
     }
 
-    const doc = win.document;
-    if (doc) {
-      // Ensure tab cover overlay is dismissed and deck index is restored
-      ensureMainWindowStability(doc, win);
+    if (win.__zoteroCoverGridInstance || win.document?.getElementById('zotero-cover-grid')) {
+      win.__zoteroCoverGridInitialized = true;
     }
-
-    // Clean any orphaned DOM leftover before injecting without closing dedicated tabs
-    if (!win.__zoteroCoverGridInstance) {
-      if (doc?.getElementById('zotero-cover-grid')) {
-        doc.getElementById('zotero-cover-grid')?.remove();
-      }
-      injectCoverGridUI(win);
-    }
-
-    if (doc) {
-      ensureMainWindowStability(doc, win);
-    }
-
-    win.__zoteroCoverGridInitialized = true;
   } finally {
     win.__zoteroCoverGridInitializing = false;
     initializingWindows.delete(win);
@@ -319,9 +351,11 @@ export function startup({ id, version, rootURI }: any, reason: number) {
         initWindow(win);
       } else if (win.addEventListener) {
         win.addEventListener('DOMContentLoaded', () => initWindow(win), { once: true });
+        win.addEventListener('load', () => initWindow(win), { once: true });
       }
     }
-  } else if (typeof Services !== 'undefined' && Services.wm) {
+  }
+  if (typeof Services !== 'undefined' && Services.wm) {
     const windows = Services.wm.getEnumerator('navigator:browser');
     while (windows.hasMoreElements()) {
       const win = windows.getNext();
@@ -329,6 +363,7 @@ export function startup({ id, version, rootURI }: any, reason: number) {
         initWindow(win);
       } else if (win.addEventListener) {
         win.addEventListener('DOMContentLoaded', () => initWindow(win), { once: true });
+        win.addEventListener('load', () => initWindow(win), { once: true });
       }
     }
   }
@@ -342,6 +377,7 @@ export function startup({ id, version, rootURI }: any, reason: number) {
             initWindow(domWin);
           } else if (domWin.addEventListener) {
             domWin.addEventListener('DOMContentLoaded', () => initWindow(domWin), { once: true });
+            domWin.addEventListener('load', () => initWindow(domWin), { once: true });
           }
         } catch {
           // Ignore

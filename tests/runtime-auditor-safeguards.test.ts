@@ -188,6 +188,51 @@ describe('Lead Runtime Code Auditor Safeguards (Zotero 10 Gecko 140 ESR)', () =>
       expect(() => controller.handleNotifierEvent('select', 'tab', undefined as any, {})).not.toThrow();
       controller.destroy();
     });
+
+    it('should load thumbnail for standalone attachment without calling getBestAttachment', async () => {
+      const getBestAttachmentMock = vi.fn().mockImplementation(() => {
+        throw new Error('getBestAttachment() can only be called on regular items');
+      });
+
+      const standalonePdfItem = {
+        id: 1018,
+        key: 'KEY_1018',
+        isAttachment: () => true,
+        isPDFAttachment: () => true,
+        attachmentContentType: 'application/pdf',
+        getBestAttachment: getBestAttachmentMock,
+        getFilePathAsync: vi.fn(async () => '/path/to/paper.pdf')
+      };
+
+      const customWin = {
+        ...mockWin,
+        Zotero: {
+          ...mockWin.Zotero,
+          Items: {
+            get: vi.fn((id) => (id === 1018 ? standalonePdfItem : null)),
+            getAsync: vi.fn(async (id) => (id === 1018 ? standalonePdfItem : null))
+          }
+        }
+      };
+
+      const controller = new WindowCoverGridController(customWin);
+      const card: any = {
+        id: 1018,
+        key: 'KEY_1018',
+        title: 'KCI_FI001283608',
+        authorText: 'Author',
+        citationText: 'Author (2020)',
+        itemType: 'attachment',
+        hasPdf: false
+      };
+
+      const abortCtrl = new AbortController();
+      await (controller as any).loadThumbnailForCard(card, abortCtrl.signal);
+
+      expect(getBestAttachmentMock).not.toHaveBeenCalled();
+      expect(card.hasPdf).toBe(true);
+      controller.destroy();
+    });
   });
 
   describe('3. VirtualScroller & PaperCard DOM Robustness', () => {
