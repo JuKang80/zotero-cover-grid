@@ -103,12 +103,40 @@ export class CollectionTreeDnD {
       } catch {}
     };
 
+    const handleKeyDown = (e: any) => {
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown', 'Enter'].includes(e.key)) {
+        handleClick();
+      }
+    };
+
+    const zp = this.win?.ZoteroPane || (typeof ZoteroPane !== 'undefined' ? ZoteroPane : null);
+    let removeCollectionsViewListener: (() => void) | null = null;
+    if (zp?.collectionsView?.onSelect?.addListener) {
+      try {
+        zp.collectionsView.onSelect.addListener(handleClick);
+        removeCollectionsViewListener = () => {
+          try { zp.collectionsView.onSelect.removeListener(handleClick); } catch {}
+        };
+      } catch {}
+    }
+
     colTree.addEventListener('click', handleClick);
+    colTree.addEventListener('select', handleClick);
+    colTree.addEventListener('selectionchange', handleClick);
+    colTree.addEventListener('keydown', handleKeyDown);
+    colTree.addEventListener('keyup', handleClick);
+    colTree.addEventListener('mouseup', handleClick);
     colTree.addEventListener('dragover', handleDragOver);
     colTree.addEventListener('drop', handleDrop);
 
     this.cleanup = () => {
+      removeCollectionsViewListener?.();
       colTree.removeEventListener('click', handleClick);
+      colTree.removeEventListener('select', handleClick);
+      colTree.removeEventListener('selectionchange', handleClick);
+      colTree.removeEventListener('keydown', handleKeyDown);
+      colTree.removeEventListener('keyup', handleClick);
+      colTree.removeEventListener('mouseup', handleClick);
       colTree.removeEventListener('dragover', handleDragOver);
       colTree.removeEventListener('drop', handleDrop);
     };

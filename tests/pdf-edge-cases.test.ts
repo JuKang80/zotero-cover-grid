@@ -5,7 +5,8 @@ import {
   convertCanvasToSafeBlob,
   generateTypographyFallbackCover,
   MAX_CANVAS_WIDTH,
-  MAX_CANVAS_HEIGHT
+  MAX_CANVAS_HEIGHT,
+  trimCanvasArtifacts
 } from '../src/services/pdf-thumbnail-service';
 
 declare const IOUtils: any;
@@ -76,5 +77,89 @@ describe('PDF Thumbnail Edge Cases & Defense', () => {
     const blob = await convertCanvasToSafeBlob(mockCanvas);
     expect(blob.type).toBe('image/png');
     expect(mockCanvas.convertToBlob).toHaveBeenCalledTimes(3);
+  });
+
+  describe('trimCanvasArtifacts Scanner Border Defense', () => {
+    it('should trim dark scanner platen borders from edges when transitioning to light paper', () => {
+      const w = 100;
+      const h = 100;
+      const data = new Uint8ClampedArray(w * h * 4);
+
+      // Create a canvas with 10px dark scanner border on left/right and white paper inside
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const idx = (y * w + x) * 4;
+          if (x < 10 || x >= 90) {
+            // Dark scanner border
+            data[idx] = 20;
+            data[idx + 1] = 20;
+            data[idx + 2] = 20;
+            data[idx + 3] = 255;
+          } else {
+            // White paper
+            data[idx] = 250;
+            data[idx + 1] = 250;
+            data[idx + 2] = 250;
+            data[idx + 3] = 255;
+          }
+        }
+      }
+
+      const mockCtx = {
+        getImageData: vi.fn(() => ({ data, width: w, height: h })),
+        drawImage: vi.fn()
+      };
+
+      const mockCanvas = {
+        width: w,
+        height: h,
+        getContext: vi.fn(() => mockCtx)
+      };
+
+      const trimmed = trimCanvasArtifacts(mockCanvas);
+      expect(trimmed).toBeDefined();
+      expect(trimmed.width).toBeLessThan(w);
+    });
+
+    it('should preserve all-dark book covers without cropping', () => {
+      const w = 100;
+      const h = 100;
+      const data = new Uint8ClampedArray(w * h * 4);
+
+      // Entire image is dark (e.g. black book cover)
+      for (let i = 0; i < data.length; i += 4) {
+        data[i] = 25;
+        data[i + 1] = 25;
+        data[i + 2] = 25;
+        data[i + 3] = 255;
+      }
+
+      const mockCtx = {
+        getImageData: vi.fn(() => ({ data, width: w, height: h })),
+        drawImage: vi.fn()
+      };
+
+      const mockCanvas = {
+        width: w,
+        height: h,
+        getContext: vi.fn(() => mockCtx)
+      };
+
+      const trimmed = trimCanvasArtifacts(mockCanvas);
+      // Because entire page is dark, it should NOT crop!
+      expect(trimmed.width).toBe(w);
+      expect(trimmed.height).toBe(h);
+    });
+
+    it('should return original canvas gracefully when getImageData is unsupported', () => {
+      const mockCanvas = {
+        width: 100,
+        height: 100,
+        getContext: vi.fn(() => ({})) // no getImageData
+      };
+
+      const result = trimCanvasArtifacts(mockCanvas);
+      expect(result).toBe(mockCanvas);
+    });
   });
 });

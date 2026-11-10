@@ -5,7 +5,11 @@ export const SPLASH_KEYWORDS = [
   'wiley',
   'ieee xplore',
   'downloaded from',
-  'terms and conditions'
+  'terms and conditions',
+  'monograph',
+  'bell telephone',
+  'technical publications',
+  'bell system technical'
 ];
 
 /**

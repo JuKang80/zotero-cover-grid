@@ -47,20 +47,9 @@ function startReloadWatcher(pluginID: string) {
               );
               // If local build XPI exists, sync it into Zotero's extensions directory before reloading
               try {
-                const localXpi = '/Users/user/workspace/zotero-cover-grid/build/zotero-cover-grid.xpi';
-                const PathUtils = (globalThis as any).PathUtils;
                 const profDir =
                   (typeof Zotero !== 'undefined' && Zotero.Profile?.dir) ||
-                  (PathUtils && PathUtils.profileDir);
-                if (profDir && (await IOUtils.exists(localXpi))) {
-                  const destXpi =
-                    PathUtils && typeof PathUtils.join === 'function'
-                      ? PathUtils.join(profDir, 'extensions', `${pluginID}.xpi`)
-                      : `${profDir}/extensions/${pluginID}.xpi`;
-                  if (await IOUtils.exists(destXpi)) {
-                    await IOUtils.copy(localXpi, destXpi);
-                  }
-                }
+                  ((globalThis as any).PathUtils && (globalThis as any).PathUtils.profileDir);
               } catch {
                 // Ignore copy error if directory-linked
               }

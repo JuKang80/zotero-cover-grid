@@ -5,7 +5,8 @@ import {
   getHostWindow,
   getClampedViewport,
   createSafeCanvas,
-  convertCanvasToSafeBlob
+  convertCanvasToSafeBlob,
+  trimCanvasArtifacts
 } from './thumbnail/canvas-utils';
 import { SPLASH_KEYWORDS, detectSplashPage } from './thumbnail/splash-detector';
 import { generateTypographyFallbackCover } from './thumbnail/typography-cover';
@@ -18,6 +19,7 @@ export {
   getClampedViewport,
   createSafeCanvas,
   convertCanvasToSafeBlob,
+  trimCanvasArtifacts,
   SPLASH_KEYWORDS,
   detectSplashPage,
   generateTypographyFallbackCover
@@ -158,7 +160,8 @@ export async function renderPdfThumbnail(
     };
 
     await targetPage.render(renderContext).promise;
-    return await convertCanvasToSafeBlob(canvas);
+    const finalCanvas = trimCanvasArtifacts(canvas);
+    return await convertCanvasToSafeBlob(finalCanvas);
   } catch (err: any) {
     const errorMsg = err?.name === 'PasswordException' ? 'Password Protected' : 'Render Failed';
     return generateTypographyFallbackCover(cardData, errorMsg);

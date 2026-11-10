@@ -21,13 +21,21 @@ export function formatApa7Citation(
   fallbackTitle?: string
 ): string {
   const safeYear = year ? String(year).trim() : 'n.d.';
-  const authorNames = creators
-    .map((c) => c.lastName || c.name || (c.firstName ? c.firstName : ''))
-    .filter((n) => n.trim().length > 0);
+  const authorNames = (creators || [])
+    .filter(Boolean)
+    .map((c) => {
+      if (!c) return '';
+      if (typeof c === 'string') return c;
+      const last = c.lastName != null ? String(c.lastName).trim() : '';
+      const full = c.name != null ? String(c.name).trim() : '';
+      const first = c.firstName != null ? String(c.firstName).trim() : '';
+      return last || full || first;
+    })
+    .filter((n) => n.length > 0);
 
   if (authorNames.length === 0) {
-    if (fallbackTitle && fallbackTitle.trim() && fallbackTitle.trim() !== 'Untitled') {
-      const cleanTitle = fallbackTitle.replace(/<[^>]*>/g, '').trim();
+    if (fallbackTitle && String(fallbackTitle).trim() && String(fallbackTitle).trim() !== 'Untitled') {
+      const cleanTitle = String(fallbackTitle).replace(/<[^>]*>/g, '').trim();
       const shortTitle = cleanTitle.length > 28 ? `${cleanTitle.slice(0, 28).trim()}…` : cleanTitle;
       return `${shortTitle} (${safeYear})`;
     }
@@ -50,8 +58,10 @@ export function formatApa7Citation(
  * Extracts ReadStatus from Zotero tags
  */
 export function extractReadStatusFromTags(tags: Array<{ tag: string } | string> = []): ReadStatus {
+  if (!Array.isArray(tags)) return 'unread';
   for (const t of tags) {
-    const tagStr = typeof t === 'string' ? t.toLowerCase() : (t.tag || '').toLowerCase();
+    if (!t) continue;
+    const tagStr = (typeof t === 'string' ? t : (t.tag || '')).toLowerCase().trim();
     if (tagStr === '#read' || tagStr === 'read') return 'read';
     if (tagStr === '#reading' || tagStr === 'reading') return 'reading';
     if (tagStr === '#unread' || tagStr === 'unread') return 'unread';

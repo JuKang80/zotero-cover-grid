@@ -439,13 +439,14 @@ zotero-cover-grid[hidden]:not([hidden="false"]),
   border-top: 1px solid rgba(168, 162, 158, 0.2) !important;
 }
 
-/* 썸네일 이미지: 가로형 및 회전 대응 */
+/* 썸네일 이미지: 가로형 및 회전 대응 (상단 제목 포커스 & 여백 없는 커버 핏) */
 .paper-card .card-cover-img {
   position: relative !important;
   z-index: 2 !important;
-  max-width: 100% !important;
-  max-height: 100% !important;
-  object-fit: contain !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  object-position: top center !important;
   border-radius: 2px !important;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12) !important;
 }

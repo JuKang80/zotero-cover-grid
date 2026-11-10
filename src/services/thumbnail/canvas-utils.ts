@@ -88,6 +88,109 @@ export function createSafeCanvas(width: number, height: number, doc?: any): any 
 }
 
 /**
+ * Trims dark scanner platen borders and microfilm gutter bands from scanned PDFs.
+ * Only trims if a dark outer edge transitions into light paper, avoiding cropping
+ * intentionally dark book covers or posters.
+ */
+export function trimCanvasArtifacts(canvas: any, doc?: any): any {
+  if (!canvas || !canvas.width || !canvas.height) return canvas;
+  const ctx = typeof canvas.getContext === 'function' ? canvas.getContext('2d') : null;
+  if (!ctx || typeof ctx.getImageData !== 'function') return canvas;
+
+  try {
+    const width = canvas.width;
+    const height = canvas.height;
+    if (width < 30 || height < 30) return canvas;
+
+    const imgData = ctx.getImageData(0, 0, width, height);
+    if (!imgData || !imgData.data) return canvas;
+    const data = imgData.data;
+
+    const getLuminance = (x: number, y: number): number => {
+      const idx = (y * width + x) * 4;
+      return 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
+    };
+
+    const isColumnDark = (x: number, sampleStep = 8): boolean => {
+      let darkCount = 0;
+      let total = 0;
+      for (let y = 0; y < height; y += sampleStep) {
+        total++;
+        if (getLuminance(x, y) < 75) darkCount++;
+      }
+      return darkCount / total > 0.7;
+    };
+
+    const isRowDark = (y: number, sampleStep = 8): boolean => {
+      let darkCount = 0;
+      let total = 0;
+      for (let x = 0; x < width; x += sampleStep) {
+        total++;
+        if (getLuminance(x, y) < 75) darkCount++;
+      }
+      return darkCount / total > 0.7;
+    };
+
+    const maxScanX = Math.floor(width * 0.18);
+    const maxScanY = Math.floor(height * 0.12);
+
+    let left = 0;
+    while (left < maxScanX && isColumnDark(left)) left++;
+
+    let right = width - 1;
+    while (right > width - 1 - maxScanX && isColumnDark(right)) right--;
+
+    let top = 0;
+    while (top < maxScanY && isRowDark(top)) top++;
+
+    let bottom = height - 1;
+    while (bottom > height - 1 - maxScanY && isRowDark(bottom)) bottom--;
+
+    // Safeguard: verify that the region just inside the border is noticeably lighter
+    const isInsideLightX = (x: number): boolean => {
+      let lightCount = 0;
+      let total = 0;
+      for (let y = Math.floor(height * 0.2); y < Math.floor(height * 0.8); y += 8) {
+        total++;
+        if (getLuminance(x, y) > 130) lightCount++;
+      }
+      return lightCount / total > 0.5;
+    };
+
+    const isInsideLightY = (y: number): boolean => {
+      let lightCount = 0;
+      let total = 0;
+      for (let x = Math.floor(width * 0.2); x < Math.floor(width * 0.8); x += 8) {
+        total++;
+        if (getLuminance(x, y) > 130) lightCount++;
+      }
+      return lightCount / total > 0.5;
+    };
+
+    if (left > 0 && !isInsideLightX(Math.min(width - 1, left + 4))) left = 0;
+    if (right < width - 1 && !isInsideLightX(Math.max(0, right - 4))) right = width - 1;
+    if (top > 0 && !isInsideLightY(Math.min(height - 1, top + 4))) top = 0;
+    if (bottom < height - 1 && !isInsideLightY(Math.max(0, bottom - 4))) bottom = height - 1;
+
+    const cropW = right - left + 1;
+    const cropH = bottom - top + 1;
+
+    if ((left > 0 || right < width - 1 || top > 0 || bottom < height - 1) && cropW >= width * 0.6 && cropH >= height * 0.6) {
+      const trimmedCanvas = createSafeCanvas(cropW, cropH, doc);
+      const trimmedCtx = trimmedCanvas.getContext('2d');
+      if (trimmedCtx) {
+        trimmedCtx.drawImage(canvas, left, top, cropW, cropH, 0, 0, cropW, cropH);
+        return trimmedCanvas;
+      }
+    }
+  } catch {
+    // Graceful fallback to original canvas on any error
+  }
+
+  return canvas;
+}
+
+/**
  * 3-tier safe canvas encoding: WebP -> JPEG -> PNG with fallback to toBlob / toDataURL
  */
 export async function convertCanvasToSafeBlob(canvas: any): Promise<Blob> {
