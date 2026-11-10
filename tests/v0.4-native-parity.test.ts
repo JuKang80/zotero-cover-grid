@@ -377,15 +377,15 @@ describe('v0.4.0 Native Zotero Parity UX Suite', () => {
     expect(placeholder).not.toBeNull();
     expect(placeholder?.textContent).toContain('표시할 항목이 없습니다');
 
-    // 2. Card tooltips verification
+    // 2. Card tooltips verification (no cluttering mouse/keyboard operation guides)
     scroller.setItems(sampleItems);
     const cardEl = scroller.getCardElement(101)!;
     expect(cardEl.title).toContain('Paper One');
-    expect(cardEl.title).toContain('더블 클릭: 열기');
+    expect(cardEl.title).not.toContain('더블 클릭');
 
     const badgeEl = cardEl.querySelector('.card-badge') as HTMLElement;
-    expect(badgeEl?.title).toContain('읽기 상태:');
-    expect(badgeEl?.title).toContain('클릭 시 순환');
+    expect(badgeEl?.title).toBe('Unread');
+    expect(badgeEl?.title).not.toContain('순환');
 
     // 3. Toolbar status feedback & tooltips
     const win = {

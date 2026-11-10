@@ -8,7 +8,7 @@ import {
 
 export function updatePaperCardMetadata(cardEl: HTMLElement, card: PaperCardData) {
   (cardEl as any).__cardData = card;
-  cardEl.title = `${card.title}\n${card.citationText || card.authorText} (더블 클릭: 열기)`;
+  cardEl.title = `${card.title}\n${card.citationText || card.authorText}`;
   const titleEl = cardEl.querySelector('.card-title') as HTMLElement | null;
   if (titleEl && titleEl.textContent !== card.title) {
     titleEl.textContent = card.title;
@@ -61,7 +61,7 @@ export function updatePaperCardBadge(cardEl: HTMLElement, status: ReadStatus) {
   if (badge) {
     badge.className = `card-badge ${status}`;
     badge.textContent = formatBadgeText(status);
-    badge.setAttribute('title', `읽기 상태: ${formatBadgeText(status)} (클릭 시 순환)`);
+    badge.setAttribute('title', formatBadgeText(status));
   }
 }
 

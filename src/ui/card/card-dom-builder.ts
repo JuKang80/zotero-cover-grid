@@ -138,7 +138,7 @@ export function buildPaperCardDOM(
   cardEl.setAttribute('data-item-id', String(card.id));
   cardEl.setAttribute('tabindex', '0');
   cardEl.setAttribute('draggable', 'true');
-  cardEl.title = `${card.title}\n${card.citationText || card.authorText} (더블 클릭: 열기)`;
+  cardEl.title = `${card.title}\n${card.citationText || card.authorText}`;
   (cardEl as any).__cardData = card;
 
   // Cover image wrapper
@@ -232,7 +232,7 @@ export function buildPaperCardDOM(
   const badgeEl = targetDoc.createElementNS(HTML_NS, 'span');
   badgeEl.className = `card-badge ${card.readStatus}`;
   badgeEl.textContent = formatBadgeText(card.readStatus);
-  badgeEl.title = `읽기 상태: ${formatBadgeText(card.readStatus)} (클릭 시 순환)`;
+  badgeEl.title = formatBadgeText(card.readStatus);
   if (!isBadgeEnabled()) {
     badgeEl.style.display = 'none';
   }
@@ -244,7 +244,7 @@ export function buildPaperCardDOM(
     activeCard.readStatus = nextStatus;
     badgeEl.className = `card-badge ${nextStatus}`;
     badgeEl.textContent = formatBadgeText(nextStatus);
-    badgeEl.setAttribute('title', `읽기 상태: ${formatBadgeText(nextStatus)} (클릭 시 순환)`);
+    badgeEl.setAttribute('title', formatBadgeText(nextStatus));
     onBadgeStatusChange?.(activeCard, nextStatus);
   });
 
