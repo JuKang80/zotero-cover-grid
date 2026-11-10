@@ -106,6 +106,17 @@ export class TagColorSync {
       }
       if (!zItem) return;
 
+      // Ensure item tags data is loaded into memory to prevent UnloadedDataException
+      if (typeof zItem.loadDataType === 'function') {
+        try {
+          await zItem.loadDataType('tags');
+        } catch {
+          try {
+            await zItem.loadAllData?.();
+          } catch {}
+        }
+      }
+
       const zp = this.win?.ZoteroPane || (typeof ZoteroPane !== 'undefined' ? ZoteroPane : null);
       const libId = zItem.libraryID || zp?.getSelectedLibraryID?.() || z?.Libraries?.userLibraryID || 1;
       const rawColors = typeof z.Tags.getColors === 'function' ? z.Tags.getColors(libId) : null;
@@ -113,6 +124,12 @@ export class TagColorSync {
 
       // Position 0: Zotero shortcut '0' removes all colored tags from the item
       if (position === 0) {
+        if (typeof z.Tags.removeColoredTagsFromItems === 'function') {
+          try {
+            await z.Tags.removeColoredTagsFromItems([zItem]);
+          } catch {}
+        }
+
         const toRemove = new Set<string>([
           ...(card.colorTags || []).map((c) => c.tag),
           ...colorList.map((c) => c.tag)
@@ -136,42 +153,57 @@ export class TagColorSync {
         }
         if (typeof zItem.saveTx === 'function') {
           await zItem.saveTx();
+        } else if (typeof zItem.save === 'function') {
+          await zItem.save();
         }
         return;
       }
 
       // Resolve target color for shortcut key 1..9
-      // Zotero's native Tags.getColors() Map uses 0-based positions (0..8 for keys 1..9)
-      const isMapLike = rawColors && typeof rawColors.entries === 'function' && !Array.isArray(rawColors);
-      const hasZeroIndex = colorList.some((c) => c.position === 0);
-      let targetColor: { tag: string; color: string; position: number } | undefined;
+      // Strategy 1: Native Zotero.Tags.getColorByPosition(libraryID, position) (100% native parity)
+      let targetTag: string | null = null;
+      let targetColorHex: string | null = null;
 
-      if (isMapLike || hasZeroIndex) {
-        targetColor =
-          colorList.find((c) => c.position === position - 1) ||
-          (!hasZeroIndex ? colorList.find((c) => c.position === position) : undefined);
-      } else {
-        targetColor =
-          colorList.find((c) => c.position === position) ||
-          colorList.find((c) => c.position === position - 1);
+      if (typeof z.Tags.getColorByPosition === 'function') {
+        try {
+          const colorData = z.Tags.getColorByPosition(libId, position - 1);
+          if (colorData && (colorData.name || colorData.tag)) {
+            targetTag = colorData.name || colorData.tag;
+            targetColorHex = colorData.color || null;
+          }
+        } catch {}
       }
 
-      if (!targetColor && typeof z.Tags.getTagByPosition === 'function') {
-        const tagByPos = z.Tags.getTagByPosition(libId, position - 1);
-        const colorByPos = tagByPos && typeof z.Tags.getColor === 'function' ? z.Tags.getColor(libId, tagByPos) : null;
-        if (tagByPos && colorByPos) {
-          targetColor = { tag: tagByPos, color: colorByPos, position: position - 1 };
+      // Strategy 2: Normalized color tags fallback
+      if (!targetTag) {
+        const isMapLike = rawColors && typeof rawColors.entries === 'function' && !Array.isArray(rawColors);
+        const hasZeroIndex = colorList.some((c) => c.position === 0);
+        let found: { tag: string; color: string; position: number } | undefined;
+
+        if (isMapLike || hasZeroIndex) {
+          found =
+            colorList.find((c) => c.position === position - 1) ||
+            (!hasZeroIndex ? colorList.find((c) => c.position === position) : undefined);
+        } else {
+          found =
+            colorList.find((c) => c.position === position) ||
+            colorList.find((c) => c.position === position - 1);
+        }
+
+        if (found?.tag) {
+          targetTag = found.tag;
+          targetColorHex = found.color;
         }
       }
 
-      if (!targetColor || !targetColor.tag) return;
+      if (!targetTag) return;
 
       const existingItemTags: Array<{ tag: string } | string> = zItem.getTags?.() || [];
       const hadTagInZotero =
-        (typeof zItem.hasTag === 'function' && zItem.hasTag(targetColor.tag)) ||
-        existingItemTags.some((t: any) => (typeof t === 'string' ? t : t?.tag) === targetColor.tag);
+        (typeof zItem.hasTag === 'function' && zItem.hasTag(targetTag)) ||
+        existingItemTags.some((t: any) => (typeof t === 'string' ? t : t?.tag) === targetTag);
       const hadColorOnCard = (card.colorTags || []).some(
-        (c) => c.tag === targetColor.tag || c.color === targetColor!.color
+        (c) => c.tag === targetTag || (targetColorHex && c.color === targetColorHex)
       );
       const isRemoving = hadTagInZotero || hadColorOnCard;
 
@@ -179,10 +211,11 @@ export class TagColorSync {
       if (!card.colorTags) card.colorTags = [];
       if (isRemoving) {
         card.colorTags = card.colorTags.filter(
-          (c) => c.tag !== targetColor!.tag && c.color !== targetColor!.color
+          (c) => c.tag !== targetTag && (!targetColorHex || c.color !== targetColorHex)
         );
       } else {
-        card.colorTags.push({ tag: targetColor.tag, color: targetColor.color });
+        const hex = targetColorHex || '#ff0000';
+        card.colorTags.push({ tag: targetTag, color: hex });
         const posMap = new Map(colorList.map((c) => [c.tag, c.position]));
         card.colorTags.sort((a, b) => (posMap.get(a.tag) ?? 99) - (posMap.get(b.tag) ?? 99));
       }
@@ -196,9 +229,9 @@ export class TagColorSync {
       );
       let updatedTagNames = baseTagNames;
       if (isRemoving) {
-        updatedTagNames = updatedTagNames.filter((name) => name !== targetColor!.tag);
-      } else if (!updatedTagNames.includes(targetColor.tag)) {
-        updatedTagNames.push(targetColor.tag);
+        updatedTagNames = updatedTagNames.filter((name) => name !== targetTag);
+      } else if (!updatedTagNames.includes(targetTag)) {
+        updatedTagNames.push(targetTag);
       }
       card.tags = updatedTagNames;
       card.readStatus = extractReadStatusFromTags(updatedTagNames);
@@ -211,13 +244,15 @@ export class TagColorSync {
 
       // 2. Persist to Zotero database with type 0 (manual user tag)
       if (isRemoving) {
-        zItem.removeTag?.(targetColor.tag);
+        zItem.removeTag?.(targetTag);
       } else {
-        zItem.addTag?.(targetColor.tag, 0);
+        zItem.addTag?.(targetTag, 0);
       }
 
       if (typeof zItem.saveTx === 'function') {
         await zItem.saveTx();
+      } else if (typeof zItem.save === 'function') {
+        await zItem.save();
       }
     } catch {
       // Ignore
