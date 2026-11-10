@@ -23,7 +23,21 @@ export function extractPaperCardData(item: any): PaperCardData {
     const key = item?.key || `KEY_${id}`;
     let title = 'Untitled';
     try {
-      title = item.getField?.('title') || item.title || 'Untitled';
+      const rawTitle = item.getField?.('title') || item.title;
+      if (rawTitle && String(rawTitle).trim()) {
+        title = String(rawTitle).trim();
+      } else {
+        const fallbackTitle =
+          item.getDisplayTitle?.() ||
+          item.attachmentFilename ||
+          item.getFilename?.() ||
+          item.filename ||
+          '';
+        if (fallbackTitle && String(fallbackTitle).trim()) {
+          // If fallback is a filename with extension (e.g. .pdf), clean it for display
+          title = String(fallbackTitle).trim().replace(/\.[^.]+$/, '');
+        }
+      }
     } catch {
       title = 'Untitled';
     }
@@ -61,9 +75,22 @@ export function extractPaperCardData(item: any): PaperCardData {
     const readStatus = extractReadStatusFromTags(tags);
     let itemType = 'journalArticle';
     try {
-      itemType = item.itemType || item.getItemType?.() || 'journalArticle';
+      if (item.isAttachment?.()) {
+        itemType = 'attachment';
+      } else {
+        itemType = item.itemType || item.getItemType?.() || 'journalArticle';
+      }
     } catch {
       itemType = 'journalArticle';
+    }
+
+    let isAttachmentPdf = false;
+    if (typeof item.isAttachment === 'function' && item.isAttachment()) {
+      isAttachmentPdf = Boolean(
+        item.isPDFAttachment?.() ||
+        item.attachmentContentType === 'application/pdf' ||
+        (typeof item.attachmentFilename === 'string' && item.attachmentFilename.toLowerCase().endsWith('.pdf'))
+      );
     }
 
     let publicationTitle = '';
@@ -140,7 +167,7 @@ export function extractPaperCardData(item: any): PaperCardData {
       publicationTitle,
       notePreview,
       readStatus,
-      hasPdf: false, // Will be updated when attachment is resolved
+      hasPdf: isAttachmentPdf, // Initialized for attachments, updated asynchronously for parent items
       tags: tagNames,
       colorTags
     };

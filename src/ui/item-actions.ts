@@ -319,7 +319,7 @@ export async function openItemInZotero(win: any, itemId: number): Promise<void> 
     } catch {
       try {
         const zItem = z?.Items?.getAsync ? await z.Items.getAsync(itemId) : z?.Items?.get?.(itemId);
-        if (zItem && typeof zItem.isRegularItem === 'function') {
+        if (zItem) {
           await zp.viewItems([zItem]);
           return;
         }
@@ -333,7 +333,9 @@ export async function openItemInZotero(win: any, itemId: number): Promise<void> 
   if (z) {
     try {
       const zItem = z.Items?.getAsync ? await z.Items.getAsync(itemId) : z.Items?.get?.(itemId);
-      const attachment = await zItem?.getBestAttachment?.();
+      const attachment = (typeof zItem?.isAttachment === 'function' && zItem.isAttachment())
+        ? zItem
+        : await zItem?.getBestAttachment?.();
       if (attachment && z.Reader?.open) {
         await z.Reader.open(attachment.id);
         return;

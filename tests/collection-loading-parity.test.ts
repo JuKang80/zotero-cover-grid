@@ -271,4 +271,67 @@ describe('CollectionFetcher & Hidden Table Parity', () => {
     expect(result.filter((r) => r.title.startsWith('AI Paper')).length).toBe(35);
     expect(result.filter((r) => r.title.startsWith('Memory Paper')).length).toBe(34);
   });
+
+  it('should cleanly load and display standalone KCI PDF attachments without title metadata', async () => {
+    const kciAttachment = {
+      id: 1018,
+      key: 'KCI1018',
+      isRegularItem: () => false,
+      isAttachment: () => true,
+      isAnnotation: () => false,
+      isNote: () => false,
+      isTopLevelItem: () => true,
+      parentItemID: null,
+      parentKey: null,
+      attachmentContentType: 'application/pdf',
+      attachmentFilename: 'KCI_FI001283608.pdf',
+      getDisplayTitle: () => '',
+      getField: (f: string) => '', // No title in itemData
+      getCreators: () => [],
+      getTags: () => [{ tag: 'KCI' }]
+    };
+
+    const regularPaper = {
+      id: 1016,
+      key: 'FED2020',
+      isRegularItem: () => true,
+      isAttachment: () => false,
+      isAnnotation: () => false,
+      isNote: () => false,
+      isTopLevelItem: () => true,
+      getField: (f: string) => (f === 'title' ? 'Lack of selectivity for syntax relative to word meanings' : f === 'date' ? '2020' : ''),
+      getCreators: () => [{ lastName: 'Fedorenko' }]
+    };
+
+    const mockCollection = {
+      id: 14,
+      name: 'lanuage&cognitive&linguist',
+      getChildItems: vi.fn((asIDs) => asIDs ? [1016, 1018] : [regularPaper, kciAttachment])
+    };
+
+    const mockWin = {
+      ZoteroPane: {
+        itemsView: { rowCount: 0, getSortedItems: vi.fn(() => []) },
+        getSelectedCollections: vi.fn(() => [mockCollection]),
+        getSelectedCollection: vi.fn(() => mockCollection)
+      },
+      Zotero: {
+        Prefs: { get: vi.fn(() => true) },
+        Items: {
+          getAsync: vi.fn(async (ids: number[]) => [regularPaper, kciAttachment]),
+          get: vi.fn((id: number) => id === 1018 ? kciAttachment : regularPaper)
+        }
+      }
+    };
+
+    const fetcher = new CollectionFetcher(mockWin);
+    const result = await fetcher.fetchCollectionItems(new AbortController().signal);
+
+    expect(result.length).toBe(2);
+    const kciCard = result.find((r) => r.id === 1018);
+    expect(kciCard).toBeDefined();
+    expect(kciCard?.title).toBe('KCI_FI001283608');
+    expect(kciCard?.hasPdf).toBe(true);
+    expect(kciCard?.itemType).toBe('attachment');
+  });
 });

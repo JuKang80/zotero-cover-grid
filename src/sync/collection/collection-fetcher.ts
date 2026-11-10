@@ -637,18 +637,25 @@ export class CollectionFetcher {
         }
       } catch {
         try {
+          const fallbackTitle =
+            it.getField?.('title') ||
+            it.getDisplayTitle?.() ||
+            it.attachmentFilename ||
+            it.title ||
+            'Untitled';
+          const cleanTitle = String(fallbackTitle).trim().replace(/\.[^.]+$/, '');
           result.push({
             id: it.id || 0,
             key: it.key || `KEY_${it.id || 0}`,
-            title: it.getField?.('title') || it.title || 'Untitled',
+            title: cleanTitle || 'Untitled',
             authorText: 'Unknown Author',
-            citationText: it.getField?.('title') || 'Untitled',
+            citationText: cleanTitle || 'Untitled',
             itemType: it.itemType || 'journalArticle',
             year: '',
             publicationTitle: '',
             notePreview: '',
             readStatus: 'unread',
-            hasPdf: false,
+            hasPdf: Boolean(it.isAttachment?.()),
             tags: [],
             colorTags: []
           });

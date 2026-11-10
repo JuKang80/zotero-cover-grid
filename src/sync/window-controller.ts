@@ -133,13 +133,27 @@ export class WindowCoverGridController {
         }
       }
       if (!zItem) return;
-      const attachment = await zItem.getBestAttachment?.();
+
+      // Regular items resolve via getBestAttachment; standalone PDF attachments are themselves the attachment
+      let attachment: any = null;
+      if (typeof zItem.isAttachment === 'function' && zItem.isAttachment()) {
+        attachment = zItem;
+      } else if (typeof zItem.getBestAttachment === 'function') {
+        attachment = await zItem.getBestAttachment();
+      }
+
       if (signal.aborted) return;
 
-      card.hasPdf = Boolean(attachment);
+      const isPdf = Boolean(
+        attachment?.isPDFAttachment?.() ||
+        attachment?.attachmentContentType === 'application/pdf' ||
+        (typeof attachment?.attachmentFilename === 'string' && attachment.attachmentFilename.toLowerCase().endsWith('.pdf'))
+      );
+
+      card.hasPdf = Boolean(attachment && isPdf);
 
       // Keep typographic book cover when no PDF attachment exists
-      if (!attachment) return;
+      if (!attachment || !isPdf) return;
 
       const url = await thumbnailCacheManager.getThumbnail(zItem, attachment, card);
       if (signal.aborted) return;
