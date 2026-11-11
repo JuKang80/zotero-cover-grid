@@ -86,10 +86,34 @@ export function extractPaperCardData(item: any): PaperCardData {
 
     let isAttachmentPdf = false;
     if (typeof item.isAttachment === 'function' && item.isAttachment()) {
+      let filenameOrPath = '';
+      try {
+        filenameOrPath = String(item.attachmentFilename || item.attachmentPath || '').toLowerCase();
+      } catch {
+        try {
+          filenameOrPath = String(item.attachmentPath || '').toLowerCase();
+        } catch {}
+      }
+      const contentType = String(item.attachmentContentType || '').toLowerCase();
+      const isExplicitNonPdf =
+        Boolean(
+          item.isSnapshotAttachment?.() ||
+          item.isEPUBAttachment?.() ||
+          item.isImageAttachment?.() ||
+          item.isVideoAttachment?.() ||
+          item.attachmentLinkMode === 3
+        ) ||
+        contentType.includes('html') ||
+        contentType.includes('epub') ||
+        contentType.startsWith('image/') ||
+        contentType.startsWith('video/') ||
+        /\.(html?|epub|png|jpe?g|gif|webp|svg|mp4|mov|docx?|xlsx?|pptx?|txt|md|csv|zip)$/i.test(filenameOrPath);
+      const isFileAtt = typeof item.isFileAttachment === 'function' ? item.isFileAttachment() : true;
       isAttachmentPdf = Boolean(
         item.isPDFAttachment?.() ||
-        item.attachmentContentType === 'application/pdf' ||
-        (typeof item.attachmentFilename === 'string' && item.attachmentFilename.toLowerCase().endsWith('.pdf'))
+        contentType.includes('pdf') ||
+        filenameOrPath.endsWith('.pdf') ||
+        (isFileAtt && !isExplicitNonPdf)
       );
     }
 

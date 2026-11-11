@@ -142,12 +142,52 @@ export class WindowCoverGridController {
         attachment = await zItem.getBestAttachment();
       }
 
+      if (attachment && typeof attachment.loadAllData === 'function') {
+        try {
+          await attachment.loadAllData();
+        } catch {}
+      }
+
       if (signal.aborted) return;
 
+      let filenameOrPath = '';
+      try {
+        filenameOrPath = String(
+          attachment?.attachmentFilename ||
+          attachment?.attachmentPath ||
+          ''
+        ).toLowerCase();
+      } catch {
+        try {
+          filenameOrPath = String(attachment?.attachmentPath || '').toLowerCase();
+        } catch {}
+      }
+      const contentType = String(attachment?.attachmentContentType || '').toLowerCase();
+      const isExplicitNonPdf =
+        Boolean(
+          attachment?.isSnapshotAttachment?.() ||
+          attachment?.isEPUBAttachment?.() ||
+          attachment?.isImageAttachment?.() ||
+          attachment?.isVideoAttachment?.() ||
+          attachment?.attachmentLinkMode === 3 // LINK_MODE_LINKED_URL
+        ) ||
+        contentType.includes('html') ||
+        contentType.includes('epub') ||
+        contentType.startsWith('image/') ||
+        contentType.startsWith('video/') ||
+        /\.(html?|epub|png|jpe?g|gif|webp|svg|mp4|mov|docx?|xlsx?|pptx?|txt|md|csv|zip)$/i.test(filenameOrPath);
+
+      const isFileAtt =
+        typeof attachment?.isFileAttachment === 'function'
+          ? attachment.isFileAttachment()
+          : Boolean(attachment);
+
       const isPdf = Boolean(
-        attachment?.isPDFAttachment?.() ||
-        attachment?.attachmentContentType === 'application/pdf' ||
-        (typeof attachment?.attachmentFilename === 'string' && attachment.attachmentFilename.toLowerCase().endsWith('.pdf'))
+        attachment &&
+        (attachment?.isPDFAttachment?.() ||
+          contentType.includes('pdf') ||
+          filenameOrPath.endsWith('.pdf') ||
+          (isFileAtt && !isExplicitNonPdf))
       );
 
       card.hasPdf = Boolean(attachment && isPdf);

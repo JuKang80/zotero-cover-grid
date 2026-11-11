@@ -334,4 +334,79 @@ describe('CollectionFetcher & Hidden Table Parity', () => {
     expect(kciCard?.hasPdf).toBe(true);
     expect(kciCard?.itemType).toBe('attachment');
   });
+
+  it('should not lose unloaded legacy standalone PDFs when col.getChildItems(true) maps unloaded items to undefined', async () => {
+    const legacyPdf = {
+      id: 2001,
+      key: 'SHJ1961',
+      isRegularItem: () => false,
+      isAttachment: () => true,
+      isFileAttachment: () => true,
+      isAnnotation: () => false,
+      isNote: () => false,
+      isTopLevelItem: () => true,
+      parentItemID: null,
+      parentKey: false,
+      attachmentContentType: 'application/x-pdf', // Legacy MIME type
+      attachmentFilename: 'Learning and memorization of classifications', // No .pdf extension
+      getDisplayTitle: () => 'Learning and memorization of classifications',
+      getField: (f: string) => (f === 'title' ? 'Learning and memorization of classifications' : ''),
+      getCreators: () => [],
+      getTags: () => []
+    };
+
+    const regularItems = Array.from({ length: 6 }, (_, idx) => ({
+      id: 2002 + idx,
+      key: `REG_${idx}`,
+      isRegularItem: () => true,
+      isAttachment: () => false,
+      isAnnotation: () => false,
+      isNote: () => false,
+      isTopLevelItem: () => true,
+      getField: (f: string) => (f === 'title' ? `Modern Paper ${idx + 1}` : '2026'),
+      getCreators: () => [{ lastName: `Author${idx}` }],
+      getTags: () => []
+    }));
+
+    const allMap = new Map<number, any>([
+      [2001, legacyPdf],
+      ...regularItems.map((it) => [it.id, it] as [number, any])
+    ]);
+
+    // Simulate Zotero's getChildItems(true) returning undefined for unloaded item 2001,
+    // while _childItems Set holds all 7 IDs
+    const mockStudyCol = {
+      id: 55,
+      name: 'study',
+      libraryID: 1,
+      _childItems: new Set([2001, 2002, 2003, 2004, 2005, 2006, 2007]),
+      getChildItems: vi.fn((asIDs) =>
+        asIDs ? [undefined, 2002, 2003, 2004, 2005, 2006, 2007] : regularItems
+      )
+    };
+
+    const mockWin = {
+      ZoteroPane: {
+        itemsView: { rowCount: 0, getSortedItems: vi.fn(() => []) },
+        getSelectedCollections: vi.fn(() => [mockStudyCol]),
+        getSelectedCollection: vi.fn(() => mockStudyCol)
+      },
+      Zotero: {
+        Prefs: { get: vi.fn(() => true) },
+        Items: {
+          getAsync: vi.fn(async (ids: number[]) => ids.map((id) => allMap.get(id)).filter(Boolean)),
+          get: vi.fn((id: number) => allMap.get(id))
+        }
+      }
+    };
+
+    const fetcher = new CollectionFetcher(mockWin);
+    const result = await fetcher.fetchCollectionItems(new AbortController().signal);
+
+    expect(result.length).toBe(7);
+    const legacyCard = result.find((r) => r.id === 2001);
+    expect(legacyCard).toBeDefined();
+    expect(legacyCard?.title).toBe('Learning and memorization of classifications');
+    expect(legacyCard?.hasPdf).toBe(true);
+  });
 });

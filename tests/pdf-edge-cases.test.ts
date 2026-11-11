@@ -162,4 +162,52 @@ describe('PDF Thumbnail Edge Cases & Defense', () => {
       expect(result).toBe(mockCanvas);
     });
   });
+
+  it('should pass wasmUrl, iccUrl, CanvasFactory, and retry with disableFontFace=true on legacy PDF font failure', async () => {
+    IOUtils.exists.mockResolvedValueOnce(true);
+    IOUtils.read.mockResolvedValueOnce(new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]));
+
+    const capturedOptions: any[] = [];
+    let renderAttempt = 0;
+
+    ChromeUtils.importESModule.mockResolvedValueOnce({
+      getDocument: (opts: any) => {
+        capturedOptions.push(opts);
+        return {
+          promise: Promise.resolve({
+            numPages: 1,
+            getPage: async () => ({
+              rotate: 0,
+              getViewport: ({ scale, rotation }: any) => ({ width: 300 * scale, height: 400 * scale, rotation }),
+              render: () => ({
+                promise: (() => {
+                  renderAttempt++;
+                  // Simulate first 2 render attempts failing due to legacy Type1/OCR FontFace OTS rejection,
+                  // succeeding when reopened with disableFontFace=true
+                  if (!opts.disableFontFace) {
+                    return Promise.reject(new Error('Failed to load font: OTS parsing error'));
+                  }
+                  return Promise.resolve();
+                })()
+              })
+            }),
+            destroy: vi.fn()
+          }),
+          destroy: vi.fn()
+        };
+      }
+    });
+
+    const card = { title: 'Learning and memorization of classifications', authorText: 'Shepard et al.' };
+    const blob = await renderPdfThumbnail('/path/shj1961.pdf', card);
+
+    expect(blob).toBeDefined();
+    expect((blob as any).__isFallbackCover).toBeFalsy();
+    expect(capturedOptions.length).toBe(2);
+    expect(capturedOptions[0].wasmUrl).toBe('resource://zotero/reader/pdf/web/wasm/');
+    expect(capturedOptions[0].iccUrl).toBe('resource://zotero/reader/pdf/web/iccs/');
+    expect(capturedOptions[0].CanvasFactory).toBeDefined();
+    expect(capturedOptions[0].disableFontFace).toBe(false);
+    expect(capturedOptions[1].disableFontFace).toBe(true);
+  });
 });

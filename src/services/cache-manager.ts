@@ -43,7 +43,7 @@ export class ThumbnailCacheManager implements IThumbnailCacheManager {
   private getDiskCachePath(cacheDir: string, key: string, mtime: string | number): string {
     const safeKey = String(key).replace(/[^a-zA-Z0-9_-]/g, '_');
     const safeMtime = String(mtime).replace(/[^a-zA-Z0-9_-]/g, '_');
-    const filename = `${safeKey}_${safeMtime}_v5.webp`;
+    const filename = `${safeKey}_${safeMtime}_v6.webp`;
     return typeof PathUtils !== 'undefined' && typeof PathUtils.join === 'function'
       ? PathUtils.join(cacheDir, filename)
       : `${cacheDir}/${filename}`;
@@ -170,7 +170,32 @@ export class ThumbnailCacheManager implements IThumbnailCacheManager {
         }
         const card = fallbackCard;
 
-        const isPdf = typeof attachment?.isPDFAttachment === 'function' ? attachment.isPDFAttachment() : (pdfPath && pdfPath.toLowerCase().endsWith('.pdf'));
+        let filenameOrPath = '';
+        try {
+          filenameOrPath = String(
+            pdfPath ||
+            attachment?.attachmentFilename ||
+            attachment?.attachmentPath ||
+            ''
+          ).toLowerCase();
+        } catch {
+          filenameOrPath = String(pdfPath || '').toLowerCase();
+        }
+        const contentType = String(attachment?.attachmentContentType || '').toLowerCase();
+        const isExplicitNonPdf =
+          Boolean(attachment?.isSnapshotAttachment?.() || attachment?.isEPUBAttachment?.() || attachment?.isImageAttachment?.() || attachment?.isVideoAttachment?.()) ||
+          contentType.includes('html') ||
+          contentType.includes('epub') ||
+          contentType.startsWith('image/') ||
+          contentType.startsWith('video/') ||
+          /\.(html?|epub|png|jpe?g|gif|webp|svg|mp4|mov|docx?|xlsx?|pptx?|txt|md|csv|zip)$/i.test(filenameOrPath);
+
+        const isPdf = Boolean(
+          attachment?.isPDFAttachment?.() ||
+          contentType.includes('pdf') ||
+          filenameOrPath.endsWith('.pdf') ||
+          (pdfPath && !isExplicitNonPdf)
+        );
         if (pdfPath && isPdf) {
           blob = await renderPdfThumbnail(pdfPath, card);
         } else {
