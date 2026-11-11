@@ -109,7 +109,7 @@ export function injectToolbarControls(win: any): ToolbarController | null {
   zoomSlider.min = '140';
   zoomSlider.max = '340';
   zoomSlider.value = String(initialCardWidth);
-  zoomSlider.title = '표지 카드 크기 조절 (140px ~ 340px / 더블클릭 시 180px 복원)';
+  zoomSlider.title = 'Card Zoom (140px - 340px)';
 
   zoomContainer.appendChild(zoomLabel);
   zoomContainer.appendChild(zoomSlider);
@@ -239,7 +239,7 @@ export function injectToolbarControls(win: any): ToolbarController | null {
   const setZoom = (widthPx: number) => {
     const clamped = Math.min(340, Math.max(140, widthPx));
     zoomSlider.value = String(clamped);
-    zoomSlider.title = `Card Zoom: ${clamped}px (더블클릭 시 180px 초기화)`;
+    zoomSlider.title = `Card Zoom: ${clamped}px`;
     const coverGrid = doc.getElementById('zotero-cover-grid');
     if (coverGrid) {
       coverGrid.style.setProperty('--card-width', `${clamped}px`);
@@ -272,7 +272,6 @@ export function injectToolbarControls(win: any): ToolbarController | null {
   });
   zoomSlider.addEventListener('dblclick', () => setZoom(180));
   zoomLabel.addEventListener('click', () => setZoom(180));
-  zoomLabel.title = '클릭하여 기본 크기(180px)로 초기화';
 
   // Initialize card width zoom level
   setZoom(initialCardWidth);

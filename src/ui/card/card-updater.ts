@@ -1,4 +1,5 @@
 import { PaperCardData, ReadStatus } from '../../types';
+import { renderRichText, richTextToPlainText } from '../../utils/rich-text';
 import {
   formatBadgeText,
   formatItemTypeLabel,
@@ -8,32 +9,33 @@ import {
 
 export function updatePaperCardMetadata(cardEl: HTMLElement, card: PaperCardData) {
   (cardEl as any).__cardData = card;
-  cardEl.title = `${card.title}\n${card.citationText || card.authorText} (더블 클릭: 열기)`;
+  const plainTitle = richTextToPlainText(card.title);
+  cardEl.title = `${plainTitle}\n${card.citationText || card.authorText}`;
   const titleEl = cardEl.querySelector('.card-title') as HTMLElement | null;
-  if (titleEl && titleEl.textContent !== card.title) {
-    titleEl.textContent = card.title;
-    titleEl.title = card.title;
+  if (titleEl && (titleEl as any).__renderedRichText !== card.title) {
+    renderRichText(titleEl, card.title);
+    titleEl.title = plainTitle;
   }
   const authorEl = cardEl.querySelector('.card-author') as HTMLElement | null;
   const nextAuthor = card.citationText || card.authorText;
   if (authorEl) {
     if (authorEl.textContent !== nextAuthor) authorEl.textContent = nextAuthor;
-    authorEl.title = `${card.authorText} (${card.year || 'n.d.'}) - ${card.title}`;
+    authorEl.title = `${card.authorText} (${card.year || 'n.d.'}) - ${plainTitle}`;
   }
   const bookTitle = cardEl.querySelector('.book-cover-title') as HTMLElement | null;
-  if (bookTitle && bookTitle.textContent !== card.title) {
-    bookTitle.textContent = card.title;
+  if (bookTitle && (bookTitle as any).__renderedRichText !== card.title) {
+    renderRichText(bookTitle, card.title);
   }
   const bookHeader = cardEl.querySelector('.book-cover-header') as HTMLElement | null;
   const isNote = card.itemType === 'note';
   if (bookHeader) {
-    const nextHeader = isNote ? '📝 RESEARCH NOTE' : (card.publicationTitle || formatItemTypeLabel(card.itemType)).toUpperCase();
+    const nextHeader = isNote ? '📝 RESEARCH NOTE' : richTextToPlainText(card.publicationTitle || formatItemTypeLabel(card.itemType)).toUpperCase();
     if (bookHeader.textContent !== nextHeader) bookHeader.textContent = nextHeader;
   }
   const bookFooter = cardEl.querySelector('.book-cover-footer') as HTMLElement | null;
   if (bookFooter) {
     const strippedAuthor = card.citationText ? card.citationText.replace(/\s*\((?:\d{4}|n\.d\.)\)/, '').trim() : '';
-    const firstAuthor = strippedAuthor || card.authorText;
+    const firstAuthor = richTextToPlainText(strippedAuthor || card.authorText);
     const nextFooter = isNote ? (card.year ? `${card.year} · Note` : 'Note') : (card.year ? `${card.year} · ${firstAuthor}` : firstAuthor);
     if (bookFooter.textContent !== nextFooter) bookFooter.textContent = nextFooter;
   }
@@ -61,7 +63,7 @@ export function updatePaperCardBadge(cardEl: HTMLElement, status: ReadStatus) {
   if (badge) {
     badge.className = `card-badge ${status}`;
     badge.textContent = formatBadgeText(status);
-    badge.setAttribute('title', `읽기 상태: ${formatBadgeText(status)} (클릭 시 순환)`);
+    badge.setAttribute('title', formatBadgeText(status));
   }
 }
 
@@ -96,6 +98,7 @@ export function updatePaperCardColorTags(cardEl: HTMLElement, colorTags?: Array<
       bookCover.setAttribute('data-has-tag-color', 'true');
     } else {
       bookCover.removeAttribute('data-has-tag-color');
+      bookCover.style.removeProperty('--card-tag-color');
     }
   }
 }

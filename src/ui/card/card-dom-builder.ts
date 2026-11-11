@@ -1,4 +1,5 @@
 import { PaperCardData, ReadStatus } from '../../types';
+import { renderRichText, richTextToPlainText } from '../../utils/rich-text';
 
 export function cycleReadStatus(current: ReadStatus): ReadStatus {
   switch (current) {
@@ -138,7 +139,7 @@ export function buildPaperCardDOM(
   cardEl.setAttribute('data-item-id', String(card.id));
   cardEl.setAttribute('tabindex', '0');
   cardEl.setAttribute('draggable', 'true');
-  cardEl.title = `${card.title}\n${card.citationText || card.authorText} (더블 클릭: 열기)`;
+  cardEl.title = `${richTextToPlainText(card.title)}\n${card.citationText || card.authorText}`;
   (cardEl as any).__cardData = card;
 
   // Cover image wrapper
@@ -152,12 +153,12 @@ export function buildPaperCardDOM(
 
   const bookHeader = targetDoc.createElementNS(HTML_NS, 'div');
   bookHeader.className = 'book-cover-header';
-  bookHeader.textContent = isNote ? '📝 RESEARCH NOTE' : (card.publicationTitle || formatItemTypeLabel(card.itemType)).toUpperCase();
+  bookHeader.textContent = isNote ? '📝 RESEARCH NOTE' : richTextToPlainText(card.publicationTitle || formatItemTypeLabel(card.itemType)).toUpperCase();
   bookCoverEl.appendChild(bookHeader);
 
   const bookTitle = targetDoc.createElementNS(HTML_NS, 'div');
   bookTitle.className = 'book-cover-title';
-  bookTitle.textContent = card.title;
+  renderRichText(bookTitle, card.title);
   bookCoverEl.appendChild(bookTitle);
 
   // If note has body preview, display it like a ruled memo pad
@@ -171,7 +172,7 @@ export function buildPaperCardDOM(
   const bookFooter = targetDoc.createElementNS(HTML_NS, 'div');
   bookFooter.className = 'book-cover-footer';
   const strippedAuthor = card.citationText ? card.citationText.replace(/\s*\((?:\d{4}|n\.d\.)\)/, '').trim() : '';
-  const firstAuthor = strippedAuthor || card.authorText;
+  const firstAuthor = richTextToPlainText(strippedAuthor || card.authorText);
   bookFooter.textContent = isNote ? (card.year ? `${card.year} · Note` : 'Note') : (card.year ? `${card.year} · ${firstAuthor}` : firstAuthor);
   bookCoverEl.appendChild(bookFooter);
 
@@ -187,7 +188,7 @@ export function buildPaperCardDOM(
   // Actual PDF Thumbnail Image
   const imgEl = targetDoc.createElementNS(HTML_NS, 'img') as HTMLImageElement;
   imgEl.className = 'card-cover-img';
-  imgEl.alt = card.title;
+  imgEl.alt = richTextToPlainText(card.title);
   imgEl.setAttribute('draggable', 'false');
   imgEl.addEventListener('error', () => {
     coverWrapper.classList.remove('is-loading');
@@ -211,18 +212,18 @@ export function buildPaperCardDOM(
   coverWrapper.appendChild(imgEl);
   cardEl.appendChild(coverWrapper);
 
-  // 1. Uniform 2-Line Fixed Height Paper Title
+  // 1. Uniform 2-Line Fixed Height Paper Title (with rich text formatting support)
   const titleEl = targetDoc.createElementNS(HTML_NS, 'div');
   titleEl.className = 'card-title';
-  titleEl.textContent = card.title;
-  titleEl.title = card.title;
+  renderRichText(titleEl, card.title);
+  titleEl.title = richTextToPlainText(card.title);
   cardEl.appendChild(titleEl);
 
   // 2. Author & Citation (1 line ellipsis, e.g. Kim et al. (2026))
   const authorEl = targetDoc.createElementNS(HTML_NS, 'div');
   authorEl.className = 'card-author';
   authorEl.textContent = card.citationText || card.authorText;
-  authorEl.title = `${card.authorText} (${card.year || 'n.d.'}) - ${card.title}`;
+  authorEl.title = `${card.authorText} (${card.year || 'n.d.'}) - ${richTextToPlainText(card.title)}`;
   cardEl.appendChild(authorEl);
 
   // 3. Badge Container (Reading Status Badge & Native Color Dots)
@@ -232,7 +233,7 @@ export function buildPaperCardDOM(
   const badgeEl = targetDoc.createElementNS(HTML_NS, 'span');
   badgeEl.className = `card-badge ${card.readStatus}`;
   badgeEl.textContent = formatBadgeText(card.readStatus);
-  badgeEl.title = `읽기 상태: ${formatBadgeText(card.readStatus)} (클릭 시 순환)`;
+  badgeEl.title = formatBadgeText(card.readStatus);
   if (!isBadgeEnabled()) {
     badgeEl.style.display = 'none';
   }
@@ -244,7 +245,7 @@ export function buildPaperCardDOM(
     activeCard.readStatus = nextStatus;
     badgeEl.className = `card-badge ${nextStatus}`;
     badgeEl.textContent = formatBadgeText(nextStatus);
-    badgeEl.setAttribute('title', `읽기 상태: ${formatBadgeText(nextStatus)} (클릭 시 순환)`);
+    badgeEl.setAttribute('title', formatBadgeText(nextStatus));
     onBadgeStatusChange?.(activeCard, nextStatus);
   });
 

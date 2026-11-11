@@ -151,7 +151,9 @@ export class KeyboardManager {
     }
 
     // 5. Forward number tag keys (0-9) and Quick Copy (Cmd/Ctrl+C) when a card is selected/focused
-    if (/^[0-9]$/.test(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    // Matches e.code (Digit0-9, Numpad0-9) as well as e.key to support Korean/international IME layouts
+    const isDigitKey = /^[0-9]$/.test(e.key) || /^(?:Digit|Numpad)([0-9])$/.test(e.code);
+    if (isDigitKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
       if (hasSelectionOrFocus) {
         this.handleGridKeyDown(e);
       }
@@ -266,32 +268,6 @@ export class KeyboardManager {
           this.context.options.onOpenPdf?.(items[selectionModel.focusedIndex]);
         }
         break;
-      case '0':
-      case '1':
-      case '2':
-      case '3':
-      case '4':
-      case '5':
-      case '6':
-      case '7':
-      case '8':
-      case '9': {
-        if (e.metaKey || e.ctrlKey || e.altKey) break;
-        e.preventDefault();
-        const pos = parseInt(e.key, 10);
-        const targets = items.filter((it) => selectionModel.selectedIds.has(it.id));
-        if (
-          targets.length === 0 &&
-          selectionModel.focusedIndex >= 0 &&
-          items[selectionModel.focusedIndex]
-        ) {
-          targets.push(items[selectionModel.focusedIndex]);
-        }
-        for (const target of targets) {
-          this.context.options.onToggleColorTag?.(target, pos);
-        }
-        break;
-      }
       case 'Delete':
       case 'Backspace': {
         e.preventDefault();
@@ -310,6 +286,36 @@ export class KeyboardManager {
           } else {
             this.context.options.onDeleteItem?.(selected);
           }
+        }
+        break;
+      }
+      case '0':
+      case '1':
+      case '2':
+      case '3':
+      case '4':
+      case '5':
+      case '6':
+      case '7':
+      case '8':
+      case '9':
+      default: {
+        const numMatch = /^(?:Digit|Numpad)([0-9])$/.exec(e.code) || /^([0-9])$/.exec(e.key);
+        if (numMatch && !e.metaKey && !e.ctrlKey && !e.altKey) {
+          e.preventDefault();
+          const pos = parseInt(numMatch[1] || numMatch[0], 10);
+          const targets = items.filter((it) => selectionModel.selectedIds.has(it.id));
+          if (
+            targets.length === 0 &&
+            selectionModel.focusedIndex >= 0 &&
+            items[selectionModel.focusedIndex]
+          ) {
+            targets.push(items[selectionModel.focusedIndex]);
+          }
+          for (const target of targets) {
+            this.context.options.onToggleColorTag?.(target, pos);
+          }
+          break;
         }
         break;
       }

@@ -149,4 +149,59 @@ describe('Keyboard Shortcuts (1~9 Color Tags, r Read Status, Space/Enter Open PD
     expect(mockItem.removeTag).toHaveBeenCalledWith('read');
     expect(card.colorTags).toEqual([]);
   });
+
+  it('triggers color tag toggle via Digit1 event.code and uses native getColorByPosition', async () => {
+    const { container, onToggleColorTag, testItems } = setupScroller();
+
+    // In Korean IME mode, event.code is 'Digit1'
+    container.dispatchEvent(new KeyboardEvent('keydown', { key: '1', code: 'Digit1', bubbles: true }));
+    expect(onToggleColorTag).toHaveBeenCalledWith(testItems[0], 1);
+
+    const itemTags = new Set<string>();
+    const loadDataTypeMock = vi.fn(async () => {});
+    const mockItem = {
+      id: 201,
+      libraryID: 1,
+      loadDataType: loadDataTypeMock,
+      hasTag: (t: string) => itemTags.has(t),
+      addTag: vi.fn((t: string) => itemTags.add(t)),
+      removeTag: vi.fn((t: string) => itemTags.delete(t)),
+      getTags: () => Array.from(itemTags).map((tag) => ({ tag })),
+      save: vi.fn(async () => {})
+    };
+
+    const mockWin = {
+      document,
+      Zotero: {
+        Items: { get: () => mockItem },
+        Tags: {
+          getColorByPosition: vi.fn((libId: number, pos: number) => {
+            if (pos === 0) return { name: 'Important', color: '#E53935' };
+            return false;
+          }),
+          getColors: () => new Map()
+        }
+      }
+    };
+
+    const controller = new WindowCoverGridController(mockWin);
+    const card: PaperCardData = {
+      id: 201,
+      key: 'KEY201',
+      title: 'Korean Paper',
+      citationText: 'Kim (2026)',
+      authorText: 'Kim',
+      year: '2026',
+      itemType: 'attachment',
+      readStatus: 'unread',
+      hasPdf: true,
+      colorTags: []
+    };
+
+    await controller.toggleColorTag(card, 1);
+    expect(loadDataTypeMock).toHaveBeenCalledWith('tags');
+    expect(mockWin.Zotero.Tags.getColorByPosition).toHaveBeenCalledWith(1, 0);
+    expect(mockItem.addTag).toHaveBeenCalledWith('Important', 0);
+    expect(card.colorTags).toEqual([{ tag: 'Important', color: '#E53935' }]);
+  });
 });

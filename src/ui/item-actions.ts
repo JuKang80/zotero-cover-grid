@@ -336,9 +336,17 @@ export async function openItemInZotero(win: any, itemId: number): Promise<void> 
       const attachment = (typeof zItem?.isAttachment === 'function' && zItem.isAttachment())
         ? zItem
         : await zItem?.getBestAttachment?.();
-      if (attachment && z.Reader?.open) {
-        await z.Reader.open(attachment.id);
-        return;
+      if (attachment) {
+        if (z.Reader?.open) {
+          try {
+            await z.Reader.open(attachment.id);
+            return;
+          } catch {}
+        }
+        if (typeof zp?.openAttachment === 'function') {
+          zp.openAttachment(attachment.id);
+          return;
+        }
       }
     } catch {
       // Fall through

@@ -1,4 +1,5 @@
 import { PaperCardData, ReadStatus } from '../../types';
+import { richTextToPlainText } from '../rich-text';
 
 export interface Creator {
   lastName?: string;
@@ -35,7 +36,7 @@ export function formatApa7Citation(
 
   if (authorNames.length === 0) {
     if (fallbackTitle && String(fallbackTitle).trim() && String(fallbackTitle).trim() !== 'Untitled') {
-      const cleanTitle = String(fallbackTitle).replace(/<[^>]*>/g, '').trim();
+      const cleanTitle = richTextToPlainText(String(fallbackTitle)).trim();
       const shortTitle = cleanTitle.length > 28 ? `${cleanTitle.slice(0, 28).trim()}…` : cleanTitle;
       return `${shortTitle} (${safeYear})`;
     }
@@ -76,7 +77,8 @@ export function extractReadStatusFromTags(tags: Array<{ tag: string } | string> 
 export function formatFullApa7Bibliography(card: PaperCardData, rawItem?: any): string {
   const authorPart = card.authorText || 'Unknown Author';
   const yearPart = card.year ? `(${card.year}).` : '(n.d.).';
-  const titlePart = card.title ? (card.title.endsWith('.') ? card.title : `${card.title}.`) : 'Untitled.';
+  const cleanTitle = richTextToPlainText(card.title || 'Untitled');
+  const titlePart = cleanTitle ? (cleanTitle.endsWith('.') ? cleanTitle : `${cleanTitle}.`) : 'Untitled.';
 
   let publication = '';
   let volume = '';

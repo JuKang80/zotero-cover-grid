@@ -2,6 +2,8 @@
  * Note parsing utilities for Zotero Standalone Notes
  */
 
+import { richTextToPlainText } from '../rich-text';
+
 export interface StandaloneNoteData {
   title: string;
   notePreview: string;
@@ -16,23 +18,17 @@ export interface StandaloneNoteData {
  */
 export function stripHtmlToPlainText(rawHtml: string): string {
   if (!rawHtml) return '';
-  return rawHtml
+  const prepared = rawHtml
     .replace(/<style[^>]*>.*?<\/style>/gi, '')
     .replace(/<script[^>]*>.*?<\/script>/gi, '')
     .replace(/<br\s*[\/]?>/gi, '\n')
-    .replace(/<\/(p|div|li|h[1-6]|blockquote|tr)>/gi, '\n')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&#(\d+);/g, (_: string, dec: string) => String.fromCharCode(Number(dec)))
-    .replace(/&#x([0-9a-f]+);/gi, (_: string, hex: string) => String.fromCharCode(parseInt(hex, 16)))
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&(apos|lsquo|rsquo);/gi, "'")
-    .replace(/&(ldquo|rdquo);/gi, '"')
-    .replace(/&(ndash|mdash);/gi, '—')
-    .replace(/&amp;/gi, '&')
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/&quot;/gi, '"')
-    .replace(/[^\S\n]+/g, ' ')
+    .replace(/<\/(p|div|li|h[1-6]|blockquote|tr)>/gi, '\n');
+  
+  return prepared
+    .split('\n')
+    .map((line) => richTextToPlainText(line))
+    .filter((line, idx, arr) => line.length > 0 || (idx > 0 && arr[idx - 1].length > 0))
+    .join('\n')
     .trim();
 }
 
