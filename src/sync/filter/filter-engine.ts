@@ -1,4 +1,5 @@
 import { PaperCardData } from '../../types';
+import { richTextToSearchableText } from '../../utils/rich-text';
 
 declare const ZoteroPane: any;
 
@@ -101,6 +102,7 @@ export class FilterEngine {
       if (q) {
         const matchesQuery =
           it.title.toLowerCase().includes(q) ||
+          richTextToSearchableText(it.title).includes(q) ||
           it.authorText.toLowerCase().includes(q) ||
           it.citationText.toLowerCase().includes(q) ||
           (it.notePreview && it.notePreview.toLowerCase().includes(q));

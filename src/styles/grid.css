@@ -485,6 +485,31 @@ zotero-cover-grid[hidden]:not([hidden="false"]),
   margin-top: 6px !important;
 }
 
+/* 제목 서식 태그(sup, sub, i, b, sc)가 2줄 높이(line-height)를 해치지 않도록 리셋 */
+.paper-card .card-title sup,
+.paper-card .card-title sub,
+.book-cover-title sup,
+.book-cover-title sub,
+.inspector-title sup,
+.inspector-title sub {
+  font-size: 75% !important;
+  line-height: 0 !important;
+  position: relative !important;
+  vertical-align: baseline !important;
+}
+
+.paper-card .card-title sup,
+.book-cover-title sup,
+.inspector-title sup {
+  top: -0.4em !important;
+}
+
+.paper-card .card-title sub,
+.book-cover-title sub,
+.inspector-title sub {
+  bottom: -0.2em !important;
+}
+
 /* 2. 저자 및 연도 (1줄 말줄임 보장, 숫자 정렬) */
 .paper-card .card-author {
   font-size: 11px !important;

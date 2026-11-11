@@ -1,4 +1,5 @@
 import { PaperCardData, ReadStatus } from '../../types';
+import { richTextToPlainText } from '../rich-text';
 
 export interface Creator {
   lastName?: string;
@@ -76,7 +77,8 @@ export function extractReadStatusFromTags(tags: Array<{ tag: string } | string> 
 export function formatFullApa7Bibliography(card: PaperCardData, rawItem?: any): string {
   const authorPart = card.authorText || 'Unknown Author';
   const yearPart = card.year ? `(${card.year}).` : '(n.d.).';
-  const titlePart = card.title ? (card.title.endsWith('.') ? card.title : `${card.title}.`) : 'Untitled.';
+  const cleanTitle = richTextToPlainText(card.title || 'Untitled');
+  const titlePart = cleanTitle ? (cleanTitle.endsWith('.') ? cleanTitle : `${cleanTitle}.`) : 'Untitled.';
 
   let publication = '';
   let volume = '';

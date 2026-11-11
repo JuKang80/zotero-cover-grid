@@ -1,4 +1,5 @@
 import { PaperCardData, ReadStatus } from '../../types';
+import { renderRichText, richTextToPlainText } from '../../utils/rich-text';
 import {
   formatBadgeText,
   formatItemTypeLabel,
@@ -8,21 +9,22 @@ import {
 
 export function updatePaperCardMetadata(cardEl: HTMLElement, card: PaperCardData) {
   (cardEl as any).__cardData = card;
-  cardEl.title = `${card.title}\n${card.citationText || card.authorText}`;
+  const plainTitle = richTextToPlainText(card.title);
+  cardEl.title = `${plainTitle}\n${card.citationText || card.authorText}`;
   const titleEl = cardEl.querySelector('.card-title') as HTMLElement | null;
-  if (titleEl && titleEl.textContent !== card.title) {
-    titleEl.textContent = card.title;
-    titleEl.title = card.title;
+  if (titleEl && (titleEl as any).__renderedRichText !== card.title) {
+    renderRichText(titleEl, card.title);
+    titleEl.title = plainTitle;
   }
   const authorEl = cardEl.querySelector('.card-author') as HTMLElement | null;
   const nextAuthor = card.citationText || card.authorText;
   if (authorEl) {
     if (authorEl.textContent !== nextAuthor) authorEl.textContent = nextAuthor;
-    authorEl.title = `${card.authorText} (${card.year || 'n.d.'}) - ${card.title}`;
+    authorEl.title = `${card.authorText} (${card.year || 'n.d.'}) - ${plainTitle}`;
   }
   const bookTitle = cardEl.querySelector('.book-cover-title') as HTMLElement | null;
-  if (bookTitle && bookTitle.textContent !== card.title) {
-    bookTitle.textContent = card.title;
+  if (bookTitle && (bookTitle as any).__renderedRichText !== card.title) {
+    renderRichText(bookTitle, card.title);
   }
   const bookHeader = cardEl.querySelector('.book-cover-header') as HTMLElement | null;
   const isNote = card.itemType === 'note';

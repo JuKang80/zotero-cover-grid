@@ -1,4 +1,5 @@
 import { PaperCardData } from '../../types';
+import { richTextToPlainText } from '../../utils/rich-text';
 import { createSafeCanvas, convertCanvasToSafeBlob } from './canvas-utils';
 
 /**
@@ -38,10 +39,10 @@ export async function generateTypographyFallbackCover(
       ctx.fillText(String(card.year), 52, 60);
     }
 
-    // Title (multi-line word wrap)
+    // Title (multi-line word wrap with clean plain text & unicode superscripts)
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 22px serif';
-    const title = card.title || 'Untitled Document';
+    const title = richTextToPlainText(card.title || 'Untitled Document');
     const words = title.split(' ');
     let line = '';
     let y = 140;

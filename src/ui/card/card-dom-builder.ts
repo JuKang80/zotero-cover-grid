@@ -1,4 +1,5 @@
 import { PaperCardData, ReadStatus } from '../../types';
+import { renderRichText, richTextToPlainText } from '../../utils/rich-text';
 
 export function cycleReadStatus(current: ReadStatus): ReadStatus {
   switch (current) {
@@ -138,7 +139,7 @@ export function buildPaperCardDOM(
   cardEl.setAttribute('data-item-id', String(card.id));
   cardEl.setAttribute('tabindex', '0');
   cardEl.setAttribute('draggable', 'true');
-  cardEl.title = `${card.title}\n${card.citationText || card.authorText}`;
+  cardEl.title = `${richTextToPlainText(card.title)}\n${card.citationText || card.authorText}`;
   (cardEl as any).__cardData = card;
 
   // Cover image wrapper
@@ -157,7 +158,7 @@ export function buildPaperCardDOM(
 
   const bookTitle = targetDoc.createElementNS(HTML_NS, 'div');
   bookTitle.className = 'book-cover-title';
-  bookTitle.textContent = card.title;
+  renderRichText(bookTitle, card.title);
   bookCoverEl.appendChild(bookTitle);
 
   // If note has body preview, display it like a ruled memo pad
@@ -187,7 +188,7 @@ export function buildPaperCardDOM(
   // Actual PDF Thumbnail Image
   const imgEl = targetDoc.createElementNS(HTML_NS, 'img') as HTMLImageElement;
   imgEl.className = 'card-cover-img';
-  imgEl.alt = card.title;
+  imgEl.alt = richTextToPlainText(card.title);
   imgEl.setAttribute('draggable', 'false');
   imgEl.addEventListener('error', () => {
     coverWrapper.classList.remove('is-loading');
@@ -211,18 +212,18 @@ export function buildPaperCardDOM(
   coverWrapper.appendChild(imgEl);
   cardEl.appendChild(coverWrapper);
 
-  // 1. Uniform 2-Line Fixed Height Paper Title
+  // 1. Uniform 2-Line Fixed Height Paper Title (with rich text formatting support)
   const titleEl = targetDoc.createElementNS(HTML_NS, 'div');
   titleEl.className = 'card-title';
-  titleEl.textContent = card.title;
-  titleEl.title = card.title;
+  renderRichText(titleEl, card.title);
+  titleEl.title = richTextToPlainText(card.title);
   cardEl.appendChild(titleEl);
 
   // 2. Author & Citation (1 line ellipsis, e.g. Kim et al. (2026))
   const authorEl = targetDoc.createElementNS(HTML_NS, 'div');
   authorEl.className = 'card-author';
   authorEl.textContent = card.citationText || card.authorText;
-  authorEl.title = `${card.authorText} (${card.year || 'n.d.'}) - ${card.title}`;
+  authorEl.title = `${card.authorText} (${card.year || 'n.d.'}) - ${richTextToPlainText(card.title)}`;
   cardEl.appendChild(authorEl);
 
   // 3. Badge Container (Reading Status Badge & Native Color Dots)

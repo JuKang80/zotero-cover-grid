@@ -4,6 +4,7 @@ import { WindowCoverGridController } from '../sync/window-controller';
 import { selectItemInZotero, openItemInZotero } from './item-actions';
 import { showPaperCardContextMenu } from './context-menu';
 import { formatFullApa7Bibliography, copyTextToClipboard } from '../utils/apa-formatter';
+import { renderRichText } from '../utils/rich-text';
 import { cycleReadStatus } from './paper-card';
 
 declare const Zotero_Tabs: any;
@@ -238,10 +239,10 @@ export function openCoverGridTab(win: any) {
     inspHeader.appendChild(closeBtn);
     inspector.appendChild(inspHeader);
 
-    // Title
+    // Title (with rich text formatting support)
     const titleEl = doc.createElementNS(HTML_NS, 'div');
     titleEl.className = 'inspector-title';
-    titleEl.textContent = cardItem.title || 'Untitled Document';
+    renderRichText(titleEl, cardItem.title || 'Untitled Document');
     inspector.appendChild(titleEl);
 
     // Authors
