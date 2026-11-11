@@ -193,8 +193,14 @@ export function injectCoverGridUI(win: any) {
     onStatusChange: (item, nextStatus) => {
       controller.syncTagStatus(item, nextStatus);
     },
-    onToggleColorTag: (item, position) => {
-      controller.toggleColorTag(item, position);
+    onToggleColorTag: (item, position, allSelected) => {
+      if (Array.isArray(allSelected) && allSelected.length > 1) {
+        if (allSelected[0].id === item.id) {
+          controller.toggleColorTag(allSelected, position);
+        }
+      } else {
+        controller.toggleColorTag(item, position);
+      }
     },
     onContextMenu: (item, event) => {
       const getTargetCards = (clickedCard: any) => {

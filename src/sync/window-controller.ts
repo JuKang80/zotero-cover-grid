@@ -256,7 +256,7 @@ export class WindowCoverGridController {
     }
   }
 
-  public async toggleColorTag(card: PaperCardData, position: number): Promise<void> {
+  public async toggleColorTag(card: PaperCardData | PaperCardData[], position: number): Promise<void> {
     await this.tagColorSync.toggleColorTag(card, position);
     if (this.filterEngine.getActiveFilterTags().length > 0) {
       this.applyFilter();

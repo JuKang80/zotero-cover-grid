@@ -204,4 +204,68 @@ describe('Keyboard Shortcuts (1~9 Color Tags, r Read Status, Space/Enter Open PD
     expect(mockItem.addTag).toHaveBeenCalledWith('Important', 0);
     expect(card.colorTags).toEqual([{ tag: 'Important', color: '#E53935' }]);
   });
+
+  it('recognizes _Read, _To_Read, _Reading colored tags for badge status and document-level capture keydown', async () => {
+    const itemTags = new Set<string>(['_To_Read']);
+    const mockItem = {
+      id: 301,
+      libraryID: 1,
+      loadDataType: vi.fn(async () => {}),
+      hasTag: (t: string) => itemTags.has(t),
+      addTag: vi.fn((t: string) => itemTags.add(t)),
+      removeTag: vi.fn((t: string) => itemTags.delete(t)),
+      getTags: () => Array.from(itemTags).map((tag) => ({ tag })),
+      saveTx: vi.fn(async () => {})
+    };
+
+    const colorsMap = new Map<string, { color: string; position: number }>([
+      ['_Read', { color: '#5FB236', position: 0 }],
+      ['_To_Read', { color: '#FF6666', position: 1 }],
+      ['_Reading', { color: '#FF8C19', position: 2 }]
+    ]);
+
+    const mockWin = {
+      document,
+      Zotero: {
+        Items: { get: () => mockItem },
+        Tags: {
+          getColorByPosition: (libId: number, pos: number) => {
+            if (pos === 0) return { name: '_Read', color: '#5FB236' };
+            if (pos === 1) return { name: '_To_Read', color: '#FF6666' };
+            if (pos === 2) return { name: '_Reading', color: '#FF8C19' };
+            return false;
+          },
+          getColors: () => colorsMap
+        }
+      }
+    };
+
+    const controller = new WindowCoverGridController(mockWin);
+    const card: PaperCardData = {
+      id: 301,
+      key: 'KEY301',
+      title: 'Reading List Paper',
+      citationText: 'Park (2026)',
+      authorText: 'Park',
+      year: '2026',
+      itemType: 'journalArticle',
+      readStatus: 'unread',
+      hasPdf: true,
+      tags: ['_To_Read'],
+      colorTags: [{ tag: '_To_Read', color: '#FF6666' }]
+    };
+
+    // Pressing '1' adds '_Read' -> badge becomes 'read'
+    await controller.toggleColorTag(card, 1);
+    expect(card.readStatus).toBe('read');
+    expect(card.colorTags?.map((c) => c.tag)).toEqual(['_Read', '_To_Read']);
+
+    // Pressing '1' again removes '_Read' -> badge falls back to 'unread' (_To_Read)
+    await controller.toggleColorTag(card, 1);
+    expect(card.readStatus).toBe('unread');
+
+    // Pressing '3' adds '_Reading' -> badge becomes 'reading'
+    await controller.toggleColorTag(card, 3);
+    expect(card.readStatus).toBe('reading');
+  });
 });

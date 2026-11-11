@@ -57,17 +57,31 @@ export function formatApa7Citation(
 
 /**
  * Extracts ReadStatus from Zotero tags
+ * Recognizes standard tags (#read, read, #reading, reading, #unread, unread)
+ * as well as common Zotero Reading List / Actions & Tags variants (_read, _reading, _to_read, /unread, etc.)
  */
 export function extractReadStatusFromTags(tags: Array<{ tag: string } | string> = []): ReadStatus {
   if (!Array.isArray(tags)) return 'unread';
+  let foundStatus: ReadStatus | null = null;
   for (const t of tags) {
     if (!t) continue;
-    const tagStr = (typeof t === 'string' ? t : (t.tag || '')).toLowerCase().trim();
-    if (tagStr === '#read' || tagStr === 'read') return 'read';
-    if (tagStr === '#reading' || tagStr === 'reading') return 'reading';
-    if (tagStr === '#unread' || tagStr === 'unread') return 'unread';
+    const raw = (typeof t === 'string' ? t : (t.tag || '')).toLowerCase().trim();
+    if (!raw) continue;
+    // Normalize leading symbols (#, _, /, -) and collapse spaces/underscores/hyphens
+    const normalized = raw.replace(/^[#/_-]+/, '').replace(/[\s_-]+/g, '');
+    if (normalized === 'read' || normalized === '읽음' || normalized === '완료') {
+      return 'read';
+    }
+    if (normalized === 'reading' || normalized === 'inprogress' || normalized === '읽는중') {
+      foundStatus = 'reading';
+    } else if (
+      !foundStatus &&
+      (normalized === 'unread' || normalized === 'toread' || normalized === '미독' || normalized === '읽을예정')
+    ) {
+      foundStatus = 'unread';
+    }
   }
-  return 'unread';
+  return foundStatus || 'unread';
 }
 
 /**

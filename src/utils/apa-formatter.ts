@@ -157,7 +157,7 @@ export function extractPaperCardData(item: any): PaperCardData {
             colorTags = tags
               .map((t: any) => {
                 const name = typeof t === 'string' ? t : t?.tag;
-                const entry = name ? zColors.get(name) : null;
+                const entry = name ? zColors.get(name) || zColors.get(String(name).normalize()) : null;
                 return entry?.color ? { tag: name, color: entry.color, position: entry.position ?? 99 } : null;
               })
               .filter(Boolean)
@@ -167,7 +167,9 @@ export function extractPaperCardData(item: any): PaperCardData {
             colorTags = tags
               .map((t: any) => {
                 const name = typeof t === 'string' ? t : t?.tag;
-                const entry = name ? zColors.find((c: any) => c && c.tag === name) : null;
+                const entry = name
+                  ? zColors.find((c: any) => c && (c.tag === name || c.name === name))
+                  : null;
                 return entry?.color ? { tag: name, color: entry.color, position: entry.position ?? 99 } : null;
               })
               .filter(Boolean)

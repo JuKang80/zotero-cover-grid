@@ -84,6 +84,11 @@ export class NotifierHandler {
             }
           }
           if (zItem) {
+            if (typeof zItem.loadDataType === 'function') {
+              try {
+                await zItem.loadDataType('tags');
+              } catch {}
+            }
             const prevThumbnailUrl = allItems[i].coverThumbnailUrl;
             const prevHasPdf = allItems[i].hasPdf;
             allItems[i] = extractPaperCardData(zItem);

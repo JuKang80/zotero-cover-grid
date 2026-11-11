@@ -5,7 +5,7 @@ export interface KeyboardManagerOptions {
   onOpenPdf?: (item: PaperCardData) => void;
   onDeleteItem?: (items: PaperCardData[], forceTrash?: boolean) => void;
   onCopyCitation?: (items: PaperCardData[], asCitation?: boolean) => void;
-  onToggleColorTag?: (item: PaperCardData, position: number) => void;
+  onToggleColorTag?: (item: PaperCardData, position: number, allSelected?: PaperCardData[]) => void;
 }
 
 export interface KeyboardManagerContext {
@@ -151,10 +151,14 @@ export class KeyboardManager {
     }
 
     // 5. Forward number tag keys (0-9) and Quick Copy (Cmd/Ctrl+C) when a card is selected/focused
-    // Matches e.code (Digit0-9, Numpad0-9) as well as e.key to support Korean/international IME layouts
-    const isDigitKey = /^[0-9]$/.test(e.key) || /^(?:Digit|Numpad)([0-9])$/.test(e.code);
-    if (isDigitKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
-      if (hasSelectionOrFocus) {
+    // Matches e.code (Digit0-9, Numpad0-9), e.key, or e.keyCode (48-57, 96-105) to support Korean/international IME layouts
+    const isDigitKey =
+      /^[0-9]$/.test(e.key) ||
+      /^(?:Digit|Numpad)([0-9])$/.test(e.code) ||
+      (typeof e.keyCode === 'number' &&
+        ((e.keyCode >= 48 && e.keyCode <= 57) || (e.keyCode >= 96 && e.keyCode <= 105)));
+    if (isDigitKey && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+      if (hasSelectionOrFocus || items.length > 0) {
         this.handleGridKeyDown(e);
       }
       return;
@@ -301,9 +305,14 @@ export class KeyboardManager {
       case '9':
       default: {
         const numMatch = /^(?:Digit|Numpad)([0-9])$/.exec(e.code) || /^([0-9])$/.exec(e.key);
-        if (numMatch && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        let pos = numMatch ? parseInt(numMatch[1] || numMatch[0], 10) : NaN;
+        if (isNaN(pos) && typeof e.keyCode === 'number') {
+          if (e.keyCode >= 48 && e.keyCode <= 57) pos = e.keyCode - 48;
+          else if (e.keyCode >= 96 && e.keyCode <= 105) pos = e.keyCode - 96;
+        }
+        if (!isNaN(pos) && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
           e.preventDefault();
-          const pos = parseInt(numMatch[1] || numMatch[0], 10);
+          e.stopPropagation();
           const targets = items.filter((it) => selectionModel.selectedIds.has(it.id));
           if (
             targets.length === 0 &&
@@ -311,9 +320,15 @@ export class KeyboardManager {
             items[selectionModel.focusedIndex]
           ) {
             targets.push(items[selectionModel.focusedIndex]);
+          } else if (targets.length === 0 && items.length > 0) {
+            targets.push(items[0]);
           }
           for (const target of targets) {
-            this.context.options.onToggleColorTag?.(target, pos);
+            if (targets.length > 1) {
+              this.context.options.onToggleColorTag?.(target, pos, targets);
+            } else {
+              this.context.options.onToggleColorTag?.(target, pos);
+            }
           }
           break;
         }

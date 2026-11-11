@@ -23,7 +23,7 @@ export interface VirtualScrollerOptions {
   onDeleteItem?: (items: PaperCardData[], forceTrash?: boolean) => void;
   onCopyCitation?: (items: PaperCardData[], asCitation?: boolean) => void;
   onStatusChange?: (item: PaperCardData, nextStatus: ReadStatus) => void;
-  onToggleColorTag?: (item: PaperCardData, position: number) => void;
+  onToggleColorTag?: (item: PaperCardData, position: number, allSelected?: PaperCardData[]) => void;
   onContextMenu?: (item: PaperCardData, event: MouseEvent) => void;
 }
 
@@ -101,7 +101,9 @@ export class VirtualGridScroller {
     }
     const doc = this.container?.ownerDocument;
     if (doc && typeof doc.addEventListener === 'function') {
-      doc.addEventListener('keydown', this.boundDocKeyDown);
+      // Use capture phase (true) so digit shortcuts (0-9) and navigation keys in Grid View
+      // are intercepted BEFORE Zotero's hidden itemTree/tagSelector listeners can swallow them.
+      doc.addEventListener('keydown', this.boundDocKeyDown, true);
     }
   }
 
@@ -286,10 +288,19 @@ export class VirtualGridScroller {
     this.notifySelection();
 
     const el = this.cardMap.get(card.id);
-    try {
-      el?.focus({ preventScroll: true });
-    } catch {
-      el?.focus();
+    const restoreFocus = () => {
+      try {
+        el?.focus({ preventScroll: true });
+      } catch {
+        el?.focus();
+      }
+    };
+    restoreFocus();
+    const raf =
+      this.container?.ownerDocument?.defaultView?.requestAnimationFrame ||
+      (typeof requestAnimationFrame === 'function' ? requestAnimationFrame : null);
+    if (raf) {
+      raf(restoreFocus);
     }
   }
 
@@ -393,6 +404,7 @@ export class VirtualGridScroller {
     }
     const doc = this.container?.ownerDocument;
     if (doc && typeof doc.removeEventListener === 'function') {
+      doc.removeEventListener('keydown', this.boundDocKeyDown, true);
       doc.removeEventListener('keydown', this.boundDocKeyDown);
     }
     this.cardMap.clear();
