@@ -153,7 +153,7 @@ export function buildPaperCardDOM(
 
   const bookHeader = targetDoc.createElementNS(HTML_NS, 'div');
   bookHeader.className = 'book-cover-header';
-  bookHeader.textContent = isNote ? '📝 RESEARCH NOTE' : (card.publicationTitle || formatItemTypeLabel(card.itemType)).toUpperCase();
+  bookHeader.textContent = isNote ? '📝 RESEARCH NOTE' : richTextToPlainText(card.publicationTitle || formatItemTypeLabel(card.itemType)).toUpperCase();
   bookCoverEl.appendChild(bookHeader);
 
   const bookTitle = targetDoc.createElementNS(HTML_NS, 'div');
@@ -172,7 +172,7 @@ export function buildPaperCardDOM(
   const bookFooter = targetDoc.createElementNS(HTML_NS, 'div');
   bookFooter.className = 'book-cover-footer';
   const strippedAuthor = card.citationText ? card.citationText.replace(/\s*\((?:\d{4}|n\.d\.)\)/, '').trim() : '';
-  const firstAuthor = strippedAuthor || card.authorText;
+  const firstAuthor = richTextToPlainText(strippedAuthor || card.authorText);
   bookFooter.textContent = isNote ? (card.year ? `${card.year} · Note` : 'Note') : (card.year ? `${card.year} · ${firstAuthor}` : firstAuthor);
   bookCoverEl.appendChild(bookFooter);
 

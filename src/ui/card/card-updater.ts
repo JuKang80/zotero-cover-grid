@@ -29,13 +29,13 @@ export function updatePaperCardMetadata(cardEl: HTMLElement, card: PaperCardData
   const bookHeader = cardEl.querySelector('.book-cover-header') as HTMLElement | null;
   const isNote = card.itemType === 'note';
   if (bookHeader) {
-    const nextHeader = isNote ? '📝 RESEARCH NOTE' : (card.publicationTitle || formatItemTypeLabel(card.itemType)).toUpperCase();
+    const nextHeader = isNote ? '📝 RESEARCH NOTE' : richTextToPlainText(card.publicationTitle || formatItemTypeLabel(card.itemType)).toUpperCase();
     if (bookHeader.textContent !== nextHeader) bookHeader.textContent = nextHeader;
   }
   const bookFooter = cardEl.querySelector('.book-cover-footer') as HTMLElement | null;
   if (bookFooter) {
     const strippedAuthor = card.citationText ? card.citationText.replace(/\s*\((?:\d{4}|n\.d\.)\)/, '').trim() : '';
-    const firstAuthor = strippedAuthor || card.authorText;
+    const firstAuthor = richTextToPlainText(strippedAuthor || card.authorText);
     const nextFooter = isNote ? (card.year ? `${card.year} · Note` : 'Note') : (card.year ? `${card.year} · ${firstAuthor}` : firstAuthor);
     if (bookFooter.textContent !== nextFooter) bookFooter.textContent = nextFooter;
   }
@@ -98,6 +98,7 @@ export function updatePaperCardColorTags(cardEl: HTMLElement, colorTags?: Array<
       bookCover.setAttribute('data-has-tag-color', 'true');
     } else {
       bookCover.removeAttribute('data-has-tag-color');
+      bookCover.style.removeProperty('--card-tag-color');
     }
   }
 }

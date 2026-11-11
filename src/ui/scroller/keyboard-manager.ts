@@ -268,6 +268,27 @@ export class KeyboardManager {
           this.context.options.onOpenPdf?.(items[selectionModel.focusedIndex]);
         }
         break;
+      case 'Delete':
+      case 'Backspace': {
+        e.preventDefault();
+        const selected = items.filter((it) => selectionModel.selectedIds.has(it.id));
+        if (
+          selected.length === 0 &&
+          selectionModel.focusedIndex >= 0 &&
+          items[selectionModel.focusedIndex]
+        ) {
+          selected.push(items[selectionModel.focusedIndex]);
+        }
+        if (selected.length > 0) {
+          const forceTrash = Boolean(e.metaKey || e.ctrlKey || e.shiftKey);
+          if (forceTrash) {
+            this.context.options.onDeleteItem?.(selected, true);
+          } else {
+            this.context.options.onDeleteItem?.(selected);
+          }
+        }
+        break;
+      }
       case '0':
       case '1':
       case '2':
@@ -295,27 +316,6 @@ export class KeyboardManager {
             this.context.options.onToggleColorTag?.(target, pos);
           }
           break;
-        }
-        break;
-      }
-      case 'Delete':
-      case 'Backspace': {
-        e.preventDefault();
-        const selected = items.filter((it) => selectionModel.selectedIds.has(it.id));
-        if (
-          selected.length === 0 &&
-          selectionModel.focusedIndex >= 0 &&
-          items[selectionModel.focusedIndex]
-        ) {
-          selected.push(items[selectionModel.focusedIndex]);
-        }
-        if (selected.length > 0) {
-          const forceTrash = Boolean(e.metaKey || e.ctrlKey || e.shiftKey);
-          if (forceTrash) {
-            this.context.options.onDeleteItem?.(selected, true);
-          } else {
-            this.context.options.onDeleteItem?.(selected);
-          }
         }
         break;
       }

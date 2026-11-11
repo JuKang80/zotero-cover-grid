@@ -36,7 +36,7 @@ export function formatApa7Citation(
 
   if (authorNames.length === 0) {
     if (fallbackTitle && String(fallbackTitle).trim() && String(fallbackTitle).trim() !== 'Untitled') {
-      const cleanTitle = String(fallbackTitle).replace(/<[^>]*>/g, '').trim();
+      const cleanTitle = richTextToPlainText(String(fallbackTitle)).trim();
       const shortTitle = cleanTitle.length > 28 ? `${cleanTitle.slice(0, 28).trim()}…` : cleanTitle;
       return `${shortTitle} (${safeYear})`;
     }
