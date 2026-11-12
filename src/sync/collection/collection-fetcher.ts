@@ -341,7 +341,7 @@ export class CollectionFetcher {
           for (const it of collected.items) allColObjects.push(it);
 
           // Supplement with treeRow.getItems() if treeRow matches this collection (ensures 100% parity with Zotero's native list view)
-          if (treeRow && (treeRow.ref?.id === col.id || treeRow.id === col.id) && typeof treeRow.getItems === 'function') {
+          if (treeRow && (treeRow.ref?.id === col.id || treeRow.id === col.id || treeRow.id === `C${col.id}`) && typeof treeRow.getItems === 'function') {
             try {
               let rowItems = treeRow.getItems({ unfiltered: true });
               if (rowItems instanceof Promise) rowItems = await rowItems;
@@ -358,6 +358,33 @@ export class CollectionFetcher {
               }
             } catch {}
           }
+
+          // Supplement with active itemsView top-level rows when itemsView is currently bound to this collection
+          try {
+            const iv = zp?.itemsView;
+            const ivTreeRows = iv?.collectionTreeRows || iv?.rowProvider?.collectionTreeRows;
+            const isIvMatchingCol =
+              !Array.isArray(ivTreeRows) ||
+              ivTreeRows.length === 0 ||
+              ivTreeRows.some((r: any) => r?.ref?.id === col.id || r?.id === col.id || r?.id === `C${col.id}`);
+            if (isIvMatchingCol && iv) {
+              const rpRows = iv.rowProvider?._rows || iv.rowProvider?.rows || iv._rows;
+              if (Array.isArray(rpRows)) {
+                for (const row of rpRows) {
+                  if (!row || row.isObjectRow === false) continue;
+                  if (row.level != null && row.level > 0) continue; // Only top-level rows in tree
+                  const refObj = row.ref || row;
+                  const rid = refObj?.id || row.id || row.itemID;
+                  if (rid != null && !isNaN(Number(rid))) {
+                    allColItemIDs.add(Number(rid));
+                  }
+                  if (typeof refObj === 'object' && refObj !== null) {
+                    allColObjects.push(refObj);
+                  }
+                }
+              }
+            }
+          } catch {}
 
           // Fallback: Zotero.Search with 'collectionID' or 'collection' condition
           if (collected.ids.length === 0 && collected.items.length === 0 && z?.Search && col.id != null) {

@@ -23,12 +23,32 @@ function startReloadWatcher(pluginID: string) {
 
   const triggerPath = '/tmp/zotero-cover-grid-reload.trigger';
 
+  // Initialize lastTriggerMtime to the current file mtime on startup so we don't enter an infinite reload loop!
+  try {
+    if (typeof (globalThis as any).IOUtils !== 'undefined') {
+      const IOUtils = (globalThis as any).IOUtils;
+      IOUtils.exists(triggerPath).then((exists: boolean) => {
+        if (exists) {
+          return IOUtils.stat(triggerPath).then((stat: any) => {
+            if (lastTriggerMtime === 0 && stat?.lastModified) {
+              lastTriggerMtime = stat.lastModified;
+            }
+          });
+        }
+      }).catch(() => {});
+    }
+  } catch {}
+
   reloadWatcherTimer = setInterval(async () => {
     try {
       if (typeof (globalThis as any).IOUtils !== 'undefined') {
         const IOUtils = (globalThis as any).IOUtils;
         if (await IOUtils.exists(triggerPath)) {
           const stat = await IOUtils.stat(triggerPath);
+          if (lastTriggerMtime === 0) {
+            lastTriggerMtime = stat.lastModified;
+            return;
+          }
           if (stat.lastModified > lastTriggerMtime) {
             lastTriggerMtime = stat.lastModified;
             if (typeof Zotero !== 'undefined') {
@@ -45,37 +65,38 @@ function startReloadWatcher(pluginID: string) {
               const { AddonManager } = (globalThis as any).ChromeUtils.importESModule(
                 'resource://gre/modules/AddonManager.sys.mjs'
               );
-              // If local build XPI exists, sync it into Zotero's extensions directory before reloading
+              // 1. Prefer AddonManager.installTemporaryAddon on build/addon directory so Zotero's
+              //    _addonObserver.onInstalled unloads the old sandbox scope and loads the new bootstrap.js
               try {
-                const localXpi = '/Users/user/workspace/zotero-cover-grid/build/zotero-cover-grid.xpi';
-                const PathUtils = (globalThis as any).PathUtils;
-                const profDir =
-                  (typeof Zotero !== 'undefined' && Zotero.Profile?.dir) ||
-                  (PathUtils && PathUtils.profileDir);
-                if (profDir && (await IOUtils.exists(localXpi))) {
-                  const destXpi =
-                    PathUtils && typeof PathUtils.join === 'function'
-                      ? PathUtils.join(profDir, 'extensions', `${pluginID}.xpi`)
-                      : `${profDir}/extensions/${pluginID}.xpi`;
-                  if (await IOUtils.exists(destXpi)) {
-                    await IOUtils.copy(localXpi, destXpi);
+                if (typeof AddonManager.installTemporaryAddon === 'function' && typeof Cc !== 'undefined' && typeof Ci !== 'undefined') {
+                  const addonDir = Cc['@mozilla.org/file/local;1'].createInstance(Ci.nsIFile);
+                  addonDir.initWithPath('/Users/user/workspace/zotero-cover-grid/build/addon');
+                  if (addonDir.exists()) {
+                    await AddonManager.installTemporaryAddon(addonDir);
+                    return;
                   }
                 }
               } catch {
-                // Ignore copy error if directory-linked
+                // Fall through to reload / disable+enable
               }
-              if (typeof Services !== 'undefined') {
-                try {
-                  Services.obs?.notifyObservers(null, 'startupcache-invalidate');
-                } catch {}
-              }
+
+              // 2. Fallback: re-evaluate bootstrap.js directly into the current sandbox scope and re-run startup
               const addon = await AddonManager.getAddonByID(pluginID);
               if (addon) {
-                if (typeof addon.reload === 'function') {
-                  await addon.reload();
-                } else {
+                try {
                   await addon.disable();
+                  if (typeof Services !== 'undefined' && Services.scriptloader && addon.getResourceURI) {
+                    const scriptUri = `${addon.getResourceURI().spec}bootstrap.js?t=${Date.now()}`;
+                    Services.scriptloader.loadSubScriptWithOptions(scriptUri, {
+                      target: globalThis,
+                      ignoreCache: true
+                    });
+                  }
                   await addon.enable();
+                } catch {
+                  if (typeof addon.reload === 'function') {
+                    await addon.reload();
+                  }
                 }
               }
             }
