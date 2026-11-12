@@ -81,6 +81,9 @@ export function attachCardGestureHandlers(
       suppressNextClick = false;
       return;
     }
+    try {
+      cardEl.focus?.({ preventScroll: true });
+    } catch {}
     handlers.onClick?.((cardEl as any).__cardData || card, e);
   });
 

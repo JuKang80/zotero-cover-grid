@@ -394,9 +394,17 @@ export class TagColorSync {
         }
       }
 
-      // 2. Persist to Zotero database with Undo History and Transaction Safety (100% native parity)
+      // 2. Persist to Zotero database with 100% native parity
       const zItems = resolvedPairs.map((p) => p.zItem);
-      if (typeof z.DB?.executeTransaction === 'function') {
+      let nativeToggled = false;
+      if (typeof z.Tags.toggleItemsListTags === 'function') {
+        try {
+          await z.Tags.toggleItemsListTags(zItems, targetTag);
+          nativeToggled = true;
+        } catch {}
+      }
+
+      if (!nativeToggled && typeof z.DB?.executeTransaction === 'function') {
         try {
           await z.DB.executeTransaction(async () => {
             try {
@@ -432,7 +440,7 @@ export class TagColorSync {
             } catch {}
           }
         }
-      } else {
+      } else if (!nativeToggled) {
         // Fallback for tests/environments without Zotero.DB
         for (const item of zItems) {
           try {

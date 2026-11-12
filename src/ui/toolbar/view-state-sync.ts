@@ -92,21 +92,35 @@ export function syncGridToList(options: SyncToListOptions): void {
   } catch {}
 
   const zp = win.ZoteroPane || (typeof ZoteroPane !== 'undefined' ? ZoteroPane : null);
+  const iv = zp?.itemsView;
+
+  // 1. Immediately reset any corrupted scroll offsets from when itemsTree was hidden
+  try {
+    const rowCount = typeof iv?.rowCount === 'number' ? iv.rowCount : 0;
+    const treeHeight = itemsTree.clientHeight || itemsTree.offsetHeight || 500;
+    // If list is small or rowCount is within single screen, unconditionally reset scrollTop = 0
+    if (rowCount <= 20 || (rowCount > 0 && rowCount * 28 <= treeHeight)) {
+      itemsTree.scrollTop = 0;
+      if (itemsTree.scrollContainer) itemsTree.scrollContainer.scrollTop = 0;
+      if (iv?.tree?._scrollContainer) iv.tree._scrollContainer.scrollTop = 0;
+    }
+  } catch {}
+
   const instantPaintTree = () => {
     try {
       void itemsTree.offsetHeight;
       if (typeof zp?.updateLayoutConstraints === 'function') {
         zp.updateLayoutConstraints();
       }
-      const iv = zp?.itemsView;
       if (iv?.tree) {
         try { iv.tree.rerender?.(); } catch {}
+        try { iv.tree.refresh?.(); } catch {}
         try { iv.tree._jsWindow?.render?.(); } catch {}
       }
       if (itemsTree.treeBoxObject && typeof itemsTree.treeBoxObject.invalidate === 'function') {
         itemsTree.treeBoxObject.invalidate();
       }
-      // Restore selection and scroll position in native list view
+      // Restore selection in native list view without forcing raw scrollToRow
       if (gridSelectedIds.length > 0) {
         if (gridSelectedIds.length > 1 && typeof iv?.selectItems === 'function') {
           try { iv.selectItems(gridSelectedIds); } catch {}
@@ -121,7 +135,6 @@ export function syncGridToList(options: SyncToListOptions): void {
             const rowIdx = iv.getRowIndexByID(gridSelectedIds[0]);
             if (typeof rowIdx === 'number' && rowIdx >= 0) {
               iv.ensureRowIsVisible?.(rowIdx);
-              iv.tree?.scrollToRow?.(rowIdx);
             }
           } catch {}
         }

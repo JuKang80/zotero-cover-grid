@@ -44,6 +44,21 @@ export async function getCollectionItemsRecursively(col: any, z?: any): Promise<
       }
     } catch {}
 
+    // Direct DB query via collectionItems table (100% native SQLite truth)
+    if (targetCol?.id != null && typeof z?.DB?.columnQueryAsync === 'function') {
+      try {
+        const dbIds = await z.DB.columnQueryAsync(
+          'SELECT itemID FROM collectionItems WHERE collectionID = ?',
+          [Number(targetCol.id)]
+        );
+        if (Array.isArray(dbIds)) {
+          for (const did of dbIds) {
+            if (did != null && !isNaN(Number(did))) itemIDs.add(Number(did));
+          }
+        }
+      } catch {}
+    }
+
     if (typeof targetCol.getChildItems === 'function') {
       try {
         let direct = targetCol.getChildItems(true);
@@ -59,21 +74,21 @@ export async function getCollectionItemsRecursively(col: any, z?: any): Promise<
             }
           }
         }
-      } catch {
-        try {
-          let directObjs = targetCol.getChildItems(false);
-          if (directObjs instanceof Promise) directObjs = await directObjs;
-          if (Array.isArray(directObjs)) {
-            for (const it of directObjs) {
-              if (typeof it === 'object' && it !== null) {
-                itemsList.push(it);
-                const id = it.id || it.ref?.id || it.itemID;
-                if (id) itemIDs.add(Number(id));
-              }
+      } catch {}
+
+      try {
+        let directObjs = targetCol.getChildItems(false);
+        if (directObjs instanceof Promise) directObjs = await directObjs;
+        if (Array.isArray(directObjs)) {
+          for (const it of directObjs) {
+            if (typeof it === 'object' && it !== null) {
+              itemsList.push(it);
+              const id = it.id || it.ref?.id || it.itemID;
+              if (id) itemIDs.add(Number(id));
             }
           }
-        } catch {}
-      }
+        }
+      } catch {}
     }
   }
 
@@ -384,27 +399,41 @@ export class CollectionFetcher {
             } catch {}
           }
 
-          // Supplement with active itemsView top-level rows when itemsView is currently bound to this collection
+          // Supplement with active itemsView items when itemsView is currently bound to this collection
           try {
             const iv = zp?.itemsView;
-            const ivTreeRows = iv?.collectionTreeRows || iv?.rowProvider?.collectionTreeRows;
-            const isIvMatchingCol =
-              !Array.isArray(ivTreeRows) ||
-              ivTreeRows.length === 0 ||
-              ivTreeRows.some((r: any) => r?.ref?.id === col.id || r?.id === col.id || r?.id === `C${col.id}`);
-            if (isIvMatchingCol && iv) {
-              const rpRows = iv.rowProvider?._rows || iv.rowProvider?.rows || iv._rows;
-              if (Array.isArray(rpRows)) {
-                for (const row of rpRows) {
-                  if (!row || row.isObjectRow === false) continue;
-                  if (row.level != null && row.level > 0) continue; // Only top-level rows in tree
-                  const refObj = row.ref || row;
-                  const rid = refObj?.id || row.id || row.itemID;
-                  if (rid != null && !isNaN(Number(rid))) {
-                    allColItemIDs.add(Number(rid));
+            if (iv) {
+              if (typeof iv.getSortedItems === 'function') {
+                const sorted = iv.getSortedItems();
+                if (Array.isArray(sorted) && sorted.length > 0) {
+                  for (const it of sorted) {
+                    if (it && typeof it === 'object') {
+                      allColObjects.push(it);
+                      const id = it.id || it.ref?.id || it.itemID;
+                      if (id) allColItemIDs.add(Number(id));
+                    }
                   }
-                  if (typeof refObj === 'object' && refObj !== null) {
-                    allColObjects.push(refObj);
+                }
+              }
+              if (Array.isArray(iv.rowProvider?.items)) {
+                for (const it of iv.rowProvider.items) {
+                  if (it && typeof it === 'object') {
+                    allColObjects.push(it);
+                    const id = it.id || it.ref?.id || it.itemID;
+                    if (id) allColItemIDs.add(Number(id));
+                  }
+                }
+              }
+              if (typeof iv.rowCount === 'number' && typeof iv.getRow === 'function') {
+                for (let i = 0; i < iv.rowCount; i++) {
+                  const row = iv.getRow(i);
+                  if (row && (row.level == null || row.level === 0)) {
+                    const refObj = row.ref || row;
+                    if (refObj && typeof refObj === 'object') {
+                      allColObjects.push(refObj);
+                      const id = refObj.id || row.id || row.itemID;
+                      if (id) allColItemIDs.add(Number(id));
+                    }
                   }
                 }
               }
@@ -432,41 +461,38 @@ export class CollectionFetcher {
           }
         }
 
-        if (allColObjects.length > 0 && allColObjects.length >= allColItemIDs.size) {
-          const seenObjIds = new Set<number>();
-          const mergedObjs: any[] = [];
-          for (const obj of allColObjects) {
-            const oid = obj?.id || obj?.ref?.id || obj?.itemID;
-            if (oid != null && !isNaN(Number(oid))) {
-              if (!seenObjIds.has(Number(oid))) {
-                seenObjIds.add(Number(oid));
-                mergedObjs.push(obj);
-              }
-            } else {
-              mergedObjs.push(obj);
-            }
+        // Merge all collected objects with all collected item IDs without discarding objects
+        const objMap = new Map<number, any>();
+        for (const obj of allColObjects) {
+          const oid = obj?.id || obj?.ref?.id || obj?.itemID;
+          if (oid != null && !isNaN(Number(oid))) {
+            objMap.set(Number(oid), obj);
           }
-          for (const id of allColItemIDs) {
-            if (!seenObjIds.has(id)) {
-              seenObjIds.add(id);
-              mergedObjs.push(id);
-            }
-          }
-          rawItems = mergedObjs;
-        } else if (allColItemIDs.size > 0) {
-          const idList = Array.from(allColItemIDs);
-          if (z?.Items?.getAsync) {
-            rawItems = await z.Items.getAsync(idList);
-          } else if (z?.Items?.get) {
-            rawItems = idList.map((id) => {
-              try { return z.Items.get(id); } catch { return null; }
-            }).filter(Boolean);
-          } else {
-            rawItems = idList;
-          }
-        } else {
-          rawItems = [];
         }
+        const missingIds = Array.from(allColItemIDs).filter((id) => !objMap.has(id));
+        if (missingIds.length > 0) {
+          if (z?.Items?.getAsync) {
+            try {
+              const loaded = await z.Items.getAsync(missingIds);
+              if (Array.isArray(loaded)) {
+                for (const it of loaded) {
+                  if (it?.id != null) objMap.set(Number(it.id), it);
+                }
+              }
+            } catch {}
+          }
+          if (z?.Items?.get) {
+            for (const mid of missingIds) {
+              if (!objMap.has(mid)) {
+                try {
+                  const it = z.Items.get(mid);
+                  if (it && typeof it === 'object') objMap.set(mid, it);
+                } catch {}
+              }
+            }
+          }
+        }
+        rawItems = Array.from(objMap.values());
       }
 
       // Step B: Priority 2 - Special treeRow handling (Search, Trash, Unfiled, Duplicates, Virtual rows)
@@ -787,9 +813,11 @@ export class CollectionFetcher {
 
       // Regular items (journalArticle, book, document, etc.)
       if (typeof it.isRegularItem === 'function') {
-        return it.isRegularItem();
+        if (it.isRegularItem()) return true;
       }
 
+      // If it is in candidateItems and not a child of another item in this collection, display it!
+      if (hasParentInList) return false;
       return Boolean(it.id);
     });
 
