@@ -39,6 +39,27 @@ export class TagColorSync {
     return normalized === 'unread' || normalized === 'toread';
   }
 
+  /**
+   * Zotero.Items.get(id) returns `false` (does NOT throw) when the item is not in the
+   * in-memory cache, so fall back to getAsync on any falsy result as well as on throw.
+   */
+  private async resolveZoteroItem(z: any, id: number): Promise<any> {
+    let zItem: any = null;
+    try {
+      zItem = z.Items.get?.(id);
+    } catch {
+      zItem = null;
+    }
+    if ((!zItem || typeof zItem !== 'object') && typeof z.Items.getAsync === 'function') {
+      try {
+        zItem = await z.Items.getAsync(id);
+      } catch {
+        zItem = null;
+      }
+    }
+    return zItem && typeof zItem === 'object' ? zItem : null;
+  }
+
   public getNormalizedColorTags(libraryID?: number): Array<{ tag: string; color: string; position: number }> {
     const z = this.win?.Zotero || (typeof Zotero !== 'undefined' ? Zotero : null);
     if (!z?.Tags) return [];
@@ -94,14 +115,7 @@ export class TagColorSync {
     const z = this.win?.Zotero || (typeof Zotero !== 'undefined' ? Zotero : null);
     if (!z?.Items) return;
     try {
-      let zItem: any = null;
-      try {
-        zItem = z.Items.get(card.id);
-      } catch {
-        if (z.Items.getAsync) {
-          zItem = await z.Items.getAsync(card.id);
-        }
-      }
+      const zItem = await this.resolveZoteroItem(z, card.id);
       if (!zItem) return;
 
       if (typeof zItem.loadDataType === 'function') {
@@ -201,14 +215,7 @@ export class TagColorSync {
     try {
       const resolvedPairs: Array<{ card: PaperCardData; zItem: any }> = [];
       for (const c of cards) {
-        let zItem: any = null;
-        try {
-          zItem = z.Items.get(c.id);
-        } catch {
-          if (z.Items.getAsync) {
-            zItem = await z.Items.getAsync(c.id);
-          }
-        }
+        const zItem = await this.resolveZoteroItem(z, c.id);
         if (!zItem) continue;
         if (typeof zItem.loadDataType === 'function') {
           try {
