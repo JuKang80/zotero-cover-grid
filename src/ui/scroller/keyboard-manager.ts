@@ -322,13 +322,14 @@ export class KeyboardManager {
             targets.push(items[selectionModel.focusedIndex]);
           } else if (targets.length === 0 && items.length > 0) {
             targets.push(items[0]);
+            selectionModel.selectSingle(0, items[0].id);
+            this.context.updateSelectionClasses();
+            this.context.notifySelection();
           }
-          for (const target of targets) {
-            if (targets.length > 1) {
-              this.context.options.onToggleColorTag?.(target, pos, targets);
-            } else {
-              this.context.options.onToggleColorTag?.(target, pos);
-            }
+          if (targets.length > 1) {
+            this.context.options.onToggleColorTag?.(targets[0], pos, targets);
+          } else if (targets.length === 1) {
+            this.context.options.onToggleColorTag?.(targets[0], pos);
           }
           break;
         }

@@ -225,16 +225,27 @@ export class TagColorSync {
 
       const firstItem = resolvedPairs[0].zItem;
       const zp = this.win?.ZoteroPane || (typeof ZoteroPane !== 'undefined' ? ZoteroPane : null);
-      const libId =
-        firstItem.libraryID || zp?.getSelectedLibraryID?.() || z?.Libraries?.userLibraryID || 1;
+      const rawLibId = firstItem?.libraryID || zp?.getSelectedLibraryID?.() || z?.Libraries?.userLibraryID || 1;
+      const libId = Number(rawLibId) > 0 ? Number(rawLibId) : 1;
       const rawColors = typeof z.Tags.getColors === 'function' ? z.Tags.getColors(libId) : null;
       const colorList = this.getNormalizedColorTags(libId);
 
+      // Pre-load tags data type in batch to ensure hasTag() never throws in Zotero
+      if (z?.Items?.loadDataTypes) {
+        try {
+          await z.Items.loadDataTypes(
+            resolvedPairs.map((p) => p.zItem),
+            ['tags', 'primaryData']
+          );
+        } catch {}
+      }
+
       // Position 0: Zotero shortcut '0' removes all colored tags from the selected items
       if (position === 0) {
+        const zItems = resolvedPairs.map((p) => p.zItem);
         if (typeof z.Tags.removeColoredTagsFromItems === 'function') {
           try {
-            await z.Tags.removeColoredTagsFromItems(resolvedPairs.map((p) => p.zItem));
+            await z.Tags.removeColoredTagsFromItems(zItems);
           } catch {}
         }
 
@@ -245,8 +256,12 @@ export class TagColorSync {
           ]);
           card.colorTags = [];
           for (const tagName of toRemove) {
-            if (typeof zItem.hasTag === 'function' ? zItem.hasTag(tagName) : true) {
-              zItem.removeTag?.(tagName);
+            try {
+              if (typeof zItem.hasTag === 'function' ? zItem.hasTag(tagName) : true) {
+                zItem.removeTag?.(tagName);
+              }
+            } catch {
+              try { zItem.removeTag?.(tagName); } catch {}
             }
           }
           const remainingTags = (zItem.getTags?.() || []).filter((t: any) => {
@@ -311,20 +326,28 @@ export class TagColorSync {
 
       // Native Zotero parity: if ANY selected item has targetTag, remove from all selected items; otherwise add to all
       const isRemoving = resolvedPairs.some(({ card, zItem }) => {
-        const existingItemTags: Array<{ tag: string } | string> = zItem.getTags?.() || [];
-        const hadTagInZotero =
-          (typeof zItem.hasTag === 'function' && zItem.hasTag(targetTag!)) ||
-          existingItemTags.some((t: any) => (typeof t === 'string' ? t : t?.tag) === targetTag);
+        let hadTagInZotero = false;
+        try {
+          if (typeof zItem.hasTag === 'function') {
+            hadTagInZotero = zItem.hasTag(targetTag!);
+          }
+        } catch {}
+        if (!hadTagInZotero) {
+          const existingItemTags: Array<{ tag: string } | string> = zItem.getTags?.() || [];
+          hadTagInZotero = existingItemTags.some(
+            (t: any) => (typeof t === 'string' ? t : t?.tag) === targetTag
+          );
+        }
         const hadColorOnCard = (card.colorTags || []).some(
           (c) => c.tag === targetTag || (targetColorHex && c.color === targetColorHex)
         );
         return hadTagInZotero || hadColorOnCard;
       });
 
+      // 1. Instant local in-memory & DOM reflection for 0ms visual feedback
       for (const { card, zItem } of resolvedPairs) {
         const existingItemTags: Array<{ tag: string } | string> = zItem.getTags?.() || [];
 
-        // 1. Instant local in-memory reflection for 0ms visual feedback
         if (!card.colorTags) card.colorTags = [];
         if (isRemoving) {
           card.colorTags = card.colorTags.filter(
@@ -362,22 +385,60 @@ export class TagColorSync {
           updatePaperCardColorTags(cardEl, card.colorTags);
           updatePaperCardBadge(cardEl, card.readStatus);
         }
+      }
 
-        // 2. Persist to Zotero database with type 0 (manual user tag)
-        if (isRemoving) {
-          zItem.removeTag?.(targetTag);
-        } else {
-          zItem.addTag?.(targetTag, 0);
+      // 2. Persist to Zotero database with Undo History and Transaction Safety (100% native parity)
+      const zItems = resolvedPairs.map((p) => p.zItem);
+      if (typeof z.DB?.executeTransaction === 'function') {
+        try {
+          await z.DB.executeTransaction(async () => {
+            try {
+              if (z.UndoHistory?.stageAction) {
+                z.UndoHistory.stageAction(
+                  isRemoving ? 'undo-action-remove-tag' : 'undo-action-add-tag',
+                  { count: zItems.length }
+                );
+              }
+            } catch {}
+
+            for (const item of zItems) {
+              if (isRemoving) {
+                item.removeTag?.(targetTag!);
+              } else {
+                item.addTag?.(targetTag!, 0);
+              }
+              if (typeof item.save === 'function') {
+                await item.save();
+              } else if (typeof item.saveTx === 'function') {
+                await item.saveTx();
+              }
+            }
+          });
+        } catch {
+          // Fallback if transaction fails
+          for (const item of zItems) {
+            try {
+              if (isRemoving) item.removeTag?.(targetTag!);
+              else item.addTag?.(targetTag!, 0);
+              if (typeof item.saveTx === 'function') await item.saveTx();
+              else if (typeof item.save === 'function') await item.save();
+            } catch {}
+          }
         }
-
-        if (typeof zItem.saveTx === 'function') {
-          await zItem.saveTx();
-        } else if (typeof zItem.save === 'function') {
-          await zItem.save();
+      } else {
+        // Fallback for tests/environments without Zotero.DB
+        for (const item of zItems) {
+          try {
+            if (isRemoving) item.removeTag?.(targetTag!);
+            else item.addTag?.(targetTag!, 0);
+            if (typeof item.saveTx === 'function') await item.saveTx();
+            else if (typeof item.save === 'function') await item.save();
+          } catch {}
         }
       }
-    } catch {
-      // Ignore
+    } catch (err) {
+      const z = this.win?.Zotero || (typeof Zotero !== 'undefined' ? Zotero : null);
+      z?.logError?.(err);
     }
   }
 }

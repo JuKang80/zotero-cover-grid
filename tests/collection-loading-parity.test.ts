@@ -409,4 +409,75 @@ describe('CollectionFetcher & Hidden Table Parity', () => {
     expect(legacyCard?.title).toBe('Learning and memorization of classifications');
     expect(legacyCard?.hasPdf).toBe(true);
   });
+
+  it('reliably displays legacy paper when parentKey or parentID points to a deleted/missing parent not in the collection', async () => {
+    // Item has dangling parentID 99999 (not in collection)
+    const orphanedPdf = {
+      id: 3001,
+      key: 'ORPHAN1',
+      parentItemID: 99999,
+      parentKey: 'DANGLING_KEY',
+      isRegularItem: () => false,
+      isAttachment: () => true,
+      isFileAttachment: () => true,
+      isAnnotation: () => false,
+      isNote: () => false,
+      isTopLevelItem: () => false, // Zotero returns false due to parentKey
+      attachmentFilename: 'Learning and memorization of classifications.pdf',
+      getDisplayTitle: () => 'Learning and memorization of classifications',
+      getField: (f: string) => (f === 'title' ? 'Learning and memorization of classifications' : ''),
+      getCreators: () => [],
+      getTags: () => []
+    };
+
+    const regularItem = {
+      id: 3002,
+      key: 'REG_3002',
+      isRegularItem: () => true,
+      isAttachment: () => false,
+      isAnnotation: () => false,
+      isNote: () => false,
+      isTopLevelItem: () => true,
+      getField: (f: string) => (f === 'title' ? 'Movie viewing elicits rich and reliable brain state dynamics' : '2020'),
+      getCreators: () => [{ lastName: 'Meer' }],
+      getTags: () => []
+    };
+
+    const allMap = new Map<number, any>([
+      [3001, orphanedPdf],
+      [3002, regularItem]
+    ]);
+
+    const mockCol = {
+      id: 77,
+      name: 'study',
+      libraryID: 1,
+      _childItems: new Set([3001, 3002]),
+      getChildItems: vi.fn((asIDs) => (asIDs ? [3001, 3002] : [orphanedPdf, regularItem]))
+    };
+
+    const mockWin = {
+      ZoteroPane: {
+        itemsView: { rowCount: 0, getSortedItems: vi.fn(() => []) },
+        getSelectedCollections: vi.fn(() => [mockCol]),
+        getSelectedCollection: vi.fn(() => mockCol)
+      },
+      Zotero: {
+        Prefs: { get: vi.fn(() => true) },
+        Items: {
+          getAsync: vi.fn(async (ids: number[]) => ids.map((id) => allMap.get(id)).filter(Boolean)),
+          get: vi.fn((id: number) => allMap.get(id))
+        }
+      }
+    };
+
+    const fetcher = new CollectionFetcher(mockWin);
+    const result = await fetcher.fetchCollectionItems(new AbortController().signal);
+
+    expect(result.length).toBe(2);
+    const orphanCard = result.find((r) => r.id === 3001);
+    expect(orphanCard).toBeDefined();
+    expect(orphanCard?.title).toBe('Learning and memorization of classifications');
+    expect(orphanCard?.hasPdf).toBe(true);
+  });
 });

@@ -341,7 +341,13 @@ export class CollectionFetcher {
           for (const it of collected.items) allColObjects.push(it);
 
           // Supplement with treeRow.getItems() if treeRow matches this collection (ensures 100% parity with Zotero's native list view)
-          if (treeRow && (treeRow.ref?.id === col.id || treeRow.id === col.id || treeRow.id === `C${col.id}`) && typeof treeRow.getItems === 'function') {
+          const isTreeRowMatching =
+            treeRow &&
+            (String(treeRow.ref?.id) === String(col.id) ||
+              String(treeRow.id) === String(col.id) ||
+              String(treeRow.id) === `C${col.id}` ||
+              treeRow.name === col.name);
+          if (isTreeRowMatching && typeof treeRow.getItems === 'function') {
             try {
               let rowItems = treeRow.getItems({ unfiltered: true });
               if (rowItems instanceof Promise) rowItems = await rowItems;
@@ -353,6 +359,25 @@ export class CollectionFetcher {
                     allColObjects.push(ri);
                   } else if (ri != null && typeof ri !== 'boolean' && !isNaN(Number(ri))) {
                     allColItemIDs.add(Number(ri));
+                  }
+                }
+              }
+            } catch {}
+          }
+
+          // Supplement with ZoteroPane.getUnfilteredItems() when available (100% native parity)
+          if (typeof zp?.getUnfilteredItems === 'function') {
+            try {
+              let unfiltItems = zp.getUnfilteredItems();
+              if (unfiltItems instanceof Promise) unfiltItems = await unfiltItems;
+              if (Array.isArray(unfiltItems)) {
+                for (const ui of unfiltItems) {
+                  if (typeof ui === 'object' && ui !== null) {
+                    const uid = ui.id || ui.ref?.id || ui.itemID;
+                    if (uid != null && !isNaN(Number(uid))) allColItemIDs.add(Number(uid));
+                    allColObjects.push(ui);
+                  } else if (ui != null && typeof ui !== 'boolean' && !isNaN(Number(ui))) {
+                    allColItemIDs.add(Number(ui));
                   }
                 }
               }
@@ -715,30 +740,57 @@ export class CollectionFetcher {
 
     if (signal.aborted) return [];
 
+    // Build index of candidate item IDs to distinguish true child attachments from standalone items
+    const candidateIdSet = new Set<number>();
+    for (const c of candidateItems) {
+      const cid = c?.id != null ? Number(c.id) : (c?.itemID != null ? Number(c.itemID) : null);
+      if (cid != null && !isNaN(cid)) candidateIdSet.add(cid);
+    }
+
     // Filter to valid displayable paper items, standalone notes, and standalone attachments
     const validItems = candidateItems.filter((it: any) => {
       if (!it) return false;
-      let isTopLevel = true;
-      try {
-        isTopLevel =
-          typeof it.isTopLevelItem === 'function'
-            ? it.isTopLevelItem()
-            : (!it.parentItemID && !it.parentItem && !it.parentID && !it.parentKey);
-      } catch {
-        isTopLevel = !it.parentItemID && !it.parentID && !it.parentKey;
-      }
-      if (typeof it.isAttachment === 'function' && it.isAttachment()) {
-        // Child attachments (belonging to a parent) are excluded, but top-level standalone PDF attachments are displayed
-        return Boolean(it.id) && isTopLevel;
-      }
+
+      // Annotations are never standalone paper cards
       if (typeof it.isAnnotation === 'function' && it.isAnnotation()) return false;
-      if (typeof it.isNote === 'function' && it.isNote()) {
-        return Boolean(it.id) && isTopLevel;
+
+      // Check if this item is a true child of another item already present in candidate items
+      let parentId: number | null = null;
+      try {
+        if (it.parentItemID != null && !isNaN(Number(it.parentItemID))) {
+          parentId = Number(it.parentItemID);
+        } else if (it.parentID != null && !isNaN(Number(it.parentID))) {
+          parentId = Number(it.parentID);
+        }
+      } catch {}
+
+      const hasParentInList = Boolean(parentId && candidateIdSet.has(parentId));
+
+      // Attachments: Child attachments (belonging to another item in the collection) are excluded,
+      // but top-level standalone PDF attachments (e.g. legacy/scanned papers, imported PDFs) are ALWAYS displayed
+      if (typeof it.isAttachment === 'function' && it.isAttachment()) {
+        if (hasParentInList) return false;
+        return Boolean(it.id);
       }
+
+      // Notes: Child notes of existing items are excluded, standalone notes are displayed
+      if (typeof it.isNote === 'function' && it.isNote()) {
+        if (hasParentInList) return false;
+        let isTop = true;
+        try {
+          isTop = typeof it.isTopLevelItem === 'function' ? it.isTopLevelItem() : (!parentId && !it.parentKey);
+        } catch {
+          isTop = !parentId;
+        }
+        return Boolean(it.id) && isTop;
+      }
+
+      // Regular items (journalArticle, book, document, etc.)
       if (typeof it.isRegularItem === 'function') {
         return it.isRegularItem();
       }
-      return true;
+
+      return Boolean(it.id);
     });
 
     // Safely extract paper card data per item; individual item failures never blank the folder

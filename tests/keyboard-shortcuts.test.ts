@@ -268,4 +268,70 @@ describe('Keyboard Shortcuts (1~9 Color Tags, r Read Status, Space/Enter Open PD
     await controller.toggleColorTag(card, 3);
     expect(card.readStatus).toBe('reading');
   });
+
+  it('selects and toggles first card when numeric key is pressed without prior selection', () => {
+    const { scroller, container, onToggleColorTag, testItems } = setupScroller();
+
+    // Clear selection and focus
+    scroller.selectedIds.clear();
+    scroller.focusedIndex = -1;
+
+    // Press '1'
+    container.dispatchEvent(new KeyboardEvent('keydown', { key: '1', bubbles: true }));
+
+    // Should have selected first item and triggered tag toggle
+    expect(scroller.selectedIds.has(testItems[0].id)).toBe(true);
+    expect(onToggleColorTag).toHaveBeenCalledWith(testItems[0], 1);
+  });
+
+  it('uses Zotero.DB.executeTransaction and stages Undo action when available', async () => {
+    const itemTags = new Set<string>();
+    const mockItem = {
+      id: 401,
+      libraryID: 1,
+      hasTag: (t: string) => itemTags.has(t),
+      addTag: vi.fn((t: string) => itemTags.add(t)),
+      removeTag: vi.fn((t: string) => itemTags.delete(t)),
+      getTags: () => Array.from(itemTags).map((tag) => ({ tag })),
+      save: vi.fn(async () => {})
+    };
+
+    const stageActionMock = vi.fn();
+    const executeTransactionMock = vi.fn(async (cb: () => Promise<void>) => await cb());
+
+    const mockWin = {
+      document,
+      Zotero: {
+        DB: { executeTransaction: executeTransactionMock },
+        UndoHistory: { stageAction: stageActionMock },
+        Items: { get: () => mockItem },
+        Tags: {
+          getColorByPosition: vi.fn(() => ({ name: '_Read', color: '#5FB236' })),
+          getColors: () => new Map()
+        }
+      }
+    };
+
+    const controller = new WindowCoverGridController(mockWin);
+    const card: PaperCardData = {
+      id: 401,
+      key: 'KEY401',
+      title: 'Transaction Test',
+      citationText: 'Lee (2026)',
+      authorText: 'Lee',
+      year: '2026',
+      itemType: 'journalArticle',
+      readStatus: 'unread',
+      hasPdf: true,
+      colorTags: []
+    };
+
+    await controller.toggleColorTag(card, 1);
+
+    expect(executeTransactionMock).toHaveBeenCalled();
+    expect(stageActionMock).toHaveBeenCalledWith('undo-action-add-tag', { count: 1 });
+    expect(mockItem.addTag).toHaveBeenCalledWith('_Read', 0);
+    expect(mockItem.save).toHaveBeenCalled();
+    expect(card.colorTags).toEqual([{ tag: '_Read', color: '#5FB236' }]);
+  });
 });
