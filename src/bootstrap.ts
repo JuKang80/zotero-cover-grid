@@ -65,7 +65,31 @@ function startReloadWatcher(pluginID: string) {
               const { AddonManager } = (globalThis as any).ChromeUtils.importESModule(
                 'resource://gre/modules/AddonManager.sys.mjs'
               );
-              // 1. Prefer AddonManager.installTemporaryAddon on build/addon directory so Zotero's
+              // 1. Sync latest XPI into Zotero profile extensions/ so restarts never revert to an older build
+              try {
+                const localXpi = '/Users/user/workspace/zotero-cover-grid/build/zotero-cover-grid.xpi';
+                const PathUtils = (globalThis as any).PathUtils;
+                const profDir =
+                  (typeof Zotero !== 'undefined' && Zotero.Profile?.dir) ||
+                  (PathUtils && PathUtils.profileDir);
+                if (profDir && (await IOUtils.exists(localXpi))) {
+                  const extDir =
+                    PathUtils && typeof PathUtils.join === 'function'
+                      ? PathUtils.join(profDir, 'extensions')
+                      : `${profDir}/extensions`;
+                  if (typeof IOUtils.makeDirectory === 'function') {
+                    await IOUtils.makeDirectory(extDir, { ignoreExisting: true, createAncestors: true });
+                  }
+                  const destXpi =
+                    PathUtils && typeof PathUtils.join === 'function'
+                      ? PathUtils.join(extDir, `${pluginID}.xpi`)
+                      : `${extDir}/${pluginID}.xpi`;
+                  await IOUtils.copy(localXpi, destXpi);
+                }
+              } catch {
+                // Ignore copy error if directory-linked or inaccessible
+              }
+              // 2. Prefer AddonManager.installTemporaryAddon on build/addon directory so Zotero's
               //    _addonObserver.onInstalled unloads the old sandbox scope and loads the new bootstrap.js
               try {
                 if (typeof AddonManager.installTemporaryAddon === 'function' && typeof Cc !== 'undefined' && typeof Ci !== 'undefined') {
@@ -80,7 +104,7 @@ function startReloadWatcher(pluginID: string) {
                 // Fall through to reload / disable+enable
               }
 
-              // 2. Fallback: re-evaluate bootstrap.js directly into the current sandbox scope and re-run startup
+              // 3. Fallback: re-evaluate bootstrap.js directly into the current sandbox scope and re-run startup
               const addon = await AddonManager.getAddonByID(pluginID);
               if (addon) {
                 try {

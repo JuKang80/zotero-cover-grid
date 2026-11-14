@@ -82,6 +82,22 @@ const HTML_ENTITY_MAP: Record<string, string> = {
 
 const HTML_NS = 'http://www.w3.org/1999/xhtml';
 const ALLOWED_TAGS = new Set(['sup', 'sub', 'i', 'em', 'b', 'strong', 'sc', 'span', 'br']);
+const ESCAPED_ALLOWED_TAG_REGEX = /&lt;(\/?(?:sup|sub|i|em|b|strong|sc|span|br)(?:\s[^&]*?)?)&gt;/gi;
+
+function normalizeEscapedFormattingTags(input: string): string {
+  if (!input.includes('&lt;')) return input;
+  return input.replace(ESCAPED_ALLOWED_TAG_REGEX, '<$1>');
+}
+
+function replaceSupSubAndStripTags(input: string): string {
+  let text = input.replace(/<sup[^>]*>(.*?)<\/sup>/gi, (_, content) => {
+    return content.split('').map((char: string) => SUPERSCRIPT_MAP[char] || char).join('');
+  });
+  text = text.replace(/<sub[^>]*>(.*?)<\/sub>/gi, (_, content) => {
+    return content.split('').map((char: string) => SUBSCRIPT_MAP[char] || char).join('');
+  });
+  return text.replace(/<[^>]+>/g, '');
+}
 
 /**
  * Converts a rich text string containing HTML tags to clean plain text.
@@ -90,20 +106,16 @@ const ALLOWED_TAGS = new Set(['sup', 'sub', 'i', 'em', 'b', 'strong', 'sc', 'spa
  */
 export function richTextToPlainText(html: string | null | undefined): string {
   if (!html) return '';
-  let text = String(html);
+  const raw = String(html);
+  if (!raw.includes('<') && !raw.includes('&')) {
+    return raw.includes('  ') || raw.includes('\n') || raw.includes('\r') || raw.includes('\t')
+      ? raw.replace(/\s+/g, ' ').trim()
+      : raw.trim();
+  }
 
-  // Replace <sup>...</sup> with Unicode superscripts
-  text = text.replace(/<sup[^>]*>(.*?)<\/sup>/gi, (_, content) => {
-    return content.split('').map((char: string) => SUPERSCRIPT_MAP[char] || char).join('');
-  });
+  let text = normalizeEscapedFormattingTags(raw);
 
-  // Replace <sub>...</sub> with Unicode subscripts
-  text = text.replace(/<sub[^>]*>(.*?)<\/sub>/gi, (_, content) => {
-    return content.split('').map((char: string) => SUBSCRIPT_MAP[char] || char).join('');
-  });
-
-  // Strip remaining HTML tags
-  text = text.replace(/<[^>]+>/g, '');
+  text = replaceSupSubAndStripTags(text);
 
   // Decode common HTML entities
   text = text.replace(/&(?:[a-z\d]+|#\d+|#x[a-f\d]+);/gi, (entity) => {
@@ -120,6 +132,11 @@ export function richTextToPlainText(html: string | null | undefined): string {
     return entity;
   });
 
+  // Second pass handles double-encoded formatting tags exposed after entity decoding
+  if (text.includes('<') || text.includes('&lt;')) {
+    text = replaceSupSubAndStripTags(normalizeEscapedFormattingTags(text));
+  }
+
   // Normalize whitespace
   return text.replace(/\s+/g, ' ').trim();
 }
@@ -131,6 +148,9 @@ export function richTextToPlainText(html: string | null | undefined): string {
 export function richTextToSearchableText(html: string | null | undefined): string {
   if (!html) return '';
   const plain = richTextToPlainText(html);
+  if (!/[\u00b2\u00b3\u00b9\u2070-\u209f]/.test(plain)) {
+    return plain.toLowerCase();
+  }
   let searchable = plain;
   for (const [ascii, uni] of Object.entries(SUPERSCRIPT_MAP)) {
     searchable = searchable.split(uni).join(ascii);
@@ -157,28 +177,34 @@ export function renderRichText(container: HTMLElement, richText: string | null |
     return;
   }
 
+  const normalizedText = normalizeEscapedFormattingTags(rawText);
+
   container.textContent = '';
   const targetDoc = container.ownerDocument || document;
 
   try {
     let sourceBody: Element | null = null;
-    if (typeof DOMParser !== 'undefined') {
-      const parser = new DOMParser();
-      const parsedDoc = parser.parseFromString(rawText, 'text/html');
+    const DOMParserCtor =
+      (typeof DOMParser !== 'undefined' ? DOMParser : null) ||
+      (targetDoc?.defaultView as any)?.DOMParser ||
+      null;
+    if (DOMParserCtor) {
+      const parser = new DOMParserCtor();
+      const parsedDoc = parser.parseFromString(normalizedText, 'text/html');
       sourceBody = parsedDoc.body;
     } else {
       const temp = targetDoc.createElementNS(HTML_NS, 'div');
-      temp.innerHTML = rawText;
+      temp.innerHTML = normalizedText;
       sourceBody = temp;
     }
 
     if (sourceBody) {
       appendSanitizedNodes(sourceBody, container, targetDoc);
     } else {
-      container.textContent = richTextToPlainText(rawText);
+      container.textContent = richTextToPlainText(normalizedText);
     }
   } catch {
-    container.textContent = richTextToPlainText(rawText);
+    container.textContent = richTextToPlainText(normalizedText);
   }
 }
 

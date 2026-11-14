@@ -214,6 +214,7 @@ export class VirtualGridScroller {
     for (let i = 0; i < this.items.length; i++) {
       const card = this.items[i];
       let cardEl = this.cardMap.get(card.id);
+      const isNewCard = !cardEl;
 
       if (!cardEl) {
         cardEl = createPaperCardElement(card, this.sharedCardHandlers, doc);
@@ -241,7 +242,7 @@ export class VirtualGridScroller {
       // Re-apply selection state
       if (this.selectedIds.has(card.id)) {
         cardEl.classList.add('selected');
-      } else {
+      } else if (!isNewCard) {
         cardEl.classList.remove('selected');
       }
     }
