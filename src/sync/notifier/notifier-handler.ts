@@ -84,13 +84,20 @@ export class NotifierHandler {
             }
           }
           if (zItem) {
+            if (typeof zItem.loadDataType === 'function') {
+              try {
+                await zItem.loadDataType('tags');
+              } catch {}
+            }
             const prevThumbnailUrl = allItems[i].coverThumbnailUrl;
             const prevHasPdf = allItems[i].hasPdf;
+            const prevPdfResolved = allItems[i].pdfResolved;
             allItems[i] = extractPaperCardData(zItem);
             if (prevThumbnailUrl) {
               allItems[i].coverThumbnailUrl = prevThumbnailUrl;
             }
             allItems[i].hasPdf = prevHasPdf;
+            allItems[i].pdfResolved = prevPdfResolved;
           }
         } catch {
           // Ignore

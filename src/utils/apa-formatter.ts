@@ -85,11 +85,36 @@ export function extractPaperCardData(item: any): PaperCardData {
     }
 
     let isAttachmentPdf = false;
-    if (typeof item.isAttachment === 'function' && item.isAttachment()) {
+    const isAttachment = typeof item.isAttachment === 'function' && item.isAttachment();
+    if (isAttachment) {
+      let filenameOrPath = '';
+      try {
+        filenameOrPath = String(item.attachmentFilename || item.attachmentPath || '').toLowerCase();
+      } catch {
+        try {
+          filenameOrPath = String(item.attachmentPath || '').toLowerCase();
+        } catch {}
+      }
+      const contentType = String(item.attachmentContentType || '').toLowerCase();
+      const isExplicitNonPdf =
+        Boolean(
+          item.isSnapshotAttachment?.() ||
+          item.isEPUBAttachment?.() ||
+          item.isImageAttachment?.() ||
+          item.isVideoAttachment?.() ||
+          item.attachmentLinkMode === 3
+        ) ||
+        contentType.includes('html') ||
+        contentType.includes('epub') ||
+        contentType.startsWith('image/') ||
+        contentType.startsWith('video/') ||
+        /\.(html?|epub|png|jpe?g|gif|webp|svg|mp4|mov|docx?|xlsx?|pptx?|txt|md|csv|zip)$/i.test(filenameOrPath);
+      const isFileAtt = typeof item.isFileAttachment === 'function' ? item.isFileAttachment() : true;
       isAttachmentPdf = Boolean(
         item.isPDFAttachment?.() ||
-        item.attachmentContentType === 'application/pdf' ||
-        (typeof item.attachmentFilename === 'string' && item.attachmentFilename.toLowerCase().endsWith('.pdf'))
+        contentType.includes('pdf') ||
+        filenameOrPath.endsWith('.pdf') ||
+        (isFileAtt && !isExplicitNonPdf)
       );
     }
 
@@ -133,7 +158,7 @@ export function extractPaperCardData(item: any): PaperCardData {
             colorTags = tags
               .map((t: any) => {
                 const name = typeof t === 'string' ? t : t?.tag;
-                const entry = name ? zColors.get(name) : null;
+                const entry = name ? zColors.get(name) || zColors.get(String(name).normalize()) : null;
                 return entry?.color ? { tag: name, color: entry.color, position: entry.position ?? 99 } : null;
               })
               .filter(Boolean)
@@ -143,7 +168,9 @@ export function extractPaperCardData(item: any): PaperCardData {
             colorTags = tags
               .map((t: any) => {
                 const name = typeof t === 'string' ? t : t?.tag;
-                const entry = name ? zColors.find((c: any) => c && c.tag === name) : null;
+                const entry = name
+                  ? zColors.find((c: any) => c && (c.tag === name || c.name === name))
+                  : null;
                 return entry?.color ? { tag: name, color: entry.color, position: entry.position ?? 99 } : null;
               })
               .filter(Boolean)
@@ -168,6 +195,7 @@ export function extractPaperCardData(item: any): PaperCardData {
       notePreview,
       readStatus,
       hasPdf: isAttachmentPdf, // Initialized for attachments, updated asynchronously for parent items
+      pdfResolved: isAttachment || isNote,
       tags: tagNames,
       colorTags
     };
@@ -181,7 +209,8 @@ export function extractPaperCardData(item: any): PaperCardData {
       itemType: 'journalArticle',
       year: '',
       readStatus: 'unread',
-      hasPdf: false
+      hasPdf: false,
+      pdfResolved: false
     };
   }
 }

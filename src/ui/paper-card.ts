@@ -20,6 +20,8 @@ import {
   updatePaperCardBadge,
   updatePaperCardThumbnail,
   updatePaperCardColorTags,
+  updatePaperCardPagePill,
+  CardPagePillState,
 } from './card/card-updater';
 
 // Re-export all sub-module functions and types for 100% backward compatibility
@@ -40,6 +42,8 @@ export {
   updatePaperCardBadge,
   updatePaperCardThumbnail,
   updatePaperCardColorTags,
+  updatePaperCardPagePill,
+  CardPagePillState,
 };
 
 /**

@@ -989,3 +989,380 @@ tab-content#zotero-cover-grid-tab:not([hidden]),
   cursor: default !important;
   pointer-events: none !important;
 }
+
+/* 카드 페이지 미리보기 컨트롤 캡슐 (단일 선택 + PDF 보유 카드에서만 노출) */
+.paper-card .card-page-preview-pill {
+  position: absolute !important;
+  bottom: 7px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  z-index: 6 !important;
+  display: flex !important;
+  align-items: center !important;
+  direction: ltr !important;
+  gap: 1px !important;
+  padding: 2px 4px !important;
+  max-width: calc(100% - 8px) !important;
+  overflow: hidden !important;
+  border-radius: 9999px !important;
+  background: rgba(20, 22, 28, 0.78) !important;
+  color: #ffffff !important;
+  border: 0.5px solid rgba(255, 255, 255, 0.2) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28) !important;
+  backdrop-filter: blur(10px) saturate(160%) !important;
+  -webkit-backdrop-filter: blur(10px) saturate(160%) !important;
+  pointer-events: auto !important;
+  user-select: none !important;
+  transition: opacity 0.14s ease !important;
+}
+
+.paper-card .card-page-preview-pill[hidden]:not([hidden="false"]) {
+  display: none !important;
+}
+
+.paper-card .card-page-preview-pill.is-loading {
+  opacity: 0.72 !important;
+}
+
+.paper-card .card-page-btn,
+.paper-card .card-page-badge-btn {
+  appearance: none !important;
+  background: transparent !important;
+  border: none !important;
+  color: #ffffff !important;
+  margin: 0 !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 9999px !important;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif !important;
+  transition: background-color 0.12s ease, opacity 0.12s ease !important;
+}
+
+.paper-card .card-page-btn {
+  width: 18px !important;
+  height: 18px !important;
+  padding: 0 !important;
+  font-size: 12px !important;
+  line-height: 1 !important;
+  flex-shrink: 0 !important;
+}
+
+.paper-card .card-page-expand-btn {
+  font-size: 10.5px !important;
+}
+
+.paper-card .card-page-badge-btn {
+  padding: 0 4px !important;
+  height: 18px !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  font-variant-numeric: tabular-nums !important;
+  white-space: nowrap !important;
+}
+
+.paper-card .card-page-btn:hover:not(.disabled):not(:disabled),
+.paper-card .card-page-badge-btn:hover {
+  background: rgba(255, 255, 255, 0.2) !important;
+}
+
+.paper-card .card-page-btn.disabled,
+.paper-card .card-page-btn:disabled {
+  opacity: 0.35 !important;
+  cursor: default !important;
+}
+
+.paper-card .card-page-pill-divider {
+  width: 1px !important;
+  height: 11px !important;
+  margin: 0 2px !important;
+  background: rgba(255, 255, 255, 0.26) !important;
+  flex-shrink: 0 !important;
+}
+
+/* Quick Look 고해상도 미리보기 모달 */
+#zotero-cover-grid-quick-look.quick-look-backdrop {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2147483646 !important;
+  background: rgba(0, 0, 0, 0.65) !important;
+  backdrop-filter: blur(6px) !important;
+  -webkit-backdrop-filter: blur(6px) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 24px !important;
+  box-sizing: border-box !important;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif !important;
+}
+
+#zotero-cover-grid-quick-look[hidden]:not([hidden="false"]) {
+  display: none !important;
+}
+
+#zotero-cover-grid-quick-look .quick-look-dialog {
+  width: min(920px, 92vw) !important;
+  height: min(860px, 88vh) !important;
+  background: var(--surface-elevated, #ffffff) !important;
+  color: var(--text-color, #1d1d1f) !important;
+  border: 1px solid var(--border-color, rgba(0, 0, 0, 0.14)) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.38), 0 4px 16px rgba(0, 0, 0, 0.16) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+}
+
+#zotero-cover-grid-quick-look .quick-look-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  padding: 10px 14px !important;
+  border-bottom: 1px solid var(--border-color, rgba(0, 0, 0, 0.1)) !important;
+  background: var(--card-bg, #ffffff) !important;
+  flex-shrink: 0 !important;
+}
+
+#zotero-cover-grid-quick-look .quick-look-title-group {
+  min-width: 0 !important;
+  flex: 1 1 auto !important;
+}
+
+#zotero-cover-grid-quick-look .quick-look-title {
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: var(--text-color, #1d1d1f) !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+#zotero-cover-grid-quick-look .quick-look-meta {
+  font-size: 11.5px !important;
+  color: var(--text-muted, #6e6e73) !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  margin-top: 1px !important;
+}
+
+#zotero-cover-grid-quick-look .quick-look-zoom-group {
+  display: flex !important;
+  align-items: center !important;
+  gap: 7px !important;
+  padding: 4px 10px !important;
+  border-radius: 8px !important;
+  background: var(--surface-subtle, rgba(0, 0, 0, 0.045)) !important;
+  border: 1px solid var(--border-color, rgba(0, 0, 0, 0.1)) !important;
+  flex-shrink: 0 !important;
+}
+
+#zotero-cover-grid-quick-look .quick-look-zoom-title {
+  font-size: 11.5px !important;
+  color: var(--text-muted, #6e6e73) !important;
+}
+
+#zotero-cover-grid-quick-look .quick-look-zoom-slider {
+  width: 108px !important;
+  accent-color: var(--accent-color, #0a84ff) !important;
+  cursor: pointer !important;
+  margin: 0 !important;
+}
+
+#zotero-cover-grid-quick-look .quick-look-zoom-label {
+  appearance: none !important;
+  background: transparent !important;
+  border: none !important;
+  color: var(--text-color, #1d1d1f) !important;
+  font-size: 11.5px !important;
+  font-weight: 600 !important;
+  font-variant-numeric: tabular-nums !important;
+  min-width: 38px !important;
+  text-align: right !important;
+  padding: 2px 4px !important;
+  border-radius: 4px !important;
+  cursor: pointer !important;
+}
+
+#zotero-cover-grid-quick-look .quick-look-zoom-label:hover {
+  background: rgba(128, 128, 128, 0.14) !important;
+}
+
+#zotero-cover-grid-quick-look .quick-look-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  flex-shrink: 0 !important;
+}
+
+#zotero-cover-grid-quick-look .quick-look-open-tab-btn {
+  appearance: none !important;
+  background: var(--accent-color, #0a84ff) !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 7px !important;
+  padding: 5px 11px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
+  transition: opacity 0.12s ease !important;
+}
+
+#zotero-cover-grid-quick-look .quick-look-open-tab-btn:hover {
+  opacity: 0.9 !important;
+}
+
+#zotero-cover-grid-quick-look .quick-look-close-btn {
+  appearance: none !important;
+  width: 28px !important;
+  height: 28px !important;
+  border-radius: 7px !important;
+  border: 1px solid var(--border-color, rgba(0, 0, 0, 0.12)) !important;
+  background: transparent !important;
+  color: var(--text-color, #1d1d1f) !important;
+  font-size: 13px !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+#zotero-cover-grid-quick-look .quick-look-close-btn:hover {
+  background: var(--surface-subtle, rgba(0, 0, 0, 0.06)) !important;
+}
+
+#zotero-cover-grid-quick-look .quick-look-stage {
+  position: relative !important;
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  background: #18191d !important;
+  overflow: hidden !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 20px !important;
+  user-select: none !important;
+}
+
+#zotero-cover-grid-quick-look .quick-look-stage.is-zoomed {
+  cursor: grab !important;
+}
+
+#zotero-cover-grid-quick-look .quick-look-stage.is-zoomed.is-dragging {
+  cursor: grabbing !important;
+}
+
+#zotero-cover-grid-quick-look .quick-look-page-wrapper {
+  max-width: 100% !important;
+  max-height: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transform-origin: center center !important;
+  transition: transform 0.06s ease-out !important;
+}
+
+#zotero-cover-grid-quick-look .quick-look-stage.is-dragging .quick-look-page-wrapper {
+  transition: none !important;
+}
+
+#zotero-cover-grid-quick-look .quick-look-page-img {
+  max-width: 100% !important;
+  max-height: calc(min(860px, 88vh) - 96px) !important;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain !important;
+  background: #ffffff !important;
+  border-radius: 4px !important;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45) !important;
+  pointer-events: none !important;
+}
+
+#zotero-cover-grid-quick-look .quick-look-nav-btn {
+  appearance: none !important;
+  position: absolute !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  z-index: 4 !important;
+  width: 38px !important;
+  height: 38px !important;
+  border-radius: 9999px !important;
+  background: rgba(20, 22, 28, 0.78) !important;
+  color: #ffffff !important;
+  border: 0.5px solid rgba(255, 255, 255, 0.22) !important;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35) !important;
+  font-size: 20px !important;
+  line-height: 1 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  transition: transform 0.12s ease, background-color 0.12s ease, opacity 0.12s ease !important;
+}
+
+#zotero-cover-grid-quick-look .quick-look-nav-prev {
+  left: 14px !important;
+}
+
+#zotero-cover-grid-quick-look .quick-look-nav-next {
+  right: 14px !important;
+}
+
+#zotero-cover-grid-quick-look .quick-look-nav-btn:hover:not(.disabled):not(:disabled) {
+  background: rgba(40, 44, 54, 0.92) !important;
+  transform: translateY(-50%) scale(1.06) !important;
+}
+
+#zotero-cover-grid-quick-look .quick-look-nav-btn.disabled,
+#zotero-cover-grid-quick-look .quick-look-nav-btn:disabled {
+  opacity: 0.3 !important;
+  cursor: default !important;
+}
+
+#zotero-cover-grid-quick-look .quick-look-spinner {
+  position: absolute !important;
+  top: 14px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  z-index: 5 !important;
+  padding: 5px 12px !important;
+  border-radius: 9999px !important;
+  background: rgba(20, 22, 28, 0.82) !important;
+  color: #ffffff !important;
+  font-size: 12px !important;
+  border: 0.5px solid rgba(255, 255, 255, 0.18) !important;
+}
+
+#zotero-cover-grid-quick-look .quick-look-page-pill {
+  position: absolute !important;
+  bottom: 14px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  z-index: 4 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 4px 12px !important;
+  border-radius: 9999px !important;
+  background: rgba(20, 22, 28, 0.8) !important;
+  color: #ffffff !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  font-variant-numeric: tabular-nums !important;
+  border: 0.5px solid rgba(255, 255, 255, 0.2) !important;
+  backdrop-filter: blur(8px) !important;
+}
+
+#zotero-cover-grid-quick-look .quick-look-drag-hint {
+  color: rgba(255, 255, 255, 0.75) !important;
+  font-weight: 400 !important;
+  border-left: 1px solid rgba(255, 255, 255, 0.28) !important;
+  padding-left: 8px !important;
+}

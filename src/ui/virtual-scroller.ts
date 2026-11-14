@@ -23,8 +23,10 @@ export interface VirtualScrollerOptions {
   onDeleteItem?: (items: PaperCardData[], forceTrash?: boolean) => void;
   onCopyCitation?: (items: PaperCardData[], asCitation?: boolean) => void;
   onStatusChange?: (item: PaperCardData, nextStatus: ReadStatus) => void;
-  onToggleColorTag?: (item: PaperCardData, position: number) => void;
+  onToggleColorTag?: (item: PaperCardData, position: number, allSelected?: PaperCardData[]) => void;
   onContextMenu?: (item: PaperCardData, event: MouseEvent) => void;
+  onPageFlip?: (item: PaperCardData, direction: -1 | 1) => void;
+  onOpenQuickLook?: (item: PaperCardData) => void;
 }
 
 export class VirtualGridScroller {
@@ -39,6 +41,7 @@ export class VirtualGridScroller {
   public selectionModel: SelectionModel;
   public keyboardManager: KeyboardManager;
   public scrollAnchorTracker: ScrollAnchorTracker;
+  private sharedCardHandlers: any;
 
   private boundKeyDown = (e: KeyboardEvent) => this.handleKeyDown(e);
   private boundDocKeyDown = (e: KeyboardEvent) => this.handleDocumentKeyDown(e);
@@ -61,6 +64,47 @@ export class VirtualGridScroller {
       notifySelection: () => this.notifySelection(),
       options: this.options
     });
+
+    this.sharedCardHandlers = {
+      onClick: (c: PaperCardData, e: MouseEvent) => {
+        const curIdx = this.items.findIndex((it) => it.id === c.id);
+        this.handleCardClick(c, curIdx !== -1 ? curIdx : 0, e);
+      },
+      onDoubleClick: (c: PaperCardData) => this.options.onOpenPdf?.(c),
+      onContextMenu: (c: PaperCardData, e: MouseEvent) => {
+        if (!this.selectedIds.has(c.id)) {
+          const curIdx = this.items.findIndex((it) => it.id === c.id);
+          this.selectionModel.selectSingle(curIdx !== -1 ? curIdx : 0, c.id);
+          this.updateSelectionClasses();
+          this.notifySelection();
+        }
+        this.options.onContextMenu?.(c, e);
+      },
+      onStatusChange: (c: PaperCardData, s: ReadStatus) => this.options.onStatusChange?.(c, s),
+      onPageFlip: (c: PaperCardData, dir: -1 | 1) => this.options.onPageFlip?.(c, dir),
+      onOpenQuickLook: (c: PaperCardData) => this.options.onOpenQuickLook?.(c),
+      onDragStart: (c: PaperCardData, e: DragEvent) => {
+        if (!this.selectedIds.has(c.id)) {
+          const curIdx = this.items.findIndex((it) => it.id === c.id);
+          this.selectionModel.selectSingle(curIdx !== -1 ? curIdx : 0, c.id);
+          this.updateSelectionClasses();
+          this.notifySelection();
+        }
+        const draggedItems = this.items.filter((it) => this.selectedIds.has(it.id));
+        const dragIds = draggedItems.length > 0 ? draggedItems.map((it) => it.id) : [c.id];
+        if (e.dataTransfer) {
+          try {
+            e.dataTransfer.effectAllowed = 'copyMove';
+            e.dataTransfer.setData('zotero/item', dragIds.join(','));
+            e.dataTransfer.setData('text/x-zotero-drag-item', JSON.stringify({ itemIDs: dragIds }));
+            const plainLines = (draggedItems.length > 0 ? draggedItems : [c]).map(
+              (it) => `${it.authorText} (${it.year || 'n.d.'}) - ${it.title}`
+            );
+            e.dataTransfer.setData('text/plain', plainLines.join('\n'));
+          } catch {}
+        }
+      }
+    };
 
     this.bindEvents();
   }
@@ -101,7 +145,9 @@ export class VirtualGridScroller {
     }
     const doc = this.container?.ownerDocument;
     if (doc && typeof doc.addEventListener === 'function') {
-      doc.addEventListener('keydown', this.boundDocKeyDown);
+      // Use capture phase (true) so digit shortcuts (0-9) and navigation keys in Grid View
+      // are intercepted BEFORE Zotero's hidden itemTree/tagSelector listeners can swallow them.
+      doc.addEventListener('keydown', this.boundDocKeyDown, true);
     }
   }
 
@@ -121,6 +167,7 @@ export class VirtualGridScroller {
     this.items = [...newItems];
 
     // 2. Stable Keying: Update or Create DOM cards
+    const prevSelectedIds = Array.from(this.selectedIds);
     const newIdSet = new Set(this.items.map((it) => it.id));
 
     // Remove deleted items
@@ -149,87 +196,65 @@ export class VirtualGridScroller {
         emptyEl.textContent = '표시할 항목이 없습니다. (No items to display)';
         this.container.appendChild(emptyEl);
       }
+      if (prevSelectedIds.length > 0) {
+        this.notifySelection();
+      }
       return;
     }
     this.container.querySelector('.grid-empty-placeholder')?.remove();
 
     this.selectionModel.reconcileAfterMutation(this.items, this.cardMap);
+    const selectionMutated =
+      prevSelectedIds.length !== this.selectedIds.size ||
+      prevSelectedIds.some((id) => !this.selectedIds.has(id));
+
+    let domCursor: Element | null = this.container.firstElementChild;
+    const appendFrag = doc && typeof doc.createDocumentFragment === 'function' ? doc.createDocumentFragment() : null;
 
     for (let i = 0; i < this.items.length; i++) {
       const card = this.items[i];
       let cardEl = this.cardMap.get(card.id);
+      const isNewCard = !cardEl;
 
       if (!cardEl) {
-        cardEl = createPaperCardElement(
-          card,
-          {
-            onClick: (c, e) => {
-              const curIdx = this.items.findIndex((it) => it.id === c.id);
-              this.handleCardClick(c, curIdx !== -1 ? curIdx : 0, e);
-            },
-            onDoubleClick: (c) => this.options.onOpenPdf?.(c),
-            onContextMenu: (c, e) => {
-              if (!this.selectedIds.has(c.id)) {
-                const curIdx = this.items.findIndex((it) => it.id === c.id);
-                this.selectionModel.selectSingle(curIdx !== -1 ? curIdx : 0, c.id);
-                this.updateSelectionClasses();
-                this.notifySelection();
-              }
-              this.options.onContextMenu?.(c, e);
-            },
-            onStatusChange: (c, s) => this.options.onStatusChange?.(c, s),
-            onDragStart: (c, e) => {
-              if (!this.selectedIds.has(c.id)) {
-                const curIdx = this.items.findIndex((it) => it.id === c.id);
-                this.selectionModel.selectSingle(curIdx !== -1 ? curIdx : 0, c.id);
-                this.updateSelectionClasses();
-                this.notifySelection();
-              }
-              const draggedItems = this.items.filter((it) => this.selectedIds.has(it.id));
-              const dragIds = draggedItems.length > 0 ? draggedItems.map((it) => it.id) : [c.id];
-              if (e.dataTransfer) {
-                try {
-                  e.dataTransfer.effectAllowed = 'copyMove';
-                  e.dataTransfer.setData('zotero/item', dragIds.join(','));
-                  e.dataTransfer.setData(
-                    'text/x-zotero-drag-item',
-                    JSON.stringify({ itemIDs: dragIds })
-                  );
-                  const plainLines = (draggedItems.length > 0 ? draggedItems : [c]).map(
-                    (it) => `${it.authorText} (${it.year || 'n.d.'}) - ${it.title}`
-                  );
-                  e.dataTransfer.setData('text/plain', plainLines.join('\n'));
-                } catch {}
-              }
-            }
-          },
-          doc
-        );
+        cardEl = createPaperCardElement(card, this.sharedCardHandlers, doc);
         this.cardMap.set(card.id, cardEl);
       } else {
         // Update mutable properties & metadata
         updatePaperCardMetadata(cardEl, card);
         updatePaperCardBadge(cardEl, card.readStatus);
         updatePaperCardColorTags(cardEl, card.colorTags);
-        if (card.coverThumbnailUrl) {
+        const activePreviewPage = Number(cardEl.dataset?.previewPage || '1');
+        if (card.coverThumbnailUrl && activePreviewPage <= 1) {
           updatePaperCardThumbnail(cardEl, card.coverThumbnailUrl);
         }
       }
 
-      // Ensure DOM ordering matches this.items sequence without detaching in-order nodes
-      if (this.container.children[i] !== cardEl) {
-        this.container.insertBefore(cardEl, this.container.children[i] || null);
+      // Ensure DOM ordering matches this.items sequence without O(N^2) HTMLCollection indexing
+      if (domCursor === null && appendFrag) {
+        appendFrag.appendChild(cardEl);
+      } else if (domCursor !== cardEl) {
+        this.container.insertBefore(cardEl, domCursor);
+      } else {
+        domCursor = domCursor.nextElementSibling;
       }
 
       // Re-apply selection state
       if (this.selectedIds.has(card.id)) {
         cardEl.classList.add('selected');
-      } else {
+      } else if (!isNewCard) {
         cardEl.classList.remove('selected');
       }
     }
 
+    if (appendFrag && appendFrag.childNodes.length > 0) {
+      this.container.appendChild(appendFrag);
+    }
+
     this.selectionModel.prevSelectedIds = new Set(this.selectedIds);
+    if (selectionMutated) {
+      this.notifySelection();
+    }
 
     // 3. Scroll Anchoring Restoration or Pending View-Switch Scroll Sync
     if (this.pendingScrollToSelected && this.selectedIds.size > 0) {
@@ -286,10 +311,19 @@ export class VirtualGridScroller {
     this.notifySelection();
 
     const el = this.cardMap.get(card.id);
-    try {
-      el?.focus({ preventScroll: true });
-    } catch {
-      el?.focus();
+    const restoreFocus = () => {
+      try {
+        el?.focus({ preventScroll: true });
+      } catch {
+        el?.focus();
+      }
+    };
+    restoreFocus();
+    const raf =
+      this.container?.ownerDocument?.defaultView?.requestAnimationFrame ||
+      (typeof requestAnimationFrame === 'function' ? requestAnimationFrame : null);
+    if (raf) {
+      raf(restoreFocus);
     }
   }
 
@@ -329,7 +363,11 @@ export class VirtualGridScroller {
 
     const el = this.cardMap.get(item.id);
     if (el) {
-      el.focus();
+      try {
+        el.focus({ preventScroll: true });
+      } catch {
+        el.focus();
+      }
       el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     }
   }
@@ -393,6 +431,7 @@ export class VirtualGridScroller {
     }
     const doc = this.container?.ownerDocument;
     if (doc && typeof doc.removeEventListener === 'function') {
+      doc.removeEventListener('keydown', this.boundDocKeyDown, true);
       doc.removeEventListener('keydown', this.boundDocKeyDown);
     }
     this.cardMap.clear();

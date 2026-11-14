@@ -95,8 +95,11 @@ export function isBadgeEnabled(): boolean {
 
 export function renderColorDots(container: HTMLElement, colorTags: Array<{ tag: string; color: string }>, doc: Document) {
   const HTML_NS = 'http://www.w3.org/1999/xhtml';
-  container.innerHTML = '';
+  if (container.firstChild) {
+    container.textContent = '';
+  }
   const validTags = (colorTags || []).filter((ct) => ct && ct.color);
+  if (validTags.length === 0) return;
   const maxVisible = 5;
   const visible = validTags.slice(0, maxVisible);
   for (const ct of visible) {
@@ -133,13 +136,14 @@ export function buildPaperCardDOM(
       ? document
       : (typeof (globalThis as any).Zotero !== 'undefined' ? (globalThis as any).Zotero.getMainWindow?.()?.document : null));
   const HTML_NS = 'http://www.w3.org/1999/xhtml';
+  const plainTitle = richTextToPlainText(card.title);
   const cardEl = targetDoc.createElementNS(HTML_NS, 'div');
   cardEl.className = 'paper-card';
   cardEl.id = `paper-card-${card.id}`;
   cardEl.setAttribute('data-item-id', String(card.id));
   cardEl.setAttribute('tabindex', '0');
   cardEl.setAttribute('draggable', 'true');
-  cardEl.title = `${richTextToPlainText(card.title)}\n${card.citationText || card.authorText}`;
+  cardEl.title = `${plainTitle}\n${card.citationText || card.authorText}`;
   (cardEl as any).__cardData = card;
 
   // Cover image wrapper
@@ -149,11 +153,13 @@ export function buildPaperCardDOM(
   // Fallback / Loading Typographic Book Cover
   const bookCoverEl = targetDoc.createElementNS(HTML_NS, 'div');
   const isNote = card.itemType === 'note';
-  bookCoverEl.className = `card-book-cover${isNote ? ' is-note' : ''}`;
+  bookCoverEl.className = isNote ? 'card-book-cover is-note' : 'card-book-cover';
 
   const bookHeader = targetDoc.createElementNS(HTML_NS, 'div');
   bookHeader.className = 'book-cover-header';
-  bookHeader.textContent = isNote ? '📝 RESEARCH NOTE' : richTextToPlainText(card.publicationTitle || formatItemTypeLabel(card.itemType)).toUpperCase();
+  bookHeader.textContent = isNote
+    ? '📝 RESEARCH NOTE'
+    : (card.publicationTitle ? richTextToPlainText(card.publicationTitle) : formatItemTypeLabel(card.itemType)).toUpperCase();
   bookCoverEl.appendChild(bookHeader);
 
   const bookTitle = targetDoc.createElementNS(HTML_NS, 'div');
@@ -172,8 +178,14 @@ export function buildPaperCardDOM(
   const bookFooter = targetDoc.createElementNS(HTML_NS, 'div');
   bookFooter.className = 'book-cover-footer';
   const strippedAuthor = card.citationText ? card.citationText.replace(/\s*\((?:\d{4}|n\.d\.)\)/, '').trim() : '';
-  const firstAuthor = richTextToPlainText(strippedAuthor || card.authorText);
-  bookFooter.textContent = isNote ? (card.year ? `${card.year} · Note` : 'Note') : (card.year ? `${card.year} · ${firstAuthor}` : firstAuthor);
+  const firstAuthor = strippedAuthor || card.authorText;
+  const resolvedAuthor =
+    firstAuthor && (firstAuthor.includes('<') || firstAuthor.includes('&'))
+      ? richTextToPlainText(firstAuthor)
+      : firstAuthor;
+  bookFooter.textContent = isNote
+    ? (card.year ? `${card.year} · Note` : 'Note')
+    : (card.year ? `${card.year} · ${resolvedAuthor}` : resolvedAuthor);
   bookCoverEl.appendChild(bookFooter);
 
   // Apply primary color tag for ambient tint / band if present and enabled
@@ -188,7 +200,7 @@ export function buildPaperCardDOM(
   // Actual PDF Thumbnail Image
   const imgEl = targetDoc.createElementNS(HTML_NS, 'img') as HTMLImageElement;
   imgEl.className = 'card-cover-img';
-  imgEl.alt = richTextToPlainText(card.title);
+  imgEl.alt = plainTitle;
   imgEl.setAttribute('draggable', 'false');
   imgEl.addEventListener('error', () => {
     coverWrapper.classList.remove('is-loading');
@@ -216,24 +228,25 @@ export function buildPaperCardDOM(
   const titleEl = targetDoc.createElementNS(HTML_NS, 'div');
   titleEl.className = 'card-title';
   renderRichText(titleEl, card.title);
-  titleEl.title = richTextToPlainText(card.title);
+  titleEl.title = plainTitle;
   cardEl.appendChild(titleEl);
 
   // 2. Author & Citation (1 line ellipsis, e.g. Kim et al. (2026))
   const authorEl = targetDoc.createElementNS(HTML_NS, 'div');
   authorEl.className = 'card-author';
   authorEl.textContent = card.citationText || card.authorText;
-  authorEl.title = `${card.authorText} (${card.year || 'n.d.'}) - ${richTextToPlainText(card.title)}`;
+  authorEl.title = `${card.authorText} (${card.year || 'n.d.'}) - ${plainTitle}`;
   cardEl.appendChild(authorEl);
 
   // 3. Badge Container (Reading Status Badge & Native Color Dots)
   const badgeContainer = targetDoc.createElementNS(HTML_NS, 'div');
   badgeContainer.className = 'card-badge-container';
 
+  const statusText = formatBadgeText(card.readStatus);
   const badgeEl = targetDoc.createElementNS(HTML_NS, 'span');
   badgeEl.className = `card-badge ${card.readStatus}`;
-  badgeEl.textContent = formatBadgeText(card.readStatus);
-  badgeEl.title = formatBadgeText(card.readStatus);
+  badgeEl.textContent = statusText;
+  badgeEl.title = statusText;
   if (!isBadgeEnabled()) {
     badgeEl.style.display = 'none';
   }
@@ -244,8 +257,9 @@ export function buildPaperCardDOM(
     const nextStatus = cycleReadStatus(activeCard.readStatus);
     activeCard.readStatus = nextStatus;
     badgeEl.className = `card-badge ${nextStatus}`;
-    badgeEl.textContent = formatBadgeText(nextStatus);
-    badgeEl.setAttribute('title', formatBadgeText(nextStatus));
+    const nextText = formatBadgeText(nextStatus);
+    badgeEl.textContent = nextText;
+    badgeEl.setAttribute('title', nextText);
     onBadgeStatusChange?.(activeCard, nextStatus);
   });
 
@@ -254,7 +268,9 @@ export function buildPaperCardDOM(
   // Zotero Native Colored Tags Dots
   const dotsContainer = targetDoc.createElementNS(HTML_NS, 'div');
   dotsContainer.className = 'card-color-dots';
-  renderColorDots(dotsContainer, card.colorTags || [], targetDoc);
+  if (card.colorTags && card.colorTags.length > 0) {
+    renderColorDots(dotsContainer, card.colorTags, targetDoc);
+  }
   badgeContainer.appendChild(dotsContainer);
 
   cardEl.appendChild(badgeContainer);

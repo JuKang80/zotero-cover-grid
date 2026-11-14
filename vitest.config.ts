@@ -6,6 +6,8 @@ export default defineConfig({
     environment: 'happy-dom',
     setupFiles: ['./tests/setup.ts'],
     include: ['tests/**/*.test.ts'],
-    pool: 'forks'
+    pool: 'forks',
+    minWorkers: 1,
+    maxWorkers: 3
   }
 });

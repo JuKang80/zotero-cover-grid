@@ -21,6 +21,44 @@ export async function getCollectionItemsRecursively(col: any, z?: any): Promise<
   // Helper to extract items from a single collection
   async function fetchItemsFromCol(targetCol: any) {
     if (!targetCol) return;
+    try {
+      if (typeof targetCol.loadDataType === 'function') {
+        const p = targetCol.loadDataType('childItems');
+        if (p instanceof Promise) await p;
+      } else if (typeof targetCol.loadAllData === 'function') {
+        const p = targetCol.loadAllData();
+        if (p instanceof Promise) await p;
+      }
+    } catch {}
+
+    // Direct inspection of Zotero internal _childItems Set<number> prevents losing unloaded items
+    // when targetCol.getChildItems(true) maps unloaded ChildObjects.get(id) -> false -> false.id (undefined)
+    try {
+      const internalSet = targetCol._childItems;
+      if (internalSet && typeof internalSet[Symbol.iterator] === 'function') {
+        for (const rawId of internalSet) {
+          if (rawId != null && !isNaN(Number(rawId))) {
+            itemIDs.add(Number(rawId));
+          }
+        }
+      }
+    } catch {}
+
+    // Direct DB query via collectionItems table (100% native SQLite truth)
+    if (targetCol?.id != null && typeof z?.DB?.columnQueryAsync === 'function') {
+      try {
+        const dbIds = await z.DB.columnQueryAsync(
+          'SELECT itemID FROM collectionItems WHERE collectionID = ?',
+          [Number(targetCol.id)]
+        );
+        if (Array.isArray(dbIds)) {
+          for (const did of dbIds) {
+            if (did != null && !isNaN(Number(did))) itemIDs.add(Number(did));
+          }
+        }
+      } catch {}
+    }
+
     if (typeof targetCol.getChildItems === 'function') {
       try {
         let direct = targetCol.getChildItems(true);
@@ -31,8 +69,22 @@ export async function getCollectionItemsRecursively(col: any, z?: any): Promise<
               itemsList.push(it);
               const id = it.id || it.ref?.id || it.itemID;
               if (id) itemIDs.add(Number(id));
-            } else if (it != null && !isNaN(Number(it))) {
+            } else if (it != null && typeof it !== 'boolean' && !isNaN(Number(it))) {
               itemIDs.add(Number(it));
+            }
+          }
+        }
+      } catch {}
+
+      try {
+        let directObjs = targetCol.getChildItems(false);
+        if (directObjs instanceof Promise) directObjs = await directObjs;
+        if (Array.isArray(directObjs)) {
+          for (const it of directObjs) {
+            if (typeof it === 'object' && it !== null) {
+              itemsList.push(it);
+              const id = it.id || it.ref?.id || it.itemID;
+              if (id) itemIDs.add(Number(id));
             }
           }
         }
@@ -303,15 +355,102 @@ export class CollectionFetcher {
           for (const id of collected.ids) allColItemIDs.add(id);
           for (const it of collected.items) allColObjects.push(it);
 
-          // Fallback: Zotero.Search with 'collection' or 'collectionID' condition
+          // Supplement with treeRow.getItems() if treeRow matches this collection (ensures 100% parity with Zotero's native list view)
+          const isTreeRowMatching =
+            treeRow &&
+            (String(treeRow.ref?.id) === String(col.id) ||
+              String(treeRow.id) === String(col.id) ||
+              String(treeRow.id) === `C${col.id}` ||
+              treeRow.name === col.name);
+          if (isTreeRowMatching && typeof treeRow.getItems === 'function') {
+            try {
+              let rowItems = treeRow.getItems({ unfiltered: true });
+              if (rowItems instanceof Promise) rowItems = await rowItems;
+              if (Array.isArray(rowItems)) {
+                for (const ri of rowItems) {
+                  if (typeof ri === 'object' && ri !== null) {
+                    const rid = ri.id || ri.ref?.id || ri.itemID;
+                    if (rid != null && !isNaN(Number(rid))) allColItemIDs.add(Number(rid));
+                    allColObjects.push(ri);
+                  } else if (ri != null && typeof ri !== 'boolean' && !isNaN(Number(ri))) {
+                    allColItemIDs.add(Number(ri));
+                  }
+                }
+              }
+            } catch {}
+          }
+
+          // Supplement with ZoteroPane.getUnfilteredItems() when available (100% native parity)
+          if (typeof zp?.getUnfilteredItems === 'function') {
+            try {
+              let unfiltItems = zp.getUnfilteredItems();
+              if (unfiltItems instanceof Promise) unfiltItems = await unfiltItems;
+              if (Array.isArray(unfiltItems)) {
+                for (const ui of unfiltItems) {
+                  if (typeof ui === 'object' && ui !== null) {
+                    const uid = ui.id || ui.ref?.id || ui.itemID;
+                    if (uid != null && !isNaN(Number(uid))) allColItemIDs.add(Number(uid));
+                    allColObjects.push(ui);
+                  } else if (ui != null && typeof ui !== 'boolean' && !isNaN(Number(ui))) {
+                    allColItemIDs.add(Number(ui));
+                  }
+                }
+              }
+            } catch {}
+          }
+
+          // Supplement with active itemsView items when itemsView is currently bound to this collection
+          try {
+            const iv = zp?.itemsView;
+            if (iv) {
+              if (typeof iv.getSortedItems === 'function') {
+                const sorted = iv.getSortedItems();
+                if (Array.isArray(sorted) && sorted.length > 0) {
+                  for (const it of sorted) {
+                    if (it && typeof it === 'object') {
+                      allColObjects.push(it);
+                      const id = it.id || it.ref?.id || it.itemID;
+                      if (id) allColItemIDs.add(Number(id));
+                    }
+                  }
+                }
+              }
+              if (Array.isArray(iv.rowProvider?.items)) {
+                for (const it of iv.rowProvider.items) {
+                  if (it && typeof it === 'object') {
+                    allColObjects.push(it);
+                    const id = it.id || it.ref?.id || it.itemID;
+                    if (id) allColItemIDs.add(Number(id));
+                  }
+                }
+              }
+              if (typeof iv.rowCount === 'number' && typeof iv.getRow === 'function') {
+                for (let i = 0; i < iv.rowCount; i++) {
+                  const row = iv.getRow(i);
+                  if (row && (row.level == null || row.level === 0)) {
+                    const refObj = row.ref || row;
+                    if (refObj && typeof refObj === 'object') {
+                      allColObjects.push(refObj);
+                      const id = refObj.id || row.id || row.itemID;
+                      if (id) allColItemIDs.add(Number(id));
+                    }
+                  }
+                }
+              }
+            }
+          } catch {}
+
+          // Fallback: Zotero.Search with 'collectionID' or 'collection' condition
           if (collected.ids.length === 0 && collected.items.length === 0 && z?.Search && col.id != null) {
             try {
               const s = new z.Search();
               s.libraryID = col.libraryID || zp?.getSelectedLibraryID?.() || z?.Libraries?.userLibraryID;
               try {
-                s.addCondition('collection', 'is', col.id);
-              } catch {
                 s.addCondition('collectionID', 'is', col.id);
+              } catch {
+                try {
+                  s.addCondition('collection', 'is', col.key || col.id);
+                } catch {}
               }
               s.addCondition('noChildren', 'true');
               const searchItemIDs = await s.search();
@@ -322,22 +461,38 @@ export class CollectionFetcher {
           }
         }
 
-        if (allColObjects.length > 0 && allColObjects.length >= allColItemIDs.size) {
-          rawItems = allColObjects;
-        } else if (allColItemIDs.size > 0) {
-          const idList = Array.from(allColItemIDs);
-          if (z?.Items?.getAsync) {
-            rawItems = await z.Items.getAsync(idList);
-          } else if (z?.Items?.get) {
-            rawItems = idList.map((id) => {
-              try { return z.Items.get(id); } catch { return null; }
-            }).filter(Boolean);
-          } else {
-            rawItems = idList;
+        // Merge all collected objects with all collected item IDs without discarding objects
+        const objMap = new Map<number, any>();
+        for (const obj of allColObjects) {
+          const oid = obj?.id || obj?.ref?.id || obj?.itemID;
+          if (oid != null && !isNaN(Number(oid))) {
+            objMap.set(Number(oid), obj);
           }
-        } else {
-          rawItems = [];
         }
+        const missingIds = Array.from(allColItemIDs).filter((id) => !objMap.has(id));
+        if (missingIds.length > 0) {
+          if (z?.Items?.getAsync) {
+            try {
+              const loaded = await z.Items.getAsync(missingIds);
+              if (Array.isArray(loaded)) {
+                for (const it of loaded) {
+                  if (it?.id != null) objMap.set(Number(it.id), it);
+                }
+              }
+            } catch {}
+          }
+          if (z?.Items?.get) {
+            for (const mid of missingIds) {
+              if (!objMap.has(mid)) {
+                try {
+                  const it = z.Items.get(mid);
+                  if (it && typeof it === 'object') objMap.set(mid, it);
+                } catch {}
+              }
+            }
+          }
+        }
+        rawItems = Array.from(objMap.values());
       }
 
       // Step B: Priority 2 - Special treeRow handling (Search, Trash, Unfiled, Duplicates, Virtual rows)
@@ -561,8 +716,8 @@ export class CollectionFetcher {
 
     if (signal.aborted) return [];
 
-    // Filter to valid displayable paper items, standalone notes, and standalone attachments
-    const validItems = (rawItems || []).map((it: any) => {
+    // Resolve all items to objects before loading primaryData/itemData and filtering
+    const candidateItems = (rawItems || []).map((it: any) => {
       if (typeof it === 'number' || typeof it === 'string') {
         try {
           return z?.Items?.get ? z.Items.get(Number(it)) : null;
@@ -571,38 +726,23 @@ export class CollectionFetcher {
         }
       }
       return it;
-    }).filter((it: any) => {
-      if (!it) return false;
-      const isTopLevel = typeof it.isTopLevelItem === 'function' ? it.isTopLevelItem() : (!it.parentItemID && !it.parentItem && !it.parentID);
-      if (typeof it.isAttachment === 'function' && it.isAttachment()) {
-        // Child attachments (belonging to a parent) are excluded, but top-level standalone PDF attachments are displayed
-        return Boolean(it.id) && isTopLevel;
-      }
-      if (typeof it.isAnnotation === 'function' && it.isAnnotation()) return false;
-      if (typeof it.isNote === 'function' && it.isNote()) {
-        return Boolean(it.id) && isTopLevel;
-      }
-      if (typeof it.isRegularItem === 'function') {
-        return it.isRegularItem();
-      }
-      return true;
-    });
+    }).filter(Boolean);
 
-    // Ensure item data (title, creators, date, tags) is loaded safely with timeout safeguard
-    if (validItems.length > 0) {
+    // Ensure item data (primaryData, itemData, creators, tags) is loaded BEFORE calling isTopLevelItem / isAttachment
+    if (candidateItems.length > 0) {
       try {
         await Promise.race([
           (async () => {
             if (z?.Items?.loadDataTypes) {
               try {
-                await z.Items.loadDataTypes(validItems, ['primaryData', 'itemData', 'creators', 'tags']);
+                await z.Items.loadDataTypes(candidateItems, ['primaryData', 'itemData', 'creators', 'tags']);
               } catch {
                 try {
-                  await z.Items.loadDataTypes(validItems);
+                  await z.Items.loadDataTypes(candidateItems);
                 } catch {}
               }
             }
-            const itemsNeedingLoad = validItems.filter(
+            const itemsNeedingLoad = candidateItems.filter(
               (it: any) => it && (typeof it.loadAllData === 'function' || typeof it.loadDataType === 'function')
             );
             if (itemsNeedingLoad.length > 0) {
@@ -625,6 +765,61 @@ export class CollectionFetcher {
     }
 
     if (signal.aborted) return [];
+
+    // Build index of candidate item IDs to distinguish true child attachments from standalone items
+    const candidateIdSet = new Set<number>();
+    for (const c of candidateItems) {
+      const cid = c?.id != null ? Number(c.id) : (c?.itemID != null ? Number(c.itemID) : null);
+      if (cid != null && !isNaN(cid)) candidateIdSet.add(cid);
+    }
+
+    // Filter to valid displayable paper items, standalone notes, and standalone attachments
+    const validItems = candidateItems.filter((it: any) => {
+      if (!it) return false;
+
+      // Annotations are never standalone paper cards
+      if (typeof it.isAnnotation === 'function' && it.isAnnotation()) return false;
+
+      // Check if this item is a true child of another item already present in candidate items
+      let parentId: number | null = null;
+      try {
+        if (it.parentItemID != null && !isNaN(Number(it.parentItemID))) {
+          parentId = Number(it.parentItemID);
+        } else if (it.parentID != null && !isNaN(Number(it.parentID))) {
+          parentId = Number(it.parentID);
+        }
+      } catch {}
+
+      const hasParentInList = Boolean(parentId && candidateIdSet.has(parentId));
+
+      // Attachments: Child attachments (belonging to another item in the collection) are excluded,
+      // but top-level standalone PDF attachments (e.g. legacy/scanned papers, imported PDFs) are ALWAYS displayed
+      if (typeof it.isAttachment === 'function' && it.isAttachment()) {
+        if (hasParentInList) return false;
+        return Boolean(it.id);
+      }
+
+      // Notes: Child notes of existing items are excluded, standalone notes are displayed
+      if (typeof it.isNote === 'function' && it.isNote()) {
+        if (hasParentInList) return false;
+        let isTop = true;
+        try {
+          isTop = typeof it.isTopLevelItem === 'function' ? it.isTopLevelItem() : (!parentId && !it.parentKey);
+        } catch {
+          isTop = !parentId;
+        }
+        return Boolean(it.id) && isTop;
+      }
+
+      // Regular items (journalArticle, book, document, etc.)
+      if (typeof it.isRegularItem === 'function') {
+        if (it.isRegularItem()) return true;
+      }
+
+      // If it is in candidateItems and not a child of another item in this collection, display it!
+      if (hasParentInList) return false;
+      return Boolean(it.id);
+    });
 
     // Safely extract paper card data per item; individual item failures never blank the folder
     const result: PaperCardData[] = [];
@@ -656,6 +851,7 @@ export class CollectionFetcher {
             notePreview: '',
             readStatus: 'unread',
             hasPdf: Boolean(it.isAttachment?.()),
+            pdfResolved: Boolean(it.isAttachment?.()),
             tags: [],
             colorTags: []
           });

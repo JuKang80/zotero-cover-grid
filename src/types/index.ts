@@ -19,6 +19,7 @@ export interface PaperCardData {
   notePreview?: string;
   readStatus: ReadStatus;
   hasPdf: boolean;
+  pdfResolved?: boolean;
   bestAttachmentId?: number;
   coverThumbnailUrl?: string;
   tags?: string[];

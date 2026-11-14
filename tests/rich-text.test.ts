@@ -120,4 +120,20 @@ describe('Rich Text Handling (Zotero Title Formatting)', () => {
     expect(titleEl.querySelector('sup')?.textContent).toBe('3');
     expect(titleEl.title).toBe('Time³: Advanced Dynamics');
   });
+
+  it('handles both literal <sup>2</sup> and entity-escaped &lt;sup&gt;2&lt;/sup&gt; cleanly', () => {
+    const literal = 'Time<sup>2</sup> : A Framework for the Neural Dynamics of Visual Perception';
+    const escaped = 'Time&lt;sup&gt;2&lt;/sup&gt; : A Framework for the Neural Dynamics of Visual Perception';
+
+    expect(richTextToPlainText(literal)).toBe('Time² : A Framework for the Neural Dynamics of Visual Perception');
+    expect(richTextToPlainText(escaped)).toBe('Time² : A Framework for the Neural Dynamics of Visual Perception');
+
+    const divLiteral = document.createElement('div');
+    renderRichText(divLiteral, literal);
+    expect(divLiteral.querySelector('sup')?.textContent).toBe('2');
+
+    const divEscaped = document.createElement('div');
+    renderRichText(divEscaped, escaped);
+    expect(divEscaped.querySelector('sup')?.textContent).toBe('2');
+  });
 });
