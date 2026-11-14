@@ -27,14 +27,19 @@ export function getHostWindow(): any {
 /**
  * Calculates a scaled viewport preserving rotation and clamped to max dimensions
  */
-export function getClampedViewport(page: any) {
+export function getClampedViewport(
+  page: any,
+  maxWidth = MAX_CANVAS_WIDTH,
+  maxHeight = MAX_CANVAS_HEIGHT,
+  maxScale = 2.0
+) {
   const rotation = page.rotate || 0;
   const initialVp = page.getViewport({ scale: 1.0, rotation });
 
   const scale = Math.min(
-    2.0,
-    MAX_CANVAS_WIDTH / initialVp.width,
-    MAX_CANVAS_HEIGHT / initialVp.height
+    maxScale,
+    maxWidth / initialVp.width,
+    maxHeight / initialVp.height
   );
 
   return page.getViewport({ scale, rotation });

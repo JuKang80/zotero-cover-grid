@@ -290,7 +290,7 @@ export async function deleteItemsInZotero(win: any, itemIds: number[], forceTras
   }
 }
 
-export async function openItemInZotero(win: any, itemId: number): Promise<void> {
+export async function openItemInZotero(win: any, itemId: number, pageIndex?: number): Promise<void> {
   const zp = win?.ZoteroPane || (typeof (globalThis as any).ZoteroPane !== 'undefined' ? (globalThis as any).ZoteroPane : null);
   const z = win?.Zotero || (typeof (globalThis as any).Zotero !== 'undefined' ? (globalThis as any).Zotero : null);
 
@@ -309,6 +309,29 @@ export async function openItemInZotero(win: any, itemId: number): Promise<void> 
     }
   } catch {
     // Fall through
+  }
+
+  // 0.5 When an explicit pageIndex is requested (e.g. from Quick Look), prefer Zotero.Reader.open with location
+  if (typeof pageIndex === 'number' && pageIndex >= 0 && z?.Reader?.open) {
+    try {
+      const zItem = z.Items?.getAsync ? await z.Items.getAsync(itemId) : z.Items?.get?.(itemId);
+      const attachment = (typeof zItem?.isAttachment === 'function' && zItem.isAttachment())
+        ? zItem
+        : await zItem?.getBestAttachment?.();
+      if (attachment) {
+        try {
+          await z.Reader.open(attachment.id, { pageIndex });
+          return;
+        } catch {
+          try {
+            await z.Reader.open(attachment.id);
+            return;
+          } catch {}
+        }
+      }
+    } catch {
+      // Fall through to standard flow
+    }
   }
 
   // 1. First try ZoteroPane.viewItems (Zotero's primary UI view handler)

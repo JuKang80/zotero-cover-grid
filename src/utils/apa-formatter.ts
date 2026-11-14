@@ -85,7 +85,8 @@ export function extractPaperCardData(item: any): PaperCardData {
     }
 
     let isAttachmentPdf = false;
-    if (typeof item.isAttachment === 'function' && item.isAttachment()) {
+    const isAttachment = typeof item.isAttachment === 'function' && item.isAttachment();
+    if (isAttachment) {
       let filenameOrPath = '';
       try {
         filenameOrPath = String(item.attachmentFilename || item.attachmentPath || '').toLowerCase();
@@ -194,6 +195,7 @@ export function extractPaperCardData(item: any): PaperCardData {
       notePreview,
       readStatus,
       hasPdf: isAttachmentPdf, // Initialized for attachments, updated asynchronously for parent items
+      pdfResolved: isAttachment || isNote,
       tags: tagNames,
       colorTags
     };
@@ -207,7 +209,8 @@ export function extractPaperCardData(item: any): PaperCardData {
       itemType: 'journalArticle',
       year: '',
       readStatus: 'unread',
-      hasPdf: false
+      hasPdf: false,
+      pdfResolved: false
     };
   }
 }

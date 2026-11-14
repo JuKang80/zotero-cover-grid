@@ -91,11 +91,13 @@ export class NotifierHandler {
             }
             const prevThumbnailUrl = allItems[i].coverThumbnailUrl;
             const prevHasPdf = allItems[i].hasPdf;
+            const prevPdfResolved = allItems[i].pdfResolved;
             allItems[i] = extractPaperCardData(zItem);
             if (prevThumbnailUrl) {
               allItems[i].coverThumbnailUrl = prevThumbnailUrl;
             }
             allItems[i].hasPdf = prevHasPdf;
+            allItems[i].pdfResolved = prevPdfResolved;
           }
         } catch {
           // Ignore

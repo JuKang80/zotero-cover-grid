@@ -73,11 +73,28 @@ export class KeyboardManager {
       // Ignore
     }
     const cardWidth = cardW + 16; // card width + gap
-    return Math.max(1, Math.floor(containerWidth / cardWidth));
+    return Math.max(1, Math.floor((containerWidth + 16) / cardWidth));
+  }
+
+  public getPageRowCount(): number {
+    const viewportHeight = this.context.viewport?.clientHeight || 600;
+    const items = this.context.getItems();
+    const firstEl = items.length > 0 ? this.context.getCardElement(items[0].id) : undefined;
+    const cardHeight = firstEl?.offsetHeight && firstEl.offsetHeight > 0 ? firstEl.offsetHeight : 280;
+    const rowHeight = cardHeight + 16; // card height + grid gap
+    return Math.max(1, Math.floor(viewportHeight / rowHeight));
+  }
+
+  private isQuickLookOpen(doc?: Document | null): boolean {
+    const modal = doc?.getElementById?.('zotero-cover-grid-quick-look') as HTMLElement | null;
+    return Boolean(modal && !modal.hidden && modal.style?.display !== 'none');
   }
 
   public handleDocumentKeyDown(e: KeyboardEvent): void {
     if (e.defaultPrevented) return;
+    if (this.context.container && this.context.container.isConnected === false) return;
+    const doc = this.context.container?.ownerDocument;
+    if (this.isQuickLookOpen(doc)) return;
     const items = this.context.getItems();
     if (items.length === 0) return;
 
@@ -91,7 +108,6 @@ export class KeyboardManager {
     }
 
     // Do not intercept typing in inputs, search boxes, or editable fields
-    const doc = this.context.container?.ownerDocument;
     if (this.isEditableElement(target) || this.isEditableElement(doc?.activeElement)) {
       return;
     }
@@ -125,8 +141,12 @@ export class KeyboardManager {
       return;
     }
 
-    // 2. Forward Arrow / Home / End navigation keys to grid
-    if (['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) {
+    // 2. Forward Arrow / Home / End / PageUp / PageDown navigation keys to grid
+    if (
+      ['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp', 'Home', 'End', 'PageUp', 'PageDown'].includes(
+        e.key
+      )
+    ) {
       if (!inSidePane) {
         this.handleGridKeyDown(e);
       }
@@ -184,6 +204,8 @@ export class KeyboardManager {
   }
 
   public handleGridKeyDown(e: KeyboardEvent): void {
+    const doc = this.context.container?.ownerDocument;
+    if (this.isQuickLookOpen(doc)) return;
     const items = this.context.getItems();
     if (items.length === 0) return;
 
@@ -193,6 +215,7 @@ export class KeyboardManager {
     if (e.key === 'Escape') {
       if (selectionModel.selectedIds.size > 1) {
         e.preventDefault();
+        e.stopPropagation();
         const collapsed = selectionModel.collapseSelection(items);
         if (collapsed) {
           this.context.updateSelectionClasses();
@@ -205,6 +228,7 @@ export class KeyboardManager {
     // Cmd/Ctrl + A: Select all items in current grid
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'a') {
       e.preventDefault();
+      e.stopPropagation();
       selectionModel.selectAll(items);
       this.context.updateSelectionClasses();
       this.context.notifySelection();
@@ -223,6 +247,7 @@ export class KeyboardManager {
       }
       if (targets.length > 0 && this.context.options.onCopyCitation) {
         e.preventDefault();
+        e.stopPropagation();
         this.context.options.onCopyCitation(targets, e.shiftKey);
       }
       return;
@@ -232,49 +257,86 @@ export class KeyboardManager {
 
     if (
       selectionModel.focusedIndex === -1 &&
-      ['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)
+      ['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp', 'Home', 'End', 'PageUp', 'PageDown'].includes(
+        e.key
+      )
     ) {
       e.preventDefault();
-      this.context.moveFocus(e.key === 'End' ? items.length - 1 : 0, e.shiftKey);
+      e.stopPropagation();
+      if (e.key === 'End') {
+        this.context.moveFocus(items.length - 1, e.shiftKey);
+      } else if (e.key === 'PageDown') {
+        const pageStep = this.getPageRowCount() * cols;
+        this.context.moveFocus(Math.min(items.length - 1, pageStep), e.shiftKey);
+      } else {
+        this.context.moveFocus(0, e.shiftKey);
+      }
       return;
     }
 
     switch (e.key) {
       case 'ArrowRight':
         e.preventDefault();
+        e.stopPropagation();
         this.context.moveFocus(selectionModel.focusedIndex + 1, e.shiftKey);
         break;
       case 'ArrowLeft':
         e.preventDefault();
+        e.stopPropagation();
         this.context.moveFocus(selectionModel.focusedIndex - 1, e.shiftKey);
         break;
       case 'ArrowDown':
         e.preventDefault();
+        e.stopPropagation();
         this.context.moveFocus(selectionModel.focusedIndex + cols, e.shiftKey);
         break;
       case 'ArrowUp':
         e.preventDefault();
-        this.context.moveFocus(selectionModel.focusedIndex - 1 * cols, e.shiftKey);
+        e.stopPropagation();
+        this.context.moveFocus(selectionModel.focusedIndex - cols, e.shiftKey);
         break;
+      case 'PageDown': {
+        e.preventDefault();
+        e.stopPropagation();
+        const pageStep = this.getPageRowCount() * cols;
+        this.context.moveFocus(selectionModel.focusedIndex + pageStep, e.shiftKey);
+        break;
+      }
+      case 'PageUp': {
+        e.preventDefault();
+        e.stopPropagation();
+        const pageStep = this.getPageRowCount() * cols;
+        this.context.moveFocus(selectionModel.focusedIndex - pageStep, e.shiftKey);
+        break;
+      }
       case 'Home':
         e.preventDefault();
+        e.stopPropagation();
         this.context.moveFocus(0, e.shiftKey);
         break;
       case 'End':
         e.preventDefault();
+        e.stopPropagation();
         this.context.moveFocus(items.length - 1, e.shiftKey);
         break;
       case 'Enter':
       case ' ':
-      case 'Space':
+      case 'Space': {
+        const keyTarget = e.target as HTMLElement | null;
+        if (keyTarget?.closest?.('button, [data-stop-card-gesture="true"]')) {
+          return;
+        }
         e.preventDefault();
+        e.stopPropagation();
         if (selectionModel.focusedIndex >= 0 && items[selectionModel.focusedIndex]) {
           this.context.options.onOpenPdf?.(items[selectionModel.focusedIndex]);
         }
         break;
+      }
       case 'Delete':
       case 'Backspace': {
         e.preventDefault();
+        e.stopPropagation();
         const selected = items.filter((it) => selectionModel.selectedIds.has(it.id));
         if (
           selected.length === 0 &&

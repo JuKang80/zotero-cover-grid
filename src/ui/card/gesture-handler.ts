@@ -6,6 +6,8 @@ export interface CardEventHandlers {
   onContextMenu?: (card: PaperCardData, event: MouseEvent) => void;
   onStatusChange?: (card: PaperCardData, nextStatus: ReadStatus) => void;
   onDragStart?: (card: PaperCardData, event: DragEvent) => void;
+  onPageFlip?: (card: PaperCardData, direction: -1 | 1) => void;
+  onOpenQuickLook?: (card: PaperCardData) => void;
 }
 
 export function isMacEnvironment(doc?: any): boolean {
@@ -109,6 +111,8 @@ export function attachCardGestureHandlers(
       } catch {}
     }
   });
+
+  (cardEl as any).__cardHandlers = handlers;
 
   cardEl.addEventListener('dragend', () => {
     cardEl.classList.remove('is-dragging');

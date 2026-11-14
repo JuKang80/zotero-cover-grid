@@ -56,6 +56,7 @@ describe('Keyboard Navigation & Auto-tracking Scroll', () => {
     // Left arrow back to index 0
     scroller.handleKeyDown(new KeyboardEvent('keydown', { key: 'ArrowLeft' }));
     expect(scroller.getSelectedIds()).toEqual([10]);
+    scroller.destroy();
   });
 
   it('should trigger onOpenPdf on Enter key', () => {
@@ -70,6 +71,7 @@ describe('Keyboard Navigation & Auto-tracking Scroll', () => {
 
     scroller.handleKeyDown(new KeyboardEvent('keydown', { key: 'Enter' }));
     expect(onOpenPdfMock).toHaveBeenCalledWith(mockItems[1]);
+    scroller.destroy();
   });
 
   it('should trigger onDeleteItem on Delete / Backspace key', () => {
@@ -84,5 +86,66 @@ describe('Keyboard Navigation & Auto-tracking Scroll', () => {
 
     scroller.handleKeyDown(new KeyboardEvent('keydown', { key: 'Delete' }));
     expect(onDeleteItemMock).toHaveBeenCalledWith([mockItems[2]]);
+    scroller.destroy();
+  });
+
+  it('should not double-fire arrow navigation when keydown bubbles from card -> container -> viewport', () => {
+    const scroller = new VirtualGridScroller({
+      container,
+      viewport,
+      onSelect: onSelectMock
+    });
+
+    scroller.setItems(mockItems);
+    scroller.moveFocus(0);
+    onSelectMock.mockClear();
+
+    const card10 = scroller.getCardElement(10)!;
+    const focusSpy = vi.spyOn(scroller.getCardElement(20)!, 'focus');
+
+    card10.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }));
+
+    // Should advance by exactly 1 item (to id 20), not 2 items (to id 30)
+    expect(scroller.getSelectedIds()).toEqual([20]);
+    expect(onSelectMock).toHaveBeenCalledTimes(1);
+    expect(focusSpy).toHaveBeenCalledWith({ preventScroll: true });
+    scroller.destroy();
+  });
+
+  it('should navigate by page rows on PageDown and PageUp', () => {
+    const manyItems: PaperCardData[] = Array.from({ length: 20 }, (_, i) => ({
+      id: 100 + i,
+      key: `K${100 + i}`,
+      title: `Doc ${i}`,
+      authorText: 'A',
+      citationText: 'A (2024)',
+      itemType: 'doc',
+      year: '2024',
+      readStatus: 'unread',
+      hasPdf: true
+    }));
+
+    Object.defineProperty(container, 'clientWidth', { value: 400, configurable: true }); // 2 cols (180+16)
+    Object.defineProperty(viewport, 'clientHeight', { value: 600, configurable: true }); // 2 rows (280+16=296 -> 2 rows)
+
+    const scroller = new VirtualGridScroller({
+      container,
+      viewport,
+      onSelect: onSelectMock
+    });
+    scroller.setItems(manyItems);
+    scroller.moveFocus(0);
+
+    const card0 = scroller.getCardElement(100)!;
+    card0.dispatchEvent(new KeyboardEvent('keydown', { key: 'PageDown', bubbles: true, cancelable: true }));
+
+    // 2 cols * 2 rows = 4 items forward -> index 4 (id 104)
+    expect(scroller.getSelectedIds()).toEqual([104]);
+
+    const card4 = scroller.getCardElement(104)!;
+    card4.dispatchEvent(new KeyboardEvent('keydown', { key: 'PageUp', bubbles: true, cancelable: true }));
+
+    expect(scroller.getSelectedIds()).toEqual([100]);
+    scroller.destroy();
   });
 });

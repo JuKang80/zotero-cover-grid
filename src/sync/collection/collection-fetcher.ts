@@ -851,6 +851,7 @@ export class CollectionFetcher {
             notePreview: '',
             readStatus: 'unread',
             hasPdf: Boolean(it.isAttachment?.()),
+            pdfResolved: Boolean(it.isAttachment?.()),
             tags: [],
             colorTags: []
           });

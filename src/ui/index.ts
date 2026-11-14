@@ -152,6 +152,13 @@ export function injectCoverGridUI(win: any) {
           selectedItems.map((it) => it.id)
         );
       }
+      void controller.handleSelectionChange(selectedItems);
+    },
+    onPageFlip: (item, direction) => {
+      void controller.flipCardPage(item, direction);
+    },
+    onOpenQuickLook: (item) => {
+      void controller.openQuickLook(item);
     },
     onOpenPdf: async (item) => {
       await openItemInZotero(win, item.id);
@@ -295,7 +302,8 @@ export function cleanupCoverGridUI(win: any) {
   // Step 2: Remove zoom container
   doc.getElementById('zotero-cover-grid-zoom-container')?.remove();
 
-  // Step 3: Remove cover grid container
+  // Step 3: Remove cover grid container & any open Quick Look modal
+  doc.getElementById('zotero-cover-grid-quick-look')?.remove();
   doc.getElementById('zotero-cover-grid')?.remove();
 
   // Step 4: Restore native items tree

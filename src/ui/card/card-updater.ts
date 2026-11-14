@@ -73,14 +73,182 @@ export function updatePaperCardThumbnail(cardEl: HTMLElement, url: string) {
   const wrapper = cardEl.querySelector('.card-cover-wrapper') as HTMLElement;
   if (img) {
     if (url) {
+      if (img.getAttribute('src') === url) {
+        wrapper?.classList.remove('is-loading');
+        img.classList.add('is-loaded');
+        img.style.display = '';
+        if (bookCover) bookCover.style.display = 'none';
+        return;
+      }
       wrapper?.classList.add('is-loading');
       img.src = url;
+      if ((img as any).complete && (img as any).naturalWidth > 0) {
+        wrapper?.classList.remove('is-loading');
+        img.classList.add('is-loaded');
+        img.style.display = '';
+        if (bookCover) bookCover.style.display = 'none';
+      }
     } else {
       wrapper?.classList.remove('is-loading');
       img.classList.remove('is-loaded');
       img.style.display = 'none';
       if (bookCover) bookCover.style.display = 'flex';
     }
+  }
+}
+
+export interface CardPagePillState {
+  visible: boolean;
+  currentPage: number;
+  totalPages: number;
+  loading?: boolean;
+}
+
+function createLazyPagePill(cardEl: HTMLElement): HTMLElement | null {
+  const coverWrapper = cardEl.querySelector('.card-cover-wrapper') as HTMLElement | null;
+  if (!coverWrapper) return null;
+
+  const doc = cardEl.ownerDocument || document;
+  const HTML_NS = 'http://www.w3.org/1999/xhtml';
+  const createEl = <K extends keyof HTMLElementTagNameMap>(tag: K): HTMLElementTagNameMap[K] => {
+    return (typeof doc.createElementNS === 'function'
+      ? doc.createElementNS(HTML_NS, tag)
+      : doc.createElement(tag)) as HTMLElementTagNameMap[K];
+  };
+
+  const pagePill = createEl('div');
+  pagePill.className = 'card-page-preview-pill';
+  pagePill.setAttribute('data-stop-card-gesture', 'true');
+
+  const stopCardEvent = (e: Event) => e.stopPropagation();
+  pagePill.addEventListener('click', stopCardEvent);
+  pagePill.addEventListener('dblclick', stopCardEvent);
+  pagePill.addEventListener('mousedown', stopCardEvent);
+  pagePill.addEventListener('dragstart', (e: Event) => {
+    e.preventDefault();
+    e.stopPropagation();
+  });
+
+  const refocusCard = () => {
+    try {
+      cardEl.focus?.({ preventScroll: true });
+    } catch {}
+  };
+
+  const prevPageBtn = createEl('button');
+  prevPageBtn.type = 'button';
+  prevPageBtn.className = 'card-page-btn card-page-prev-btn';
+  prevPageBtn.textContent = '‹';
+  prevPageBtn.title = '이전 페이지';
+  prevPageBtn.addEventListener('click', (e: MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    refocusCard();
+    (cardEl as any).__cardHandlers?.onPageFlip?.((cardEl as any).__cardData, -1);
+  });
+  prevPageBtn.addEventListener('dblclick', (e: MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  });
+
+  const pageBadgeBtn = createEl('button');
+  pageBadgeBtn.type = 'button';
+  pageBadgeBtn.className = 'card-page-badge-btn';
+  pageBadgeBtn.textContent = '1 / 1';
+  pageBadgeBtn.title = 'Quick Look 크게 보기';
+
+  const nextPageBtn = createEl('button');
+  nextPageBtn.type = 'button';
+  nextPageBtn.className = 'card-page-btn card-page-next-btn';
+  nextPageBtn.textContent = '›';
+  nextPageBtn.title = '다음 페이지';
+  nextPageBtn.addEventListener('click', (e: MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    refocusCard();
+    (cardEl as any).__cardHandlers?.onPageFlip?.((cardEl as any).__cardData, 1);
+  });
+  nextPageBtn.addEventListener('dblclick', (e: MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  });
+
+  const pillDivider = createEl('span');
+  pillDivider.className = 'card-page-pill-divider';
+
+  const expandBtn = createEl('button');
+  expandBtn.type = 'button';
+  expandBtn.className = 'card-page-btn card-page-expand-btn';
+  expandBtn.textContent = '⤢';
+  expandBtn.title = 'Quick Look 크게 보기';
+
+  const openQuickLookHandler = (e: MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    refocusCard();
+    (cardEl as any).__cardHandlers?.onOpenQuickLook?.((cardEl as any).__cardData);
+  };
+  pageBadgeBtn.addEventListener('click', openQuickLookHandler);
+  pageBadgeBtn.addEventListener('dblclick', (e: MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  });
+  expandBtn.addEventListener('click', openQuickLookHandler);
+  expandBtn.addEventListener('dblclick', (e: MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  });
+
+  pagePill.appendChild(prevPageBtn);
+  pagePill.appendChild(pageBadgeBtn);
+  pagePill.appendChild(nextPageBtn);
+  pagePill.appendChild(pillDivider);
+  pagePill.appendChild(expandBtn);
+  coverWrapper.appendChild(pagePill);
+  return pagePill;
+}
+
+export function updatePaperCardPagePill(cardEl: HTMLElement, state: CardPagePillState): void {
+  let pill = cardEl.querySelector('.card-page-preview-pill') as HTMLElement | null;
+
+  if (!state.visible || state.totalPages <= 0) {
+    delete cardEl.dataset.previewPage;
+    if (!pill) return;
+    pill.hidden = true;
+    pill.setAttribute('hidden', 'true');
+    pill.style.display = 'none';
+    pill.classList.remove('is-loading');
+    return;
+  }
+
+  if (!pill) {
+    pill = createLazyPagePill(cardEl);
+    if (!pill) return;
+  }
+
+  const clampedPage = Math.min(state.totalPages, Math.max(1, state.currentPage));
+  cardEl.dataset.previewPage = String(clampedPage);
+  pill.hidden = false;
+  pill.removeAttribute('hidden');
+  pill.style.display = 'flex';
+  pill.classList.toggle('is-loading', Boolean(state.loading));
+  const badgeBtn = pill.querySelector('.card-page-badge-btn') as HTMLElement | null;
+  if (badgeBtn) {
+    badgeBtn.textContent = `${clampedPage} / ${state.totalPages}`;
+  }
+
+  const prevBtn = pill.querySelector('.card-page-prev-btn') as HTMLButtonElement | null;
+  if (prevBtn) {
+    const atStart = clampedPage <= 1;
+    prevBtn.disabled = atStart;
+    prevBtn.classList.toggle('disabled', atStart);
+  }
+
+  const nextBtn = pill.querySelector('.card-page-next-btn') as HTMLButtonElement | null;
+  if (nextBtn) {
+    const atEnd = clampedPage >= state.totalPages;
+    nextBtn.disabled = atEnd;
+    nextBtn.classList.toggle('disabled', atEnd);
   }
 }
 
