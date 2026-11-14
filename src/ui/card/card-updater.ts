@@ -211,7 +211,7 @@ function createLazyPagePill(cardEl: HTMLElement): HTMLElement | null {
 export function updatePaperCardPagePill(cardEl: HTMLElement, state: CardPagePillState): void {
   let pill = cardEl.querySelector('.card-page-preview-pill') as HTMLElement | null;
 
-  if (!state.visible || state.totalPages <= 0) {
+  if (!state.visible || (state.totalPages <= 0 && !state.loading)) {
     delete cardEl.dataset.previewPage;
     if (!pill) return;
     pill.hidden = true;
@@ -226,7 +226,10 @@ export function updatePaperCardPagePill(cardEl: HTMLElement, state: CardPagePill
     if (!pill) return;
   }
 
-  const clampedPage = Math.min(state.totalPages, Math.max(1, state.currentPage));
+  const hasTotalPages = state.totalPages > 0;
+  const clampedPage = hasTotalPages
+    ? Math.min(state.totalPages, Math.max(1, state.currentPage))
+    : Math.max(1, state.currentPage || 1);
   cardEl.dataset.previewPage = String(clampedPage);
   pill.hidden = false;
   pill.removeAttribute('hidden');
@@ -234,19 +237,19 @@ export function updatePaperCardPagePill(cardEl: HTMLElement, state: CardPagePill
   pill.classList.toggle('is-loading', Boolean(state.loading));
   const badgeBtn = pill.querySelector('.card-page-badge-btn') as HTMLElement | null;
   if (badgeBtn) {
-    badgeBtn.textContent = `${clampedPage} / ${state.totalPages}`;
+    badgeBtn.textContent = hasTotalPages ? `${clampedPage} / ${state.totalPages}` : `${clampedPage} / …`;
   }
 
   const prevBtn = pill.querySelector('.card-page-prev-btn') as HTMLButtonElement | null;
   if (prevBtn) {
-    const atStart = clampedPage <= 1;
+    const atStart = !hasTotalPages || clampedPage <= 1;
     prevBtn.disabled = atStart;
     prevBtn.classList.toggle('disabled', atStart);
   }
 
   const nextBtn = pill.querySelector('.card-page-next-btn') as HTMLButtonElement | null;
   if (nextBtn) {
-    const atEnd = clampedPage >= state.totalPages;
+    const atEnd = !hasTotalPages || clampedPage >= state.totalPages;
     nextBtn.disabled = atEnd;
     nextBtn.classList.toggle('disabled', atEnd);
   }
