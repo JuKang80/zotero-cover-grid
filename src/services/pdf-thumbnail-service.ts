@@ -277,8 +277,22 @@ class PdfSessionPool {
         (typeof document !== 'undefined' ? document : null);
       const buildDocOptions = createPdfDocumentHelper(baseDoc);
 
-      const loadingTask = pdfjs.getDocument(buildDocOptions(bytes, false));
-      const pdfDoc = await loadingTask.promise;
+      let disableFontFace = false;
+      let loadingTask = pdfjs.getDocument(buildDocOptions(bytes, false));
+      let pdfDoc: any;
+      try {
+        pdfDoc = await loadingTask.promise;
+      } catch (firstDocErr: any) {
+        if (firstDocErr?.name === 'PasswordException') {
+          throw firstDocErr;
+        }
+        try {
+          await loadingTask?.destroy?.();
+        } catch {}
+        disableFontFace = true;
+        loadingTask = pdfjs.getDocument(buildDocOptions(bytes, true));
+        pdfDoc = await loadingTask.promise;
+      }
       if (!pdfDoc || pdfDoc.numPages < 1) {
         try {
           await pdfDoc?.destroy?.();
@@ -335,7 +349,7 @@ class PdfSessionPool {
         pageOffset,
         totalPages,
         lastUsed: Date.now(),
-        disableFontFace: false
+        disableFontFace
       };
       this.sessions.set(pdfPath, entry);
       this.scheduleEviction(entry);

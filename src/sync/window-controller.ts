@@ -323,11 +323,14 @@ export class WindowCoverGridController {
       const prevEl = this.scroller?.getCardElement(prevId);
       if (prevEl) {
         updatePaperCardPagePill(prevEl, { visible: false, currentPage: 1, totalPages: 0 });
-        if (this.activePreviewPage > 1 && prevCard?.coverThumbnailUrl) {
-          if (!thumbnailCacheManager.isUrlRevoked(prevCard.coverThumbnailUrl)) {
+        if (this.activePreviewPage > 1) {
+          if (prevCard?.coverThumbnailUrl && !thumbnailCacheManager.isUrlRevoked(prevCard.coverThumbnailUrl)) {
             updatePaperCardThumbnail(prevEl, prevCard.coverThumbnailUrl);
-          } else if (this.abortController && !this.abortController.signal.aborted && !this.isDestroyed) {
-            void this.loadThumbnailForCard(prevCard, this.abortController.signal);
+          } else {
+            updatePaperCardThumbnail(prevEl, '');
+            if (prevCard && this.abortController && !this.abortController.signal.aborted && !this.isDestroyed) {
+              void this.loadThumbnailForCard(prevCard, this.abortController.signal);
+            }
           }
         }
       }
@@ -372,6 +375,18 @@ export class WindowCoverGridController {
     this.activePreviewPage = 1;
     this.activePreviewTotalPages = 0;
 
+    if (card.hasPdf) {
+      const initialCardEl = this.scroller?.getCardElement(card.id);
+      if (initialCardEl) {
+        updatePaperCardPagePill(initialCardEl, {
+          visible: true,
+          currentPage: 1,
+          totalPages: 0,
+          loading: true
+        });
+      }
+    }
+
     try {
       const resolved = await this.resolvePdfAttachment(card);
       if (this.isDestroyed || seq !== this.previewSeq || this.activePreviewItemId !== card.id) {
@@ -386,24 +401,39 @@ export class WindowCoverGridController {
       card.hasPdf = true;
       card.pdfResolved = true;
 
-      const info = await thumbnailCacheManager.getPdfPageCount(resolved.zItem, resolved.attachment);
+      const resolvedCardEl = this.scroller?.getCardElement(card.id);
+      if (resolvedCardEl) {
+        updatePaperCardPagePill(resolvedCardEl, {
+          visible: true,
+          currentPage: 1,
+          totalPages: 0,
+          loading: true
+        });
+      }
+
+      let info: { totalPages: number; pageOffset: number } = { totalPages: 1, pageOffset: 0 };
+      try {
+        info = await thumbnailCacheManager.getPdfPageCount(resolved.zItem, resolved.attachment);
+      } catch {
+        info = { totalPages: 1, pageOffset: 0 };
+      }
       if (this.isDestroyed || seq !== this.previewSeq || this.activePreviewItemId !== card.id) {
         return;
       }
 
-      if (info.totalPages > 0) {
-        this.activePreviewTotalPages = info.totalPages;
-        const cardEl = this.scroller?.getCardElement(card.id);
-        if (cardEl) {
-          updatePaperCardPagePill(cardEl, {
-            visible: true,
-            currentPage: this.activePreviewPage,
-            totalPages: info.totalPages
-          });
-        }
+      const totalPages = info.totalPages > 0 ? info.totalPages : 1;
+      this.activePreviewTotalPages = totalPages;
+      const cardEl = this.scroller?.getCardElement(card.id);
+      if (cardEl) {
+        updatePaperCardPagePill(cardEl, {
+          visible: true,
+          currentPage: this.activePreviewPage,
+          totalPages,
+          loading: false
+        });
       }
     } catch {
-      // Non-fatal: pill remains hidden if page info cannot be resolved
+      // Non-fatal: pill remains hidden if attachment lookup fails unexpectedly
     }
   }
 
