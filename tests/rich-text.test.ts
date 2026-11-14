@@ -6,6 +6,7 @@ import {
 } from '../src/utils/rich-text';
 import { createPaperCardDOM } from '../src/ui/card/card-dom-builder';
 import { updatePaperCardMetadata } from '../src/ui/card/card-updater';
+import { extractPaperCardData } from '../src/utils/apa-formatter';
 import { PaperCardData } from '../src/types';
 
 describe('Rich Text Handling (Zotero Title Formatting)', () => {
@@ -124,9 +125,11 @@ describe('Rich Text Handling (Zotero Title Formatting)', () => {
   it('handles both literal <sup>2</sup> and entity-escaped &lt;sup&gt;2&lt;/sup&gt; cleanly', () => {
     const literal = 'Time<sup>2</sup> : A Framework for the Neural Dynamics of Visual Perception';
     const escaped = 'Time&lt;sup&gt;2&lt;/sup&gt; : A Framework for the Neural Dynamics of Visual Perception';
+    const doubleEscaped = 'Time&amp;lt;sup&amp;gt;2&amp;lt;/sup&amp;gt; : A Framework for the Neural Dynamics of Visual Perception';
 
     expect(richTextToPlainText(literal)).toBe('Time² : A Framework for the Neural Dynamics of Visual Perception');
     expect(richTextToPlainText(escaped)).toBe('Time² : A Framework for the Neural Dynamics of Visual Perception');
+    expect(richTextToPlainText(doubleEscaped)).toBe('Time² : A Framework for the Neural Dynamics of Visual Perception');
 
     const divLiteral = document.createElement('div');
     renderRichText(divLiteral, literal);
@@ -135,5 +138,31 @@ describe('Rich Text Handling (Zotero Title Formatting)', () => {
     const divEscaped = document.createElement('div');
     renderRichText(divEscaped, escaped);
     expect(divEscaped.querySelector('sup')?.textContent).toBe('2');
+
+    const divDoubleEscaped = document.createElement('div');
+    renderRichText(divDoubleEscaped, doubleEscaped);
+    expect(divDoubleEscaped.querySelector('sup')?.textContent).toBe('2');
+  });
+
+  it('sanitizes HTML tags in authorText fallback when item has 0 creators', () => {
+    const mockItem = {
+      id: 777,
+      key: 'KEY777',
+      getField: (f: string) =>
+        f === 'title' ? 'Time<sup>2</sup> : Neural Dynamics' : f === 'date' ? '2026' : '',
+      getCreators: () => [],
+      getTags: () => [],
+      isAttachment: () => false,
+      itemType: 'journalArticle'
+    };
+
+    const card = extractPaperCardData(mockItem);
+    expect(card.authorText).toBe('Time² : Neural Dynamics');
+    expect(card.authorText).not.toContain('<sup>');
+
+    const cardEl = createPaperCardDOM(card);
+    const authorEl = cardEl.querySelector('.card-author') as HTMLElement;
+    expect(authorEl.title).not.toContain('<sup>');
+    expect(authorEl.title).toContain('Time²');
   });
 });

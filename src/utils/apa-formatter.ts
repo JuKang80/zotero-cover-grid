@@ -1,4 +1,5 @@
 import { PaperCardData } from '../types';
+import { richTextToPlainText } from './rich-text';
 import {
   Creator,
   formatApa7Citation,
@@ -59,9 +60,11 @@ export function extractPaperCardData(item: any): PaperCardData {
     const year = yearMatch ? yearMatch[0] : '';
 
     let citationText = formatApa7Citation(creators, year, title);
+    const cleanFallbackTitle =
+      title && title !== 'Untitled' ? richTextToPlainText(title) : 'Unknown Author';
     let authorText =
       creators.map((c) => c.lastName || c.name || c.firstName).filter(Boolean).join(', ') ||
-      (title && title !== 'Untitled' ? title : 'Unknown Author');
+      cleanFallbackTitle;
 
     let tags: any[] = [];
     try {

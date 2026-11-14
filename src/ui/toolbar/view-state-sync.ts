@@ -62,6 +62,7 @@ export function syncListToGrid(options: SyncToGridOptions): number[] {
         const isGrid = getCurrentView ? getCurrentView() === 'grid' : true;
         if (isGrid && listSelectedIds.length > 0 && scroller?.setSelectedIds) {
           scroller.setSelectedIds(listSelectedIds, { scrollIntoView: true });
+          void controller.handleSelectionChange?.(scroller.getSelectedItems?.() || []);
         }
       }).catch(() => {});
     }

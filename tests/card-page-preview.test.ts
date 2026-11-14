@@ -535,4 +535,62 @@ describe('Card Page Preview & Quick Look Modal', () => {
     modal.destroy();
     controller.destroy();
   });
+
+  it('resets page > 1 preview back to typographic cover even when card.coverThumbnailUrl was initially undefined', async () => {
+    document.body.innerHTML = `<div id="zotero-cover-grid"><div id="vp"><div id="grid"></div></div></div>`;
+    const viewport = document.getElementById('vp')!;
+    const container = document.getElementById('grid')!;
+
+    const uncachedCard = makeCard(601, {
+      coverThumbnailUrl: undefined
+    });
+
+    (globalThis as any).Zotero.Items.get = vi.fn((id: number) => ({
+      id,
+      key: `KEY_${id}`,
+      getBestAttachment: vi.fn().mockResolvedValue({
+        id: id * 10,
+        mtime: 333,
+        isPDFAttachment: () => true,
+        getFilePathAsync: vi.fn().mockResolvedValue(`/tmp/uncached-${id}.pdf`)
+      })
+    }));
+
+    const controller = new WindowCoverGridController({
+      document,
+      Zotero: (globalThis as any).Zotero,
+      ZoteroPane: (globalThis as any).ZoteroPane
+    });
+    const scroller = new VirtualGridScroller({
+      container,
+      viewport,
+      onSelect: (selected) => void controller.handleSelectionChange(selected),
+      onPageFlip: (item, dir) => void controller.flipCardPage(item, dir)
+    });
+
+    controller.scroller = scroller;
+    controller.allItems = [uncachedCard];
+    scroller.setItems([uncachedCard]);
+
+    const el601 = scroller.getCardElement(601)!;
+    const img601 = el601.querySelector('.card-cover-img') as HTMLImageElement;
+    const bookCover601 = el601.querySelector('.card-book-cover') as HTMLElement;
+
+    // 1. Select card -> pill visible, flip to page 2 -> img src updates to page 2
+    await controller.handleSelectionChange([uncachedCard]);
+    await controller.flipCardPage(uncachedCard, 1);
+    expect(img601.getAttribute('src')).toBeTruthy();
+    img601.dispatchEvent(new Event('load'));
+    expect(img601.style.display).not.toBe('none');
+    expect(img601.classList.contains('is-loaded')).toBe(true);
+    expect(bookCover601.style.display).toBe('none');
+
+    // 2. Deselect / reset -> even without coverThumbnailUrl, page 2 img is cleared back to book cover
+    controller.resetActiveCardPreview();
+    expect(img601.style.display).toBe('none');
+    expect(img601.classList.contains('is-loaded')).toBe(false);
+    expect(bookCover601.style.display).toBe('flex');
+
+    controller.destroy();
+  });
 });

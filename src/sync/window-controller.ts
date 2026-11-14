@@ -323,11 +323,14 @@ export class WindowCoverGridController {
       const prevEl = this.scroller?.getCardElement(prevId);
       if (prevEl) {
         updatePaperCardPagePill(prevEl, { visible: false, currentPage: 1, totalPages: 0 });
-        if (this.activePreviewPage > 1 && prevCard?.coverThumbnailUrl) {
-          if (!thumbnailCacheManager.isUrlRevoked(prevCard.coverThumbnailUrl)) {
+        if (this.activePreviewPage > 1) {
+          if (prevCard?.coverThumbnailUrl && !thumbnailCacheManager.isUrlRevoked(prevCard.coverThumbnailUrl)) {
             updatePaperCardThumbnail(prevEl, prevCard.coverThumbnailUrl);
-          } else if (this.abortController && !this.abortController.signal.aborted && !this.isDestroyed) {
-            void this.loadThumbnailForCard(prevCard, this.abortController.signal);
+          } else {
+            updatePaperCardThumbnail(prevEl, '');
+            if (prevCard && this.abortController && !this.abortController.signal.aborted && !this.isDestroyed) {
+              void this.loadThumbnailForCard(prevCard, this.abortController.signal);
+            }
           }
         }
       }

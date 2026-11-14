@@ -1,4 +1,5 @@
 import { PaperCardData, ReadStatus } from '../../types';
+import { richTextToPlainText } from '../../utils/rich-text';
 
 export interface CardEventHandlers {
   onClick?: (card: PaperCardData, event: MouseEvent) => void;
@@ -107,7 +108,7 @@ export function attachCardGestureHandlers(
         e.dataTransfer.effectAllowed = 'copyMove';
         e.dataTransfer.setData('zotero/item', String(activeCard.id));
         e.dataTransfer.setData('text/x-zotero-drag-item', JSON.stringify({ itemIDs: [activeCard.id] }));
-        e.dataTransfer.setData('text/plain', `${activeCard.authorText} (${activeCard.year || 'n.d.'}) - ${activeCard.title}`);
+        e.dataTransfer.setData('text/plain', `${activeCard.authorText} (${activeCard.year || 'n.d.'}) - ${richTextToPlainText(activeCard.title)}`);
       } catch {}
     }
   });
