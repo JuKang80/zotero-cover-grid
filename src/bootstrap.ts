@@ -80,6 +80,17 @@ function startReloadWatcher(pluginID: string) {
                   if (typeof IOUtils.makeDirectory === 'function') {
                     await IOUtils.makeDirectory(extDir, { ignoreExisting: true, createAncestors: true });
                   }
+                  const proxyPath =
+                    PathUtils && typeof PathUtils.join === 'function'
+                      ? PathUtils.join(extDir, pluginID)
+                      : `${extDir}/${pluginID}`;
+                  try {
+                    if (typeof IOUtils.remove === 'function') {
+                      await IOUtils.remove(proxyPath, { ignoreAbsent: true });
+                    }
+                  } catch {
+                    // Ignore proxy pointer cleanup errors
+                  }
                   const destXpi =
                     PathUtils && typeof PathUtils.join === 'function'
                       ? PathUtils.join(extDir, `${pluginID}.xpi`)

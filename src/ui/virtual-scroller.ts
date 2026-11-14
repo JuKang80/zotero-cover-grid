@@ -1,4 +1,5 @@
 import { PaperCardData, ReadStatus } from '../types';
+import { richTextToPlainText } from '../utils/rich-text';
 import {
   createPaperCardElement,
   updatePaperCardMetadata,
@@ -98,7 +99,7 @@ export class VirtualGridScroller {
             e.dataTransfer.setData('zotero/item', dragIds.join(','));
             e.dataTransfer.setData('text/x-zotero-drag-item', JSON.stringify({ itemIDs: dragIds }));
             const plainLines = (draggedItems.length > 0 ? draggedItems : [c]).map(
-              (it) => `${it.authorText} (${it.year || 'n.d.'}) - ${it.title}`
+              (it) => `${it.authorText} (${it.year || 'n.d.'}) - ${richTextToPlainText(it.title)}`
             );
             e.dataTransfer.setData('text/plain', plainLines.join('\n'));
           } catch {}

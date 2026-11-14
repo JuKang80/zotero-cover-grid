@@ -82,10 +82,10 @@ const HTML_ENTITY_MAP: Record<string, string> = {
 
 const HTML_NS = 'http://www.w3.org/1999/xhtml';
 const ALLOWED_TAGS = new Set(['sup', 'sub', 'i', 'em', 'b', 'strong', 'sc', 'span', 'br']);
-const ESCAPED_ALLOWED_TAG_REGEX = /&lt;(\/?(?:sup|sub|i|em|b|strong|sc|span|br)(?:\s[^&]*?)?)&gt;/gi;
+const ESCAPED_ALLOWED_TAG_REGEX = /&(?:amp;)*lt;(\/?(?:sup|sub|i|em|b|strong|sc|span|br)(?:\s[^&]*?)?)&(?:amp;)*gt;/gi;
 
 function normalizeEscapedFormattingTags(input: string): string {
-  if (!input.includes('&lt;')) return input;
+  if (!input.includes('lt;')) return input;
   return input.replace(ESCAPED_ALLOWED_TAG_REGEX, '<$1>');
 }
 
