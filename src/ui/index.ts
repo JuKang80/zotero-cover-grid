@@ -5,7 +5,6 @@ import { WindowCoverGridController } from '../sync/window-controller';
 import { selectItemInZotero, selectItemsInZotero, openItemInZotero, deleteItemsInZotero } from './item-actions';
 import { showPaperCardContextMenu } from './context-menu';
 import { formatFullApa7Bibliography, copyTextToClipboard } from '../utils/apa-formatter';
-import { cycleReadStatus } from './paper-card';
 
 declare const ZoteroPane: any;
 declare const Zotero: any;
@@ -225,14 +224,6 @@ export function injectCoverGridUI(win: any) {
         actions: {
           onOpenPdf: async (card) => {
             await openItemInZotero(win, card.id);
-          },
-          onToggleRead: (card) => {
-            const targets = getTargetCards(card);
-            const nextStatus = cycleReadStatus(card.readStatus);
-            for (const target of targets) {
-              target.readStatus = nextStatus;
-              controller.syncTagStatus(target, nextStatus);
-            }
           },
           onCopyCitation: async (card) => {
             const z = win.Zotero || (typeof Zotero !== 'undefined' ? Zotero : null);

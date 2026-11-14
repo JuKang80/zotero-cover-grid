@@ -593,4 +593,55 @@ describe('Card Page Preview & Quick Look Modal', () => {
 
     controller.destroy();
   });
+
+  it('shows immediate loading pill (1 / …) on single PDF selection before async page count completes', async () => {
+    document.body.innerHTML = `<div id="zotero-cover-grid"><div id="vp"><div id="grid"></div></div></div>`;
+    const viewport = document.getElementById('vp')!;
+    const container = document.getElementById('grid')!;
+
+    let releaseAttachment!: () => void;
+    const delayedAttachment = new Promise<void>((res) => {
+      releaseAttachment = res;
+    });
+
+    (globalThis as any).Zotero.Items.get = vi.fn((id: number) => ({
+      id,
+      key: `KEY_${id}`,
+      getBestAttachment: vi.fn(async () => {
+        await delayedAttachment;
+        return {
+          id: id * 10,
+          mtime: 444,
+          isPDFAttachment: () => true,
+          getFilePathAsync: vi.fn().mockResolvedValue(`/tmp/delayed-${id}.pdf`)
+        };
+      })
+    }));
+
+    const pdfCard = makeCard(602, { hasPdf: true });
+    const controller = new WindowCoverGridController({
+      document,
+      Zotero: (globalThis as any).Zotero,
+      ZoteroPane: (globalThis as any).ZoteroPane
+    });
+    const scroller = new VirtualGridScroller({ container, viewport });
+    controller.scroller = scroller;
+    controller.allItems = [pdfCard];
+    scroller.setItems([pdfCard]);
+
+    const el602 = scroller.getCardElement(602)!;
+    const pendingPromise = controller.handleSelectionChange([pdfCard]);
+
+    // Pill must be visible synchronously with '1 / …' before attachment/PDF parsing settles
+    const pillImmediate = el602.querySelector('.card-page-preview-pill') as HTMLElement;
+    expect(pillImmediate).not.toBeNull();
+    expect(pillImmediate.hidden).toBe(false);
+    expect(pillImmediate.querySelector('.card-page-badge-btn')?.textContent).toBe('1 / …');
+
+    releaseAttachment();
+    await pendingPromise;
+    expect(pillImmediate.querySelector('.card-page-badge-btn')?.textContent).toBe('1 / 10');
+
+    controller.destroy();
+  });
 });

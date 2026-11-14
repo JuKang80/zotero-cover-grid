@@ -33,7 +33,7 @@ describe('Paper Card Context Menu', () => {
     closeActiveContextMenu();
   });
 
-  it('renders Korean localized menu items when locale is ko', () => {
+  it('renders Korean localized 4-item emoji-free menu when locale is ko', () => {
     mockWin.Zotero.locale = 'ko-KR';
     const event = new MouseEvent('contextmenu', { clientX: 100, clientY: 150 });
 
@@ -46,12 +46,15 @@ describe('Paper Card Context Menu', () => {
 
     expect(menuEl).toBeDefined();
     expect(menuEl.textContent).toContain('PDF 열기');
-    expect(menuEl.textContent).toContain('읽기 상태 변경');
     expect(menuEl.textContent).toContain('APA 7 인용 복사');
     expect(menuEl.textContent).toContain('표지 다시 생성');
+    expect(menuEl.textContent).toContain('휴지통으로 이동');
+    expect(menuEl.querySelector('#menu-toggle-read')).toBeNull();
+    expect(menuEl.querySelector('#menu-native-zotero')).toBeNull();
+    expect(menuEl.textContent).not.toMatch(/[📄📝🏷️📋🔄🗑️⚙️]/u);
   });
 
-  it('renders English localized menu items when locale is en', () => {
+  it('renders English localized 4-item emoji-free menu when locale is en', () => {
     mockWin.Zotero.locale = 'en-US';
     const event = new MouseEvent('contextmenu', { clientX: 100, clientY: 150 });
 
@@ -63,16 +66,19 @@ describe('Paper Card Context Menu', () => {
     });
 
     expect(menuEl.textContent).toContain('Open PDF');
-    expect(menuEl.textContent).toContain('Toggle Reading Status');
     expect(menuEl.textContent).toContain('Copy APA 7 Citation');
     expect(menuEl.textContent).toContain('Regenerate Cover');
+    expect(menuEl.textContent).toContain('Move to Trash');
+    expect(menuEl.textContent).not.toContain('Toggle Reading Status');
+    expect(menuEl.textContent).not.toContain('More Zotero Actions');
+    expect(menuEl.textContent).not.toMatch(/[📄📝🏷️📋🔄🗑️⚙️]/u);
   });
 
   it('triggers action callbacks when menu items are clicked', () => {
     const onOpenPdf = vi.fn();
-    const onToggleRead = vi.fn();
     const onCopyCitation = vi.fn();
     const onRegenerateCover = vi.fn();
+    const onDelete = vi.fn();
 
     const event = new MouseEvent('contextmenu', { clientX: 100, clientY: 150 });
     const menuEl = showPaperCardContextMenu({
@@ -81,9 +87,9 @@ describe('Paper Card Context Menu', () => {
       win: mockWin,
       actions: {
         onOpenPdf,
-        onToggleRead,
         onCopyCitation,
-        onRegenerateCover
+        onRegenerateCover,
+        onDelete
       }
     });
 
@@ -99,15 +105,32 @@ describe('Paper Card Context Menu', () => {
       win: mockWin,
       actions: {
         onOpenPdf,
-        onToggleRead,
         onCopyCitation,
-        onRegenerateCover
+        onRegenerateCover,
+        onDelete
       }
     });
 
     const copyItem = menuEl2.querySelector('#menu-copy-citation') as HTMLElement;
     copyItem.click();
     expect(onCopyCitation).toHaveBeenCalledWith(testCard);
+
+    // Re-open menu to click 'Move to Trash'
+    const menuEl3 = showPaperCardContextMenu({
+      event,
+      card: testCard,
+      win: mockWin,
+      actions: {
+        onOpenPdf,
+        onCopyCitation,
+        onRegenerateCover,
+        onDelete
+      }
+    });
+
+    const deleteItem = menuEl3.querySelector('#menu-delete-item') as HTMLElement;
+    deleteItem.click();
+    expect(onDelete).toHaveBeenCalledWith(testCard);
   });
 
   it('disables PDF-dependent items when card has no PDF', () => {
