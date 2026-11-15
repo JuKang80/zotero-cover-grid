@@ -24,35 +24,14 @@ export interface ContextMenuOptions {
   actions: ContextMenuActions;
 }
 
-function getLocale(win: any): 'ko' | 'en' {
-  try {
-    const loc = win?.Zotero?.locale || (globalThis as any).Zotero?.locale || win?.navigator?.language || '';
-    if (String(loc).toLowerCase().startsWith('ko')) {
-      return 'ko';
-    }
-  } catch {}
-  return 'en';
-}
-
-const I18N = {
-  ko: {
-    openPdf: 'PDF 열기',
-    openNote: '노트 열기 / 편집',
-    copyCitation: 'APA 7 인용 복사',
-    copyNote: '노트 본문 복사',
-    regenerateCover: '표지 다시 생성',
-    deleteItem: '휴지통으로 이동',
-    deleteNote: '노트 삭제'
-  },
-  en: {
-    openPdf: 'Open PDF',
-    openNote: 'Open / Edit Note',
-    copyCitation: 'Copy APA 7 Citation',
-    copyNote: 'Copy Note Text',
-    regenerateCover: 'Regenerate Cover',
-    deleteItem: 'Move to Trash',
-    deleteNote: 'Move Note to Trash'
-  }
+const LABELS = {
+  openPdf: 'Open PDF',
+  openNote: 'Open / Edit Note',
+  copyCitation: 'Copy APA 7 Citation',
+  copyNote: 'Copy Note Text',
+  regenerateCover: 'Regenerate Cover',
+  deleteItem: 'Move to Trash',
+  deleteNote: 'Move Note to Trash'
 };
 
 let activeMenuEl: HTMLElement | null = null;
@@ -84,8 +63,7 @@ export function showPaperCardContextMenu(options: ContextMenuOptions): HTMLEleme
   menuEl.className = 'cover-grid-context-menu';
   menuEl.id = 'cover-grid-context-menu';
 
-  const locale = getLocale(win);
-  const text = I18N[locale];
+  const text = LABELS;
   const isNote = card.itemType === 'note';
 
   const menuItems: Array<{

@@ -226,7 +226,7 @@ describe('v0.4.0 Native Zotero Parity UX Suite', () => {
 
     selectItemsInZotero(mockWin, [101, 102, 103]);
     expect(selectItemsSpy).toHaveBeenCalledWith([101, 102, 103], false, true);
-    expect(showMessageSpy).toHaveBeenCalledWith('3개 항목 선택됨');
+    expect(showMessageSpy).toHaveBeenCalledWith('3 items selected');
   });
 
   it('5. MacBook Trackpad Control+Click & Standalone Note Context Menu Actions', () => {
@@ -278,7 +278,7 @@ describe('v0.4.0 Native Zotero Parity UX Suite', () => {
 
     const openBtn = menuEl.querySelector('#menu-open-pdf') as HTMLElement;
     expect(openBtn.classList.contains('disabled')).toBe(false);
-    expect(openBtn.textContent).toContain('노트 열기');
+    expect(openBtn.textContent).toContain('Open / Edit Note');
     openBtn.click();
     expect(onOpenNote).toHaveBeenCalledWith(sampleItems[2]);
   });
@@ -375,7 +375,7 @@ describe('v0.4.0 Native Zotero Parity UX Suite', () => {
     scroller.setItems([]);
     const placeholder = container.querySelector('.grid-empty-placeholder');
     expect(placeholder).not.toBeNull();
-    expect(placeholder?.textContent).toContain('표시할 항목이 없습니다');
+    expect(placeholder?.textContent).toContain('No items to display.');
 
     // 2. Card tooltips verification (no cluttering mouse/keyboard operation guides)
     scroller.setItems(sampleItems);

@@ -63,14 +63,14 @@ export function injectToolbarControls(win: any): ToolbarController | null {
   btnList.className = 'view-toggle-btn active';
   btnList.id = 'zotero-cover-grid-btn-list';
   btnList.textContent = '≡';
-  btnList.title = '목록 뷰로 전환 (List View)';
+  btnList.title = 'Switch to List View';
   btnList.setAttribute('aria-pressed', 'true');
 
   const btnGrid = doc.createElementNS(HTML_NS, 'button');
   btnGrid.className = 'view-toggle-btn';
   btnGrid.id = 'zotero-cover-grid-btn-grid';
   btnGrid.textContent = '⊞';
-  btnGrid.title = '바둑판 표지 뷰로 전환 (Cover Grid View)';
+  btnGrid.title = 'Switch to Cover Grid View';
   btnGrid.setAttribute('aria-pressed', 'false');
 
   switcher.appendChild(btnList);
@@ -87,7 +87,7 @@ export function injectToolbarControls(win: any): ToolbarController | null {
 
   const zoomLabel = doc.createElementNS(HTML_NS, 'span');
   zoomLabel.className = 'zoom-slider-label';
-  zoomLabel.textContent = '🔍';
+  zoomLabel.textContent = 'Size';
 
   // Read initial card width from preferences if present
   let initialCardWidth = 180;

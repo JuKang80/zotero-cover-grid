@@ -29,7 +29,7 @@ export function updatePaperCardMetadata(cardEl: HTMLElement, card: PaperCardData
   const bookHeader = cardEl.querySelector('.book-cover-header') as HTMLElement | null;
   const isNote = card.itemType === 'note';
   if (bookHeader) {
-    const nextHeader = isNote ? '📝 RESEARCH NOTE' : richTextToPlainText(card.publicationTitle || formatItemTypeLabel(card.itemType)).toUpperCase();
+    const nextHeader = isNote ? 'RESEARCH NOTE' : richTextToPlainText(card.publicationTitle || formatItemTypeLabel(card.itemType)).toUpperCase();
     if (bookHeader.textContent !== nextHeader) bookHeader.textContent = nextHeader;
   }
   const bookFooter = cardEl.querySelector('.book-cover-footer') as HTMLElement | null;
@@ -139,7 +139,7 @@ function createLazyPagePill(cardEl: HTMLElement): HTMLElement | null {
   prevPageBtn.type = 'button';
   prevPageBtn.className = 'card-page-btn card-page-prev-btn';
   prevPageBtn.textContent = '‹';
-  prevPageBtn.title = '이전 페이지';
+  prevPageBtn.title = 'Previous page';
   prevPageBtn.addEventListener('click', (e: MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -155,13 +155,13 @@ function createLazyPagePill(cardEl: HTMLElement): HTMLElement | null {
   pageBadgeBtn.type = 'button';
   pageBadgeBtn.className = 'card-page-badge-btn';
   pageBadgeBtn.textContent = '1 / 1';
-  pageBadgeBtn.title = 'Quick Look 크게 보기';
+  pageBadgeBtn.title = 'Open Quick Look';
 
   const nextPageBtn = createEl('button');
   nextPageBtn.type = 'button';
   nextPageBtn.className = 'card-page-btn card-page-next-btn';
   nextPageBtn.textContent = '›';
-  nextPageBtn.title = '다음 페이지';
+  nextPageBtn.title = 'Next page';
   nextPageBtn.addEventListener('click', (e: MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -180,7 +180,7 @@ function createLazyPagePill(cardEl: HTMLElement): HTMLElement | null {
   expandBtn.type = 'button';
   expandBtn.className = 'card-page-btn card-page-expand-btn';
   expandBtn.textContent = '⤢';
-  expandBtn.title = 'Quick Look 크게 보기';
+  expandBtn.title = 'Open Quick Look';
 
   const openQuickLookHandler = (e: MouseEvent) => {
     e.preventDefault();

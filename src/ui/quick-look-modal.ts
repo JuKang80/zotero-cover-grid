@@ -141,7 +141,7 @@ export class QuickLookModal {
 
     const zoomTitle = createEl('span');
     zoomTitle.className = 'quick-look-zoom-title';
-    zoomTitle.textContent = '확대';
+    zoomTitle.textContent = 'Zoom';
 
     const zoomSlider = createEl('input');
     zoomSlider.type = 'range';
@@ -150,7 +150,7 @@ export class QuickLookModal {
     zoomSlider.step = '1';
     zoomSlider.value = '100';
     zoomSlider.className = 'quick-look-zoom-slider';
-    zoomSlider.title = '확대/축소 (더블클릭으로 100% 초기화)';
+    zoomSlider.title = 'Zoom (Double-click to reset to 100%)';
     zoomSlider.addEventListener('input', (e) => {
       this.setZoom(Number((e.target as HTMLInputElement).value));
     });
@@ -165,7 +165,7 @@ export class QuickLookModal {
     zoomLabel.type = 'button';
     zoomLabel.className = 'quick-look-zoom-label';
     zoomLabel.textContent = '100%';
-    zoomLabel.title = '클릭하여 100%로 초기화';
+    zoomLabel.title = 'Click to reset to 100%';
     zoomLabel.addEventListener('click', () => {
       this.setZoom(100);
       zoomLabel.blur?.();
@@ -182,7 +182,7 @@ export class QuickLookModal {
     const openTabBtn = createEl('button');
     openTabBtn.type = 'button';
     openTabBtn.className = 'quick-look-open-tab-btn';
-    openTabBtn.textContent = '↗ 탭에서 열기';
+    openTabBtn.textContent = 'Open in Tab';
     openTabBtn.addEventListener('click', () => {
       const params = this.activeParams;
       const targetPage = this.actualPageNumber;
@@ -196,8 +196,8 @@ export class QuickLookModal {
     closeBtn.type = 'button';
     closeBtn.className = 'quick-look-close-btn';
     closeBtn.textContent = '✕';
-    closeBtn.title = '닫기 (Esc)';
-    closeBtn.setAttribute('aria-label', '닫기');
+    closeBtn.title = 'Close (Esc)';
+    closeBtn.setAttribute('aria-label', 'Close');
     closeBtn.addEventListener('click', () => this.close());
 
     actionsGroup.appendChild(openTabBtn);
@@ -215,7 +215,7 @@ export class QuickLookModal {
     prevBtn.type = 'button';
     prevBtn.className = 'quick-look-nav-btn quick-look-nav-prev';
     prevBtn.textContent = '‹';
-    prevBtn.title = '이전 페이지';
+    prevBtn.title = 'Previous page';
     prevBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       void this.goToPage(this.currentPage - 1);
@@ -226,7 +226,7 @@ export class QuickLookModal {
     nextBtn.type = 'button';
     nextBtn.className = 'quick-look-nav-btn quick-look-nav-next';
     nextBtn.textContent = '›';
-    nextBtn.title = '다음 페이지';
+    nextBtn.title = 'Next page';
     nextBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       void this.goToPage(this.currentPage + 1);
@@ -243,7 +243,7 @@ export class QuickLookModal {
 
     const spinner = createEl('div');
     spinner.className = 'quick-look-spinner';
-    spinner.textContent = '페이지 불러오는 중...';
+    spinner.textContent = 'Loading page...';
     spinner.hidden = true;
     spinner.style.display = 'none';
 
@@ -254,7 +254,7 @@ export class QuickLookModal {
     pageIndicator.textContent = '1 / 1';
     const dragHint = createEl('span');
     dragHint.className = 'quick-look-drag-hint';
-    dragHint.textContent = '드래그하여 이동';
+    dragHint.textContent = 'Drag to pan';
     dragHint.hidden = true;
     dragHint.style.display = 'none';
 

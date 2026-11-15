@@ -189,10 +189,10 @@ export function injectCoverGridUI(win: any) {
       });
       await copyTextToClipboard(lines.join('\n\n'), win);
       // 3. Subtle non-flashy notification
-      toolbar?.showStatusMessage?.('✓ 인용 복사됨');
+      toolbar?.showStatusMessage?.('Citation copied');
       try {
         if (typeof z?.updateStatusLabel === 'function') {
-          z.updateStatusLabel('인용이 클립보드에 복사되었습니다.');
+          z.updateStatusLabel('Citation copied to clipboard.');
         }
       } catch {}
     },
