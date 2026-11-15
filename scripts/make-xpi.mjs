@@ -88,10 +88,17 @@ await new Promise((resolve, reject) => {
   archive.on('error', reject);
 
   archive.pipe(output);
-  archive.glob('**/*', {
-    cwd: sourceDir,
-    ignore: ['updates.json']
-  });
+  archive.glob(
+    '**/*',
+    {
+      cwd: sourceDir,
+      ignore: ['updates.json']
+    },
+    {
+      date: new Date('2026-01-01T00:00:00.000Z'),
+      mode: 0o644
+    }
+  );
   archive.finalize();
 });
 
