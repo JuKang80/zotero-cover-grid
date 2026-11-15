@@ -383,7 +383,7 @@ describe('Empirical Challenger M3: PDF Open, CMap Fonts, Zoom & Packaging', () =
       expect(entryNames).toContain('preferences.xhtml');
       expect(entryNames).toContain('icons/icon-48.png');
       expect(entryNames).toContain('locale/en-US/covergrid.ftl');
-      expect(entryNames).toContain('locale/ko-KR/covergrid.ftl');
+      expect(entryNames).not.toContain('locale/ko-KR/covergrid.ftl');
 
       // Verify no unwanted files (no tests, no node_modules, no .map files)
       const unwanted = entryNames.filter(
