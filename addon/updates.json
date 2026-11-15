@@ -5,7 +5,7 @@
         {
           "version": "0.4.5",
           "update_link": "https://github.com/JuKang80/zotero-cover-grid/releases/download/v0.4.5/zotero-cover-grid.xpi",
-          "update_hash": "sha256:f80f07c918d2cf51586e0fec02c69968082db8668a9afe1de6527e5f6e377797",
+          "update_hash": "sha256:cd2d971abaf75fae4bb4cb7604bccfff6e85a198de761909badd286bd30f850e",
           "applications": {
             "zotero": {
               "strict_min_version": "6.999",
