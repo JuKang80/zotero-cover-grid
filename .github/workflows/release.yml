@@ -41,3 +41,21 @@ jobs:
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Sync updates.json hash to main
+        run: |
+          if ! git diff --quiet -- addon/updates.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git fetch origin main
+            git checkout -B main origin/main
+            git checkout --theirs -- addon/updates.json || true
+            node scripts/make-xpi.mjs
+            git add addon/updates.json
+            if ! git diff --cached --quiet; then
+              git commit -m "chore(release): sync updates.json sha256 for ${{ github.ref_name }} [skip ci]"
+              git push origin main
+            fi
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
