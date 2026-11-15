@@ -33,7 +33,7 @@ describe('Paper Card Context Menu', () => {
     closeActiveContextMenu();
   });
 
-  it('renders Korean localized 4-item emoji-free menu when locale is ko', () => {
+  it('renders English-only 4-item emoji-free menu even when locale is ko', () => {
     mockWin.Zotero.locale = 'ko-KR';
     const event = new MouseEvent('contextmenu', { clientX: 100, clientY: 150 });
 
@@ -45,12 +45,13 @@ describe('Paper Card Context Menu', () => {
     });
 
     expect(menuEl).toBeDefined();
-    expect(menuEl.textContent).toContain('PDF 열기');
-    expect(menuEl.textContent).toContain('APA 7 인용 복사');
-    expect(menuEl.textContent).toContain('표지 다시 생성');
-    expect(menuEl.textContent).toContain('휴지통으로 이동');
+    expect(menuEl.textContent).toContain('Open PDF');
+    expect(menuEl.textContent).toContain('Copy APA 7 Citation');
+    expect(menuEl.textContent).toContain('Regenerate Cover');
+    expect(menuEl.textContent).toContain('Move to Trash');
     expect(menuEl.querySelector('#menu-toggle-read')).toBeNull();
     expect(menuEl.querySelector('#menu-native-zotero')).toBeNull();
+    expect(menuEl.textContent).not.toMatch(/[가-힣]/);
     expect(menuEl.textContent).not.toMatch(/[📄📝🏷️📋🔄🗑️⚙️]/u);
   });
 

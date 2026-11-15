@@ -161,10 +161,7 @@ export function selectItemsInZotero(win: any, itemIds: number[]): void {
       domItemPaneContent ||
       (typeof (globalThis as any).ZoteroItemPane !== 'undefined' ? (globalThis as any).ZoteroItemPane : null);
 
-    const locale = String(z?.locale || win?.navigator?.language || '').toLowerCase();
-    const msg = locale.startsWith('ko')
-      ? `${itemIds.length}개 항목 선택됨`
-      : `${itemIds.length} items selected`;
+    const msg = `${itemIds.length} items selected`;
 
     const loadedItems = itemIds
       .map((id) => {

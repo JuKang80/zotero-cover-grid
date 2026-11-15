@@ -70,7 +70,7 @@ export function openCoverGridTab(win: any) {
   const tabInfo = tabs.add({
     id: COVER_GRID_TAB_ID,
     type: 'custom',
-    title: '📚 Cover Grid',
+    title: 'Cover Grid',
     data: { icon: 'library' },
     select: true,
     onClose: () => {
@@ -113,7 +113,7 @@ export function openCoverGridTab(win: any) {
 
   const icon = doc.createElementNS(HTML_NS, 'span');
   icon.className = 'cover-grid-tab-icon';
-  icon.textContent = '📚';
+  icon.textContent = '';
 
   const title = doc.createElementNS(HTML_NS, 'span');
   title.className = 'cover-grid-tab-title';
@@ -146,14 +146,14 @@ export function openCoverGridTab(win: any) {
   const searchInput = doc.createElementNS(HTML_NS, 'input') as HTMLInputElement;
   searchInput.type = 'search';
   searchInput.className = 'cover-grid-search-input';
-  searchInput.placeholder = '논문 검색 (제목, 저자, 연도)...';
+  searchInput.placeholder = 'Search papers (title, author, year)...';
 
   const zoomContainer = doc.createElementNS(HTML_NS, 'div');
   zoomContainer.className = 'zoom-slider-container';
 
   const zoomLabel = doc.createElementNS(HTML_NS, 'span');
   zoomLabel.className = 'zoom-slider-label';
-  zoomLabel.textContent = '🔍';
+  zoomLabel.textContent = 'Size';
 
   // Read initial card width preference
   let initialCardWidth = 180;
@@ -183,8 +183,8 @@ export function openCoverGridTab(win: any) {
 
   const refreshBtn = doc.createElementNS(HTML_NS, 'button');
   refreshBtn.className = 'cover-grid-refresh-btn';
-  refreshBtn.textContent = '🔄';
-  refreshBtn.title = '목록 새로고침';
+  refreshBtn.textContent = 'Refresh';
+  refreshBtn.title = 'Refresh list';
 
   controls.appendChild(searchInput);
   controls.appendChild(zoomContainer);
@@ -232,7 +232,7 @@ export function openCoverGridTab(win: any) {
     const closeBtn = doc.createElementNS(HTML_NS, 'button');
     closeBtn.className = 'inspector-close-btn';
     closeBtn.textContent = '×';
-    closeBtn.title = '닫기';
+    closeBtn.title = 'Close';
     closeBtn.onclick = () => { inspector.style.display = 'none'; };
 
     inspHeader.appendChild(typeBadge);
@@ -285,7 +285,7 @@ export function openCoverGridTab(win: any) {
 
     const openPdfBtn = doc.createElementNS(HTML_NS, 'button');
     openPdfBtn.className = 'inspector-open-pdf-btn';
-    openPdfBtn.textContent = '📄 PDF 열기';
+    openPdfBtn.textContent = 'Open PDF';
     openPdfBtn.onclick = async () => {
       await openItemInZotero(win, cardItem.id);
     };
@@ -366,7 +366,7 @@ export function openCoverGridTab(win: any) {
             await copyTextToClipboard(lines.join('\n\n'), win);
             try {
               if (typeof z?.updateStatusLabel === 'function') {
-                z.updateStatusLabel('인용이 클립보드에 복사되었습니다.');
+                z.updateStatusLabel('Citation copied to clipboard.');
               }
             } catch {}
           },

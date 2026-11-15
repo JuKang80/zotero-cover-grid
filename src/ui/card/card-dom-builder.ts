@@ -158,7 +158,7 @@ export function buildPaperCardDOM(
   const bookHeader = targetDoc.createElementNS(HTML_NS, 'div');
   bookHeader.className = 'book-cover-header';
   bookHeader.textContent = isNote
-    ? '📝 RESEARCH NOTE'
+    ? 'RESEARCH NOTE'
     : (card.publicationTitle ? richTextToPlainText(card.publicationTitle) : formatItemTypeLabel(card.itemType)).toUpperCase();
   bookCoverEl.appendChild(bookHeader);
 
