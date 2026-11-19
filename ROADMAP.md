@@ -6,14 +6,25 @@
 
 ## 📌 현재 개발 현황 요약
 
-- **현재 버전**: `v0.4.2` (구형 단독/스캔 PDF 지원, JBIG2/Type1 폰트 예외 처리, 그리드-목록 전환 스크롤 오프셋 정위치 복원, 0~9번 숫자 태그 네이티브 연동)
+- **현재 버전**: `v0.4.5` (UI 영어 단일화·이모티콘 제거, 결정적 XPI 빌드 & `updates.json` 자동 업데이트, 카드 페이지 미리보기 & Quick Look 모달, 구형 단독/스캔 PDF 지원)
 - **타깃 런타임**: Zotero 7 & 10+ (`Gecko 115 ~ 140+ ESR`, XUL+XHTML 통합 환경)
-- **테스트 통과율**: **211 / 211 테스트 100% 통과** (32개 테스트 스위트)
+- **테스트 통과율**: **225 / 225 테스트 100% 통과** (33개 테스트 스위트)
 - **패키징 산출물**: `build/zotero-cover-grid.xpi`
 
 ---
 
 ## ✅ 구현 완료 내역 (Release Highlights)
+
+### v0.4.5 (UI 영어 단일화 & 미니멀 인터랙션 정비) ✅ 완료
+- [x] **UI 텍스트 영어 단일화 및 이모티콘 제거**: `addon/locale/ko-KR` 제거(`en-US` 단일화), 툴바·카드·컨텍스트 메뉴·설정창·Quick Look UI 전반의 이모티콘 제거 및 영어 레이블(`UNREAD`/`READING`/`READ`, `List View`/`Cover Grid View`) 통일.
+- [x] **패키징 테스트 & 해시 동기화**: `ko-KR` 제거 반영 및 클린 빌드 `addon/updates.json` SHA-256 해시 정합성 검증.
+
+### v0.4.4 (결정적 XPI 빌드 & 자동 업데이트 파이프라인) ✅ 완료
+- [x] **결정적 XPI 패키징 & 자동 업데이트**: `scripts/make-xpi.mjs`의 zip 메타데이터 고정 및 `addon/updates.json` `update_hash` 자동 동기화, GitHub Actions 릴리스 워크플로(`.github/workflows/release.yml`) 연동.
+
+### v0.4.3 (카드 페이지 미리보기 & Quick Look 모달) ✅ 완료
+- [x] **카드 페이지 미리보기 & Quick Look 모달**: 그리드 카드 위 페이지 미리보기 필 즉시 표시 및 100%~250% 줌 지원 `QuickLookModal`(`src/ui/quick-look-modal.ts`) 구현.
+- [x] **미니멀 컨텍스트 메뉴 & 리치 텍스트 보강**: 이모티콘 없는 우클릭 메뉴 개편, 제목 위첨자·HTML 엔티티 렌더링(`src/utils/rich-text.ts`), Zotero 프로필 XPI 영구 동기화 보강.
 
 ### v0.4.2 (구형 논문·단독 PDF 안정화 & 인터랙션 폴리싱) ✅ 완료
 - [x] **구형 단독/스캔 PDF 및 메타데이터 미정리 논문 100% 렌더링**
@@ -64,10 +75,12 @@
 
 ---
 
-## 🧪 테스트 스위트 체크 현황 (32개 스위트 / 211개 테스트 전체 PASS)
+## 🧪 테스트 스위트 체크 현황 (33개 스위트 / 225개 테스트 전체 PASS)
 
 | 주요 테스트 스위트 | 검증 항목 | 상태 |
 | :--- | :--- | :---: |
+| `tests/card-page-preview.test.ts` | 카드 페이지 미리보기 컨트롤러, Quick Look 모달 및 엣지 케이스 | ✅ 통과 |
+| `tests/rich-text.test.ts` | 제목 위첨자·HTML 엔티티 리치 텍스트 파싱 | ✅ 통과 |
 | `tests/v0.4-native-parity.test.ts` | 뷰 전환 스크롤/선택 동기화, 퀵 카피, 드래그앤드롭, 트랙패드 | ✅ 통과 |
 | `tests/view-state-sync.test.ts` | 목록 $\leftrightarrow$ 그리드 선택 ID 추출 및 뷰포트 오프셋 복원 | ✅ 통과 |
 | `tests/collection-loading-parity.test.ts` | 컬렉션 항목 로딩, SQLite DB 및 ZoteroPane itemsView 일치성 | ✅ 통과 |

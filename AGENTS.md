@@ -1,7 +1,12 @@
 # AGENTS.md
 
 ## Active Project Roadmap
-- **Zotero Cover Grid**: Project roadmap and sprint backlog are documented in `/Users/user/workspace/zotero-cover-grid/ROADMAP.md`. When resuming or working on backlog items, read this file first.
+- **Roadmap First**: Project status and backlog live in `ROADMAP.md`. Read it before starting or resuming backlog items.
+
+## Verification Commands (`verify` Primary Source)
+- **Fast Checks**: `npm run type-check` (TypeScript strict check) and targeted `npx vitest run <test-file>`.
+- **Full Gate**: `npm run type-check`, `npm test` (Vitest + happy-dom), and `npm run package` (when `src/` or `addon/` changes; mirrors `.github/workflows/release.yml`).
+- **Reload IPC Note**: `npm run reload` writes `/tmp/zotero-cover-grid-reload.trigger` intentionally for Zotero live-reload IPC (exception to root scratch-file `/tmp` rule; do not place agent scratch files in `/tmp`).
 
 ## Git & Reporting Workflow
-- **Auto-Push Before Final Report**: When completing a task in `zotero-cover-grid` on a dedicated branch (`feature/*`, `fix/*`, `task/*`; never `main`), create an atomic commit (with a concise Korean message) AND push the branch to `origin` (`git push -u origin <branch>`) before reporting completion to the user.
+- **Auto-Push Before Final Report** *(Overrides workspace commit/push confirmation)*: After passing global `verify` and `open-code-review` checks on a dedicated branch (per root `AGENTS.md` branch & commit rules; never `main`), create an atomic Korean commit and push (`git push -u origin <branch>`) before reporting completion.
