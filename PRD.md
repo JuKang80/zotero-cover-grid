@@ -1,7 +1,7 @@
 # [Technical Specification] Zotero Cover Grid Extension
 
 > **프로젝트명**: `zotero-cover-grid`  
-> **현재 버전**: `v0.4.2`  
+> **현재 버전**: `v0.4.5`  
 > **라이선스**: MIT License  
 > **타깃 플랫폼**: Zotero 7 & 10+ (`Gecko 115 ~ 140+ ESR`, XUL+XHTML 통합 환경)  
 > **개발 스택**: TypeScript 5+, esbuild, Web Components, PDF.js, Vitest (happy-dom), Gecko Web APIs  
@@ -27,7 +27,7 @@
 ### 2.1 인터페이스 구성
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
-│ [Zotero 툴바] [검색창...] [🔍 줌 슬라이더] [목록뷰 [≡] | 그리드뷰 [⊞] (Active)]  │
+│ [Zotero 툴바] [검색창...] [Card Zoom] [≡ List View | ⊞ Cover Grid View (Active)] │
 ├────────────────────────────────────────────────────────────────────────┤
 │ [#zotero-items-pane 컨테이너 (<hbox flex="1">)]                        │
 │  ├── <html:div id="zotero-items-tree" hidden="true">...</html:div>     │
@@ -42,7 +42,7 @@
 │       │    │ └──────────────────┘ │    │ └──────────────────┘ │        │
 │       │    │ Kim et al. (2026)    │    │ Lee et al. (2025)    │        │
 │       │    │ APA 7 · Article      │    │ APA 7 · Article      │        │
-│       │    │ [ Reading ] (Click)  │    │ [ Read ]    (Click)  │        │
+│       │    │ [ READING ] (Click)  │    │ [ READ ]    (Click)  │        │
 │       │    └──────────────────────┘    └──────────────────────┘        │
 │                                                                        │
 │  </html:zotero-cover-grid>                                             │
@@ -59,7 +59,7 @@
   - 종횡비: **3:4 고정 비율** (`aspect-ratio: 3 / 4`, `object-fit: contain` 레터박스).
   - 1행: `저자 (연도)` APA 7 표기 (1명: `Kim (2026)`, 2명: `Kim & Lee (2026)`, 3명+: `Kim et al. (2026)`).
   - 2행: `APA 7 · Item Type` (11px 메타 텍스트, 1줄 말줄임).
-  - 3행: `[Reading]` / `[Read]` / `[Unread]` 읽기 상태 배지 (원클릭 순환 토글, `#unread`/`#reading`/`#read` 태그와 실시간 양방향 동기화).
+  - 3행: `[UNREAD]` / `[READING]` / `[READ]` 읽기 상태 배지 (원클릭 순환 토글, `#unread`/`#reading`/`#read` 태그와 실시간 양방향 동기화; `v0.4.5`부터 UI 레이블 영어 단일화).
 
 ---
 
@@ -81,6 +81,7 @@
 | **Cmd+Backspace / Shift+Del** | 라이브러리 휴지통으로 항목 이동 |
 | **검색창 입력 / ESC** | 150ms 디바운스 실시간 검색 필터링 (`ESC` 시 즉시 전체 서재 복원) |
 | **좌측 하단 태그 창 클릭** | 태그 다중 선택 시 그리드 실시간(0ms) 반응형 필터링 |
+| **페이지 미리보기 / Quick Look** | 카드 위 페이지 미리보기 필 탐색 및 Quick Look 모달(100%~250% 줌, 페이지 이동, 탭 열기) |
 
 ---
 
@@ -135,24 +136,36 @@ flowchart TD
 
 ## 5. 모듈 구조
 
-```
+```text
 src/
 ├── bootstrap.ts                    # XPCOM 부트스트랩 엔트리포인트 (startup/shutdown)
 ├── types/                          # 도메인 모델, Gecko XPCOM 및 환경 앰비언트 타입
-├── utils/                          # APA 7 포맷터, 리치 텍스트 파서, 클립보드 유틸
-├── thumbnail/                      # PDF.js 렌더링 엔진, 출판사 Splash 감지, 디스크/메모리 캐시
+├── styles/
+│   └── grid.css                    # 그리드·카드·툴바·Quick Look 스타일시트
+├── utils/                          # APA 7 포맷터, 리치 텍스트 파서, format/(citation/clipboard/note-parser)
+├── services/
+│   ├── cache-manager.ts            # 디스크/메모리 2계층 LRU 캐시
+│   ├── pdf-thumbnail-service.ts    # PDF.js 렌더링 및 페이지 미리보기 서비스
+│   └── thumbnail/                  # canvas-utils, splash-detector, typography-cover
 ├── sync/
 │   ├── window-controller.ts        # 창별 컨트롤러 인스턴스
-│   ├── collection/                 # SQLite DB & itemsView 컬렉션 페처
+│   ├── collection/                 # SQLite DB & itemsView 페처, 컬렉션 트리 DnD
 │   ├── filter/                     # 150ms 디바운스 검색 & 태그 필터 엔진
 │   ├── tags/                       # Zotero 네이티브 색상 태그(0~9) 및 읽기 상태 동기화
 │   └── notifier/                   # Zotero.Notifier 이벤트 브로드캐스트 핸들러
 └── ui/
+    ├── index.ts                    # UI export 엔트리포인트
     ├── virtual-scroller.ts         # 60fps 가상 스크롤 뷰포트
-    ├── tab-view.ts                 # 탭 뷰 래퍼
-    ├── context-menu.ts             # 순정 컨텍스트 메뉴 연동 및 노트 커스텀 액션
-    ├── toolbar/                    # 세그먼트 스위처 [≡|⊞], 줌 슬라이더, 뷰 전환 동기화
-    └── card/                       # 3:4 표지 카드 컴포넌트 & 제스처/트랙패드 핸들러
+    ├── scroller/                   # keyboard-manager, scroll-anchor, selection-model
+    ├── paper-card.ts               # 표지 카드 컴포넌트 래퍼
+    ├── card/                       # card-dom-builder, card-updater, gesture-handler
+    ├── quick-look-modal.ts         # PDF 페이지 Quick Look 모달 (100%~250% 줌)
+    ├── toolbar.ts                  # 툴바 컨트롤러 및 세그먼트 스위처 [≡|⊞]
+    ├── toolbar/                    # view-state-sync (목록↔그리드 선택/오프셋 동기화)
+    ├── context-menu.ts             # 순정 컨텍스트 메뉴 연동 및 노트/표지 커스텀 액션
+    ├── menu/                       # menu-positioner
+    ├── item-actions.ts             # 항목 열기/삭제/퀵 카피 액션 헬퍼
+    └── tab-view.ts                 # 전용 탭 뷰 래퍼
 ```
 
 ---
@@ -160,8 +173,8 @@ src/
 ## 6. 품질 검증 및 테스트 규격
 
 - **테스트 환경**: Vitest + happy-dom (Gecko 115 ~ 140+ XPCOM 모의 환경)
-- **테스트 현황**: **32개 테스트 파일 / 211개 테스트 100% 통과**
+- **테스트 현황**: **33개 테스트 파일 / 225개 테스트 100% 통과**
 - **품질 게이트 (CI/CD)**:
   - `npm run type-check`: TypeScript 엄격 모드 0 에러
-  - `npm test`: 211개 단위·통합·엣지케이스 테스트 통과
-  - `npm run package`: 프로덕션 번들링 및 `build/zotero-cover-grid.xpi` 무결성 패키징
+  - `npm test`: 225개 단위·통합·엣지케이스 테스트 통과
+  - `npm run package`: 결정적 프로덕션 번들링, `build/zotero-cover-grid.xpi` 패키징 및 `addon/updates.json` SHA-256 해시 동기화

@@ -12,22 +12,14 @@
 
 ## 📸 Screenshots
 
-<!-- Full Screen Screenshot Placeholder -->
-> 💡 *Screenshot: Full cover grid view*  
-> `![Zotero Cover Grid Preview](docs/images/preview.png)`
-
-<br>
-
-| Toolbar & Zoom Slider | Paper Card & Status Badges |
-| :---: | :---: |
-| `![Toolbar Controls](docs/images/toolbar.png)` | `![Card Badges](docs/images/card.png)` |
-| *[ ≡ List \| ⊞ Grid ] Toggle & Zoom Slider* | *APA 7 citations & Unread/Reading/Read badges* |
+> *Screenshots will be added under `docs/images/` in an upcoming release.*
 
 ---
 
 ## ✨ Features
 
 - **🖼️ First-Page PDF Bookcase**: Renders the first page of attached PDFs into crisp, high-resolution book covers.
+- **🔎 Card Page Preview & Quick Look Modal**: Preview additional PDF pages right on the card pill or open a zoomable (100%–250%) Quick Look modal before opening a full tab.
 - **🧠 Smart Publisher Detection**: Automatically detects publisher splash pages (JSTOR, Elsevier, Springer) and uses **Page 2 as the true cover**.
 - **📖 Standard APA 7 Citations**: Formats author citations according to APA 7th edition (`Kim et al. (2026)`) for effortless recognition.
 - **🚦 Traffic-Light Reading Badges**: Click any card badge to cycle through `UNREAD ➔ READING ➔ READ` (syncs two-way with `#unread`, `#reading`, `#read` tags).
