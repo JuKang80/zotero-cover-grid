@@ -10,7 +10,9 @@ export class ScrollAnchorTracker {
     const vpTop = viewport?.scrollTop || 0;
     for (const item of items) {
       const el = cardMap.get(item.id);
-      if (el && el.offsetTop >= vpTop) {
+      if (!el) continue;
+      const h = el.offsetHeight || 0;
+      if (h > 0 ? el.offsetTop + h > vpTop : el.offsetTop >= vpTop) {
         return item;
       }
     }

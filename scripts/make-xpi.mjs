@@ -27,7 +27,21 @@ function syncUpdateHashes(xpiPath) {
       const entryList = updatesData?.addons?.[PLUGIN_ID]?.updates;
       if (!Array.isArray(entryList)) continue;
       const targetEntry = entryList.find((u) => u && u.version === version);
-      if (targetEntry && targetEntry.update_hash !== nextHash) {
+      if (!targetEntry) {
+        entryList.unshift({
+          version,
+          update_link: `https://github.com/JuKang80/zotero-cover-grid/releases/download/v${version}/zotero-cover-grid.xpi`,
+          update_hash: nextHash,
+          applications: {
+            zotero: {
+              strict_min_version: manifest?.applications?.zotero?.strict_min_version || '6.999',
+              strict_max_version: manifest?.applications?.zotero?.strict_max_version || '11.*'
+            }
+          }
+        });
+        fs.writeFileSync(updatesPath, `${JSON.stringify(updatesData, null, 2)}\n`, 'utf8');
+        console.log(`[make-xpi] Added ${updatesPath} v${version} entry with hash: ${nextHash}`);
+      } else if (targetEntry.update_hash !== nextHash) {
         targetEntry.update_hash = nextHash;
         fs.writeFileSync(updatesPath, `${JSON.stringify(updatesData, null, 2)}\n`, 'utf8');
         console.log(`[make-xpi] Updated ${updatesPath} v${version} hash: ${nextHash}`);

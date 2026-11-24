@@ -6,7 +6,6 @@
 ## Verification Commands (`verify` Primary Source)
 - **Fast Checks**: `npm run type-check` (TypeScript strict check) and targeted `npx vitest run <test-file>`.
 - **Full Gate**: `npm run type-check`, `npm test` (Vitest + happy-dom), and `npm run package` (when `src/` or `addon/` changes; mirrors `.github/workflows/release.yml`).
-- **Reload IPC Note**: `npm run reload` writes `/tmp/zotero-cover-grid-reload.trigger` intentionally for Zotero live-reload IPC (exception to root scratch-file `/tmp` rule; do not place agent scratch files in `/tmp`).
 
 ## Git & Reporting Workflow
 - **Auto-Push Before Final Report** *(Overrides workspace commit/push confirmation)*: After passing global `verify` and `open-code-review` checks on a dedicated branch (per root `AGENTS.md` branch & commit rules; never `main`), create an atomic Korean commit and push (`git push -u origin <branch>`) before reporting completion.

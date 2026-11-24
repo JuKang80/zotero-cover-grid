@@ -255,7 +255,27 @@ export class WindowCoverGridController {
     return { zItem, attachment, isPdf };
   }
 
-  private async loadThumbnailForCard(card: PaperCardData, signal: AbortSignal): Promise<void> {
+  public prioritizeVisibleCards(itemIds: number[]): void {
+    if (this.isDestroyed || !this.abortController || this.abortController.signal.aborted) {
+      return;
+    }
+    const signal = this.abortController.signal;
+    const idSet = new Set(itemIds);
+    for (const card of this.filteredItems) {
+      if (!idSet.has(card.id)) continue;
+      if (card.itemType === 'note' || (card.pdfResolved && !card.hasPdf)) continue;
+      if (card.coverThumbnailUrl && !thumbnailCacheManager.isUrlRevoked(card.coverThumbnailUrl)) {
+        continue;
+      }
+      void this.loadThumbnailForCard(card, signal, 'high');
+    }
+  }
+
+  private async loadThumbnailForCard(
+    card: PaperCardData,
+    signal: AbortSignal,
+    priority: 'high' | 'normal' = 'normal'
+  ): Promise<void> {
     if (card.itemType === 'note') {
       card.hasPdf = false;
       card.pdfResolved = true;
@@ -272,7 +292,10 @@ export class WindowCoverGridController {
       // Keep typographic book cover when no PDF attachment exists
       if (!attachment || !isPdf) return;
 
-      const url = await thumbnailCacheManager.getThumbnail(zItem, attachment, card);
+      const url = await thumbnailCacheManager.getThumbnail(zItem, attachment, card, {
+        signal,
+        priority
+      });
       if (signal.aborted) return;
 
       card.coverThumbnailUrl = url;

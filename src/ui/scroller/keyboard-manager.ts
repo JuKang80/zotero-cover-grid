@@ -178,7 +178,7 @@ export class KeyboardManager {
       (typeof e.keyCode === 'number' &&
         ((e.keyCode >= 48 && e.keyCode <= 57) || (e.keyCode >= 96 && e.keyCode <= 105)));
     if (isDigitKey && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
-      if (hasSelectionOrFocus || items.length > 0) {
+      if (!inSidePane && (hasSelectionOrFocus || items.length > 0)) {
         this.handleGridKeyDown(e);
       }
       return;

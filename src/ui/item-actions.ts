@@ -14,21 +14,7 @@ export function selectItemInZotero(win: any, itemId: number): void {
   if (!z && !zp) return;
 
   try {
-    // 1. Ensure right-hand Item Pane is visible and not collapsed
-    if (doc) {
-      const pane = doc.getElementById('zotero-item-pane');
-      if (pane) {
-        pane.hidden = false;
-        pane.removeAttribute('hidden');
-        pane.style.removeProperty('display');
-      }
-      const splitter = doc.getElementById('zotero-items-splitter');
-      if (splitter) {
-        splitter.hidden = false;
-        splitter.removeAttribute('hidden');
-      }
-    }
-
+    // 1. Respect user's collapsed/hidden right-hand Item Pane state (never force-expand on card click)
     const item = z?.Items?.get ? z.Items.get(itemId) : null;
 
     // 2. Direct Right-Hand Item Pane Inspection (60fps snappy)

@@ -159,6 +159,9 @@ export function injectCoverGridUI(win: any) {
     onOpenQuickLook: (item) => {
       void controller.openQuickLook(item);
     },
+    onCardsVisible: (itemIds) => {
+      controller.prioritizeVisibleCards(itemIds);
+    },
     onOpenPdf: async (item) => {
       await openItemInZotero(win, item.id);
     },

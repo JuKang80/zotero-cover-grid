@@ -115,13 +115,16 @@ export function injectToolbarControls(win: any): ToolbarController | null {
   zoomContainer.appendChild(zoomSlider);
   toolbarGroup.appendChild(zoomContainer);
 
-  // Simple Subtle Status Indicator (No flashy animations, just plain text)
+  // Simple Subtle Status Indicator (No flashy animations, positioned out-of-flow so toolbar width never shifts)
   const statusMessageEl = doc.createElementNS(HTML_NS, 'span');
   statusMessageEl.id = 'zotero-cover-grid-status-msg';
   statusMessageEl.className = 'cover-grid-status-msg';
   statusMessageEl.style.display = 'none';
+  statusMessageEl.style.position = 'absolute';
+  statusMessageEl.style.left = 'calc(100% + 8px)';
+  statusMessageEl.style.whiteSpace = 'nowrap';
+  statusMessageEl.style.pointerEvents = 'none';
   statusMessageEl.style.fontSize = '12px';
-  statusMessageEl.style.marginLeft = '10px';
   statusMessageEl.style.color = 'var(--text-secondary, #6b7280)';
   statusMessageEl.style.userSelect = 'none';
   toolbarGroup.appendChild(statusMessageEl);
@@ -236,13 +239,11 @@ export function injectToolbarControls(win: any): ToolbarController | null {
     }
   };
 
-  const setZoom = (widthPx: number) => {
-    const clamped = Math.min(340, Math.max(140, widthPx));
-    zoomSlider.value = String(clamped);
-    zoomSlider.title = `Card Zoom: ${clamped}px`;
-    const coverGrid = doc.getElementById('zotero-cover-grid');
-    if (coverGrid) {
-      coverGrid.style.setProperty('--card-width', `${clamped}px`);
+  let zoomPersistTimer: any = null;
+  let lastZoomPersistAt = 0;
+  const persistZoomPref = (clamped: number, trackThrottle = false) => {
+    if (trackThrottle) {
+      lastZoomPersistAt = Date.now();
     }
     try {
       const z = win.Zotero || (typeof Zotero !== 'undefined' ? Zotero : null);
@@ -252,6 +253,39 @@ export function injectToolbarControls(win: any): ToolbarController | null {
     } catch {
       // Ignore
     }
+  };
+
+  const applyZoom = (widthPx: number, throttlePersist = false) => {
+    const clamped = Math.min(340, Math.max(140, widthPx));
+    zoomSlider.value = String(clamped);
+    zoomSlider.title = `Card Zoom: ${clamped}px`;
+    const coverGrid = doc.getElementById('zotero-cover-grid');
+    if (coverGrid) {
+      const scroller = win.__zoteroCoverGridInstance?.scroller;
+      if (scroller && typeof scroller.preserveScrollAnchor === 'function') {
+        scroller.preserveScrollAnchor(() => {
+          coverGrid.style.setProperty('--card-width', `${clamped}px`);
+        });
+      } else {
+        coverGrid.style.setProperty('--card-width', `${clamped}px`);
+      }
+    }
+    if (zoomPersistTimer) {
+      clearTimeout(zoomPersistTimer);
+      zoomPersistTimer = null;
+    }
+    if (throttlePersist && lastZoomPersistAt > 0 && Date.now() - lastZoomPersistAt < 150) {
+      zoomPersistTimer = setTimeout(() => {
+        zoomPersistTimer = null;
+        persistZoomPref(clamped, true);
+      }, 150);
+    } else {
+      persistZoomPref(clamped, throttlePersist);
+    }
+  };
+
+  const setZoom = (widthPx: number) => {
+    applyZoom(widthPx, false);
   };
 
   btnList.addEventListener('click', (e: Event) => {
@@ -268,7 +302,11 @@ export function injectToolbarControls(win: any): ToolbarController | null {
   });
   zoomSlider.addEventListener('input', (e: Event) => {
     const val = Number((e.target as HTMLInputElement).value);
-    setZoom(val);
+    applyZoom(val, true);
+  });
+  zoomSlider.addEventListener('change', (e: Event) => {
+    const val = Number((e.target as HTMLInputElement).value);
+    applyZoom(val, false);
   });
   zoomSlider.addEventListener('dblclick', () => setZoom(180));
   zoomLabel.addEventListener('click', () => setZoom(180));
@@ -282,6 +320,10 @@ export function injectToolbarControls(win: any): ToolbarController | null {
     setZoom,
     showStatusMessage,
     destroy: () => {
+      if (zoomPersistTimer) {
+        clearTimeout(zoomPersistTimer);
+        zoomPersistTimer = null;
+      }
       if (statusMsgTimer) {
         clearTimeout(statusMsgTimer);
         statusMsgTimer = null;

@@ -28,6 +28,7 @@ export interface VirtualScrollerOptions {
   onContextMenu?: (item: PaperCardData, event: MouseEvent) => void;
   onPageFlip?: (item: PaperCardData, direction: -1 | 1) => void;
   onOpenQuickLook?: (item: PaperCardData) => void;
+  onCardsVisible?: (itemIds: number[]) => void;
 }
 
 export class VirtualGridScroller {
@@ -46,6 +47,13 @@ export class VirtualGridScroller {
 
   private boundKeyDown = (e: KeyboardEvent) => this.handleKeyDown(e);
   private boundDocKeyDown = (e: KeyboardEvent) => this.handleDocumentKeyDown(e);
+  private boundViewportScroll = () => this.recordCurrentScrollAnchor();
+  private resizeObserver: ResizeObserver | null = null;
+  private visibilityObserver: IntersectionObserver | null = null;
+  private lastViewportWidth = 0;
+  private lastAnchorId: number | null = null;
+  private lastAnchorRelativeTop = 0;
+  private isRestoringScroll = false;
 
   constructor(options: VirtualScrollerOptions) {
     this.container = options.container;
@@ -144,11 +152,121 @@ export class VirtualGridScroller {
     if (this.viewport && this.viewport !== this.container) {
       this.viewport.addEventListener('keydown', this.boundKeyDown);
     }
+    if (this.viewport) {
+      this.viewport.addEventListener('scroll', this.boundViewportScroll, { passive: true });
+      this.lastViewportWidth = this.viewport.clientWidth || 0;
+      const win = this.viewport.ownerDocument?.defaultView as any;
+      const ResizeObs = win?.ResizeObserver || (typeof ResizeObserver !== 'undefined' ? ResizeObserver : null);
+      if (ResizeObs) {
+        try {
+          this.resizeObserver = new ResizeObs(() => this.handleViewportResize());
+          this.resizeObserver?.observe(this.viewport);
+        } catch {
+          this.resizeObserver = null;
+        }
+      }
+      const IntersectionObs =
+        win?.IntersectionObserver ||
+        (typeof IntersectionObserver !== 'undefined' ? IntersectionObserver : null);
+      if (IntersectionObs && this.options.onCardsVisible) {
+        try {
+          this.visibilityObserver = new IntersectionObs(
+            (entries: IntersectionObserverEntry[]) => {
+              const visibleIds: number[] = [];
+              for (const entry of entries) {
+                if (!entry.isIntersecting) continue;
+                const rawId = (entry.target as HTMLElement)?.dataset?.itemId;
+                const parsed = Number(rawId);
+                if (!isNaN(parsed) && parsed > 0) {
+                  visibleIds.push(parsed);
+                }
+              }
+              if (visibleIds.length > 0) {
+                this.options.onCardsVisible?.(visibleIds);
+              }
+            },
+            { root: this.viewport, rootMargin: '300px 0px', threshold: 0.01 }
+          );
+        } catch {
+          this.visibilityObserver = null;
+        }
+      }
+    }
     const doc = this.container?.ownerDocument;
     if (doc && typeof doc.addEventListener === 'function') {
       // Use capture phase (true) so digit shortcuts (0-9) and navigation keys in Grid View
       // are intercepted BEFORE Zotero's hidden itemTree/tagSelector listeners can swallow them.
       doc.addEventListener('keydown', this.boundDocKeyDown, true);
+    }
+  }
+
+  private recordCurrentScrollAnchor(): void {
+    if (this.isRestoringScroll || !this.viewport || this.items.length === 0) return;
+    const anchor = this.findTopVisibleItem();
+    if (!anchor) {
+      this.lastAnchorId = null;
+      return;
+    }
+    const el = this.cardMap.get(anchor.id);
+    if (!el) return;
+    this.lastAnchorId = anchor.id;
+    this.lastAnchorRelativeTop = el.offsetTop - (this.viewport.scrollTop || 0);
+  }
+
+  private handleViewportResize(): void {
+    if (!this.viewport) return;
+    const nextWidth = this.viewport.clientWidth || 0;
+    if (nextWidth <= 0) return;
+    const prevWidth = this.lastViewportWidth;
+    this.lastViewportWidth = nextWidth;
+    if (prevWidth <= 0 || prevWidth === nextWidth) return;
+    if ((this.viewport.scrollTop || 0) <= 0 || this.lastAnchorId === null) return;
+    const el = this.cardMap.get(this.lastAnchorId);
+    if (!el) return;
+    this.isRestoringScroll = true;
+    try {
+      this.viewport.scrollTop = Math.max(0, el.offsetTop - this.lastAnchorRelativeTop);
+    } finally {
+      this.isRestoringScroll = false;
+    }
+  }
+
+  public preserveScrollAnchor(mutate: () => void): void {
+    if (!this.viewport || this.items.length === 0) {
+      mutate();
+      return;
+    }
+    const vpTop = this.viewport.scrollTop || 0;
+    // Prefer currently selected visible card if present, otherwise top visible card
+    let anchorId: number | null = null;
+    if (this.selectedIds.size > 0) {
+      const firstSelectedId = Array.from(this.selectedIds)[0];
+      const selEl = this.cardMap.get(firstSelectedId);
+      if (selEl) {
+        const vpBottom = vpTop + (this.viewport.clientHeight || 0);
+        const selBottom = selEl.offsetTop + (selEl.offsetHeight || 0);
+        if (selBottom > vpTop && selEl.offsetTop < vpBottom) {
+          anchorId = firstSelectedId;
+        }
+      }
+    }
+    if (anchorId === null) {
+      const topItem = this.findTopVisibleItem();
+      anchorId = topItem ? topItem.id : null;
+    }
+    const anchorEl = anchorId !== null ? this.cardMap.get(anchorId) : undefined;
+    const relTop = anchorEl ? anchorEl.offsetTop - vpTop : 0;
+
+    mutate();
+
+    if (anchorEl && vpTop > 0) {
+      this.isRestoringScroll = true;
+      try {
+        this.viewport.scrollTop = Math.max(0, anchorEl.offsetTop - relTop);
+      } finally {
+        this.isRestoringScroll = false;
+      }
+      this.recordCurrentScrollAnchor();
     }
   }
 
@@ -174,6 +292,7 @@ export class VirtualGridScroller {
     // Remove deleted items
     for (const [id, el] of this.cardMap.entries()) {
       if (!newIdSet.has(id)) {
+        this.visibilityObserver?.unobserve(el);
         el.remove();
         this.cardMap.delete(id);
         this.selectedIds.delete(id);
@@ -220,6 +339,7 @@ export class VirtualGridScroller {
       if (!cardEl) {
         cardEl = createPaperCardElement(card, this.sharedCardHandlers, doc);
         this.cardMap.set(card.id, cardEl);
+        this.visibilityObserver?.observe(cardEl);
       } else {
         // Update mutable properties & metadata
         updatePaperCardMetadata(cardEl, card);
@@ -279,6 +399,7 @@ export class VirtualGridScroller {
     }
 
     this.scrollAnchorTracker.restoreAnchor(anchor, oldAnchorOffset, this.cardMap, this.viewport);
+    this.recordCurrentScrollAnchor();
   }
 
   private findTopVisibleItem(): PaperCardData | null {
@@ -426,6 +547,13 @@ export class VirtualGridScroller {
   }
 
   public destroy() {
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
+    this.visibilityObserver?.disconnect();
+    this.visibilityObserver = null;
+    if (this.viewport) {
+      this.viewport.removeEventListener('scroll', this.boundViewportScroll);
+    }
     this.container.removeEventListener('keydown', this.boundKeyDown);
     if (this.viewport && this.viewport !== this.container) {
       this.viewport.removeEventListener('keydown', this.boundKeyDown);
@@ -438,6 +566,7 @@ export class VirtualGridScroller {
     this.cardMap.clear();
     this.selectionModel.clear();
     this.items = [];
+    this.lastAnchorId = null;
     this.container.innerHTML = '';
   }
 }

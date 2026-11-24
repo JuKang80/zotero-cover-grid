@@ -31,7 +31,11 @@ export class ThumbnailCacheManager implements IThumbnailCacheManager {
   private revokedUrls = new Set<string>();
   private maxConcurrency = 3;
   private currentActive = 0;
-  private taskQueue: Array<() => void> = [];
+  private taskQueue: Array<{
+    run: () => void;
+    cancel: () => void;
+    priority: 'high' | 'normal';
+  }> = [];
 
   constructor() {}
 
@@ -59,10 +63,38 @@ export class ThumbnailCacheManager implements IThumbnailCacheManager {
     return dir;
   }
 
-  private getDiskCachePath(cacheDir: string, key: string, mtime: string | number): string {
+  private isSplashDetectEnabled(): boolean {
+    try {
+      if (typeof Zotero !== 'undefined' && Zotero.Prefs?.get) {
+        const pref = Zotero.Prefs.get('extensions.zotero.covergrid.splashDetect', true);
+        if (pref === false) return false;
+      }
+    } catch {}
+    return true;
+  }
+
+  private detectImageMimeType(bytes: Uint8Array): string {
+    if (bytes && bytes.length >= 4) {
+      if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+        return 'image/jpeg';
+      }
+      if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
+        return 'image/png';
+      }
+    }
+    return 'image/webp';
+  }
+
+  private getDiskCachePath(
+    cacheDir: string,
+    key: string,
+    mtime: string | number,
+    splashEnabled = this.isSplashDetectEnabled()
+  ): string {
     const safeKey = String(key).replace(/[^a-zA-Z0-9_-]/g, '_');
     const safeMtime = String(mtime).replace(/[^a-zA-Z0-9_-]/g, '_');
-    const filename = `${safeKey}_${safeMtime}_v6.webp`;
+    const splashSuffix = splashEnabled ? '' : '_nosplash';
+    const filename = `${safeKey}_${safeMtime}${splashSuffix}_v6.webp`;
     return typeof PathUtils !== 'undefined' && typeof PathUtils.join === 'function'
       ? PathUtils.join(cacheDir, filename)
       : `${cacheDir}/${filename}`;
@@ -137,28 +169,85 @@ export class ThumbnailCacheManager implements IThumbnailCacheManager {
     return !this.isUrlRevoked(url);
   }
 
-  private enqueue<T>(task: () => Promise<T>): Promise<T> {
+  private enqueue<T>(
+    task: () => Promise<T>,
+    options?: { signal?: AbortSignal; priority?: 'high' | 'normal' }
+  ): Promise<T> {
+    const signal = options?.signal;
+    const priority = options?.priority || 'normal';
+    if (signal?.aborted) {
+      return Promise.reject(new Error('Thumbnail task aborted'));
+    }
+
     return new Promise<T>((resolve, reject) => {
-      const run = async () => {
-        this.currentActive++;
-        try {
-          const res = await task();
-          resolve(res);
-        } catch (err) {
-          reject(err);
-        } finally {
-          this.currentActive--;
-          if (this.taskQueue.length > 0) {
-            const next = this.taskQueue.shift();
-            next?.();
+      let settled = false;
+      let onAbort: (() => void) | null = null;
+
+      const cleanupAbortListener = () => {
+        if (onAbort && signal && typeof signal.removeEventListener === 'function') {
+          try {
+            signal.removeEventListener('abort', onAbort);
+          } catch {}
+        }
+        onAbort = null;
+      };
+
+      const entry = {
+        priority,
+        cancel: () => {
+          if (settled) return;
+          settled = true;
+          cleanupAbortListener();
+          reject(new Error('Thumbnail task aborted'));
+        },
+        run: async () => {
+          if (settled) return;
+          cleanupAbortListener();
+          if (signal?.aborted) {
+            settled = true;
+            reject(new Error('Thumbnail task aborted'));
+            return;
+          }
+          this.currentActive++;
+          try {
+            const res = await task();
+            if (!settled) {
+              settled = true;
+              resolve(res);
+            }
+          } catch (err) {
+            if (!settled) {
+              settled = true;
+              reject(err);
+            }
+          } finally {
+            this.currentActive--;
+            if (this.taskQueue.length > 0) {
+              const next = this.taskQueue.shift();
+              next?.run();
+            }
           }
         }
       };
 
       if (this.currentActive < this.maxConcurrency) {
-        run();
+        void entry.run();
       } else {
-        this.taskQueue.push(run);
+        if (priority === 'high') {
+          this.taskQueue.unshift(entry);
+        } else {
+          this.taskQueue.push(entry);
+        }
+        if (signal && typeof signal.addEventListener === 'function') {
+          onAbort = () => {
+            const idx = this.taskQueue.indexOf(entry);
+            if (idx !== -1) {
+              this.taskQueue.splice(idx, 1);
+            }
+            entry.cancel();
+          };
+          signal.addEventListener('abort', onAbort, { once: true });
+        }
       }
     });
   }
@@ -166,8 +255,9 @@ export class ThumbnailCacheManager implements IThumbnailCacheManager {
   private getCacheIdentity(item: any, attachment?: any) {
     const key = item.key || String(item.id);
     const mtime = attachment?.mtime || attachment?.dateModified || item?.dateModified || 0;
-    const cacheKey = `${key}_${mtime}`;
-    return { key, mtime, cacheKey };
+    const splashEnabled = this.isSplashDetectEnabled();
+    const cacheKey = splashEnabled ? `${key}_${mtime}` : `${key}_${mtime}_nosplash`;
+    return { key, mtime, cacheKey, splashEnabled };
   }
 
   private buildFallbackCardData(item: any, cardData?: Partial<PaperCardData>): Partial<PaperCardData> {
@@ -269,8 +359,13 @@ export class ThumbnailCacheManager implements IThumbnailCacheManager {
     return info;
   }
 
-  public async getThumbnail(item: any, attachment?: any, cardData?: Partial<PaperCardData>): Promise<string> {
-    const { key, mtime, cacheKey } = this.getCacheIdentity(item, attachment);
+  public async getThumbnail(
+    item: any,
+    attachment?: any,
+    cardData?: Partial<PaperCardData>,
+    options?: { signal?: AbortSignal; priority?: 'high' | 'normal' }
+  ): Promise<string> {
+    const { key, mtime, cacheKey, splashEnabled } = this.getCacheIdentity(item, attachment);
 
     // 1. Check in-memory cache
     if (this.memoryCache.has(cacheKey)) {
@@ -284,51 +379,58 @@ export class ThumbnailCacheManager implements IThumbnailCacheManager {
       return this.pendingRenders.get(cacheKey)!;
     }
 
+    const signal = options?.signal;
     const renderPromise = this.enqueue(async () => {
-      try {
-        const cacheDir = await this.ensureCacheDirectory();
-        const diskPath = this.getDiskCachePath(cacheDir, key, mtime);
-
-        // 3. Check disk cache
-        if (typeof IOUtils !== 'undefined') {
-          const exists = await IOUtils.exists(diskPath);
-          if (exists) {
-            const bytes = await IOUtils.read(diskPath);
-            const blob = new Blob([bytes], { type: 'image/webp' });
-            const url = URL.createObjectURL(blob);
-            this.recordLruAccess(cacheKey, url);
-            return url;
-          }
-        }
-
-        // 4. Render from PDF or Fallback
-        let blob: Blob;
-        const { pdfPath, isPdf } = await this.resolvePdfPathFromAttachment(attachment);
-        const card = this.buildFallbackCardData(item, cardData);
-
-        if (pdfPath && isPdf) {
-          blob = await renderPdfThumbnail(pdfPath, card);
-        } else {
-          blob = await generateTypographyFallbackCover(card, 'No PDF Attached');
-        }
-
-        // 5. Save to disk cache (skip persisting temporary fallback covers so transient failures can self-heal)
-        if (typeof IOUtils !== 'undefined' && !(blob as any)?.__isFallbackCover) {
-          try {
-            const arrayBuffer = await blob.arrayBuffer();
-            await IOUtils.write(diskPath, new Uint8Array(arrayBuffer));
-          } catch {
-            // Non-critical write error
-          }
-        }
-
-        // 6. Store in memory and return
-        const url = URL.createObjectURL(blob);
-        this.recordLruAccess(cacheKey, url);
-        return url;
-      } finally {
-        this.pendingRenders.delete(cacheKey);
+      if (signal?.aborted) {
+        throw new Error('Thumbnail task aborted');
       }
+      const cacheDir = await this.ensureCacheDirectory();
+      const diskPath = this.getDiskCachePath(cacheDir, key, mtime, splashEnabled);
+
+      // 3. Check disk cache
+      if (typeof IOUtils !== 'undefined') {
+        const exists = await IOUtils.exists(diskPath);
+        if (exists) {
+          const bytes = await IOUtils.read(diskPath);
+          const mimeType = this.detectImageMimeType(bytes);
+          const blob = new Blob([bytes], { type: mimeType });
+          const url = URL.createObjectURL(blob);
+          this.recordLruAccess(cacheKey, url);
+          return url;
+        }
+      }
+
+      if (signal?.aborted) {
+        throw new Error('Thumbnail task aborted');
+      }
+
+      // 4. Render from PDF or Fallback
+      let blob: Blob;
+      const { pdfPath, isPdf } = await this.resolvePdfPathFromAttachment(attachment);
+      const card = this.buildFallbackCardData(item, cardData);
+
+      if (pdfPath && isPdf) {
+        blob = await renderPdfThumbnail(pdfPath, card);
+      } else {
+        blob = await generateTypographyFallbackCover(card, 'No PDF Attached');
+      }
+
+      // 5. Save to disk cache (skip persisting temporary fallback covers so transient failures can self-heal)
+      if (typeof IOUtils !== 'undefined' && !(blob as any)?.__isFallbackCover) {
+        try {
+          const arrayBuffer = await blob.arrayBuffer();
+          await IOUtils.write(diskPath, new Uint8Array(arrayBuffer));
+        } catch {
+          // Non-critical write error
+        }
+      }
+
+      // 6. Store in memory and return
+      const url = URL.createObjectURL(blob);
+      this.recordLruAccess(cacheKey, url);
+      return url;
+    }, options).finally(() => {
+      this.pendingRenders.delete(cacheKey);
     });
 
     this.pendingRenders.set(cacheKey, renderPromise);
@@ -454,18 +556,27 @@ export class ThumbnailCacheManager implements IThumbnailCacheManager {
 
   public async refreshThumbnail(item: any, attachment?: any, cardData?: Partial<PaperCardData>): Promise<string> {
     const { key, mtime, cacheKey } = this.getCacheIdentity(item, attachment);
+    const basePrefix = `${key}_${mtime}`;
 
-    // Evict existing page 1, page preview variants, and active PDF session
+    // Evict existing page 1 (both splash and nosplash variants), page preview variants, and active PDF session
     this.pageCountMap.delete(cacheKey);
+    this.pageCountMap.delete(basePrefix);
+    this.pageCountMap.delete(`${basePrefix}_nosplash`);
     this.pendingRenders.delete(cacheKey);
+    this.pendingRenders.delete(basePrefix);
+    this.pendingRenders.delete(`${basePrefix}_nosplash`);
     for (const pKey of Array.from(this.pendingPageRenders.keys())) {
-      if (pKey.startsWith(`${cacheKey}_p`)) {
+      if (pKey.startsWith(`${basePrefix}_`)) {
         this.pendingPageRenders.delete(pKey);
       }
     }
-    this.evictMatchingEntries(this.memoryCache, this.lruKeys, (memKey) => memKey === cacheKey);
+    this.evictMatchingEntries(
+      this.memoryCache,
+      this.lruKeys,
+      (memKey) => memKey === cacheKey || memKey === basePrefix || memKey === `${basePrefix}_nosplash`
+    );
     this.evictMatchingEntries(this.pageMemoryCache, this.pageLruKeys, (memKey) =>
-      memKey.startsWith(`${cacheKey}_p`)
+      memKey.startsWith(`${basePrefix}_`)
     );
 
     if (attachment) {
@@ -476,12 +587,14 @@ export class ThumbnailCacheManager implements IThumbnailCacheManager {
     }
 
     const cacheDir = await this.ensureCacheDirectory();
-    const diskPath = this.getDiskCachePath(cacheDir, key, mtime);
     if (typeof IOUtils !== 'undefined') {
-      try {
-        await IOUtils.remove(diskPath, { ignoreAbsent: true });
-      } catch {
-        // Ignore
+      for (const splashVariant of [true, false]) {
+        const diskPath = this.getDiskCachePath(cacheDir, key, mtime, splashVariant);
+        try {
+          await IOUtils.remove(diskPath, { ignoreAbsent: true });
+        } catch {
+          // Ignore
+        }
       }
     }
 
@@ -503,7 +616,11 @@ export class ThumbnailCacheManager implements IThumbnailCacheManager {
     this.pendingRenders.clear();
     this.pendingPageRenders.clear();
     this.pageCountMap.clear();
+    const queued = this.taskQueue;
     this.taskQueue = [];
+    for (const entry of queued) {
+      entry.cancel();
+    }
     void clearPdfSessionPool();
   }
 
@@ -536,11 +653,13 @@ export class ThumbnailCacheManager implements IThumbnailCacheManager {
     }
 
     const dir = this.getCacheDirectory();
-    const diskPath = this.getDiskCachePath(dir, key, mtime);
     if (typeof IOUtils !== 'undefined') {
-      try {
-        await IOUtils.remove(diskPath, { ignoreAbsent: true });
-      } catch {}
+      for (const splashVariant of [true, false]) {
+        const diskPath = this.getDiskCachePath(dir, key, mtime, splashVariant);
+        try {
+          await IOUtils.remove(diskPath, { ignoreAbsent: true });
+        } catch {}
+      }
     }
   }
 

@@ -2,19 +2,30 @@ name: Release XPI
 
 on:
   push:
+    branches:
+      - main
     tags:
       - 'v*'
+  workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
+    if: "!contains(github.event.head_commit.message, '[skip ci]') && github.actor != 'github-actions[bot]'"
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -25,6 +36,41 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Resolve or Auto-Bump Version
+        id: version
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            TAG_NAME="${GITHUB_REF#refs/tags/}"
+            VERSION="${TAG_NAME#v}"
+          else
+            CURRENT_VERSION=$(node -p "JSON.parse(require('fs').readFileSync('addon/manifest.json', 'utf8')).version")
+            if git rev-parse "v${CURRENT_VERSION}" >/dev/null 2>&1; then
+              VERSION=$(node -e "const p='${CURRENT_VERSION}'.split('.').map(Number); p[2]=(p[2]||0)+1; console.log(p.join('.'))")
+              echo "Tag v${CURRENT_VERSION} already exists; auto-bumping to v${VERSION}"
+            else
+              VERSION="${CURRENT_VERSION}"
+              echo "Using new version v${VERSION} from manifest.json"
+            fi
+            TAG_NAME="v${VERSION}"
+          fi
+
+          node -e '
+            const fs = require("fs");
+            const ver = process.argv[1];
+            for (const file of ["package.json", "package-lock.json", "addon/manifest.json"]) {
+              if (!fs.existsSync(file)) continue;
+              const data = JSON.parse(fs.readFileSync(file, "utf8"));
+              data.version = ver;
+              if (data.packages && data.packages[""]) {
+                data.packages[""].version = ver;
+              }
+              fs.writeFileSync(file, JSON.stringify(data, null, 2) + "\n", "utf8");
+            }
+          ' "${VERSION}"
+
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "tag=${TAG_NAME}" >> "${GITHUB_OUTPUT}"
+
       - name: Package Extension XPI
         run: npm run package
 
@@ -34,28 +80,42 @@ jobs:
       - name: Run TypeScript Check
         run: npm run type-check
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: build/zotero-cover-grid.xpi
-          generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Sync updates.json hash to main
+      - name: Commit Version & updates.json and Push Tag
         run: |
-          if ! git diff --quiet -- addon/updates.json; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if [[ "${GITHUB_REF}" == "refs/heads/main" ]]; then
+            git add package.json package-lock.json addon/manifest.json addon/updates.json
+            if ! git diff --cached --quiet; then
+              git commit -m "chore(release): release ${RELEASE_TAG} [skip ci]"
+              git push origin HEAD:main
+            fi
+            if ! git rev-parse "${RELEASE_TAG}" >/dev/null 2>&1; then
+              git tag "${RELEASE_TAG}"
+              git push origin "${RELEASE_TAG}"
+            fi
+          elif ! git diff --quiet -- addon/updates.json; then
             git fetch origin main
             git checkout -B main origin/main
             git checkout --theirs -- addon/updates.json || true
             node scripts/make-xpi.mjs
             git add addon/updates.json
             if ! git diff --cached --quiet; then
-              git commit -m "chore(release): sync updates.json sha256 for ${{ github.ref_name }} [skip ci]"
+              git commit -m "chore(release): sync updates.json sha256 for ${RELEASE_TAG} [skip ci]"
               git push origin main
             fi
           fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
+          files: build/zotero-cover-grid.xpi
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
