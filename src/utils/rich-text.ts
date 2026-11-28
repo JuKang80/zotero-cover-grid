@@ -192,10 +192,6 @@ export function renderRichText(container: HTMLElement, richText: string | null |
       const parser = new DOMParserCtor();
       const parsedDoc = parser.parseFromString(normalizedText, 'text/html');
       sourceBody = parsedDoc.body;
-    } else {
-      const temp = targetDoc.createElementNS(HTML_NS, 'div');
-      temp.innerHTML = normalizedText;
-      sourceBody = temp;
     }
 
     if (sourceBody) {

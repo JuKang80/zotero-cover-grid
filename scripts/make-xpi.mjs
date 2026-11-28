@@ -117,4 +117,6 @@ await new Promise((resolve, reject) => {
 });
 
 syncUpdateHashes(outPath);
-syncToZoteroProfiles(outPath);
+if (process.argv.includes('--install-local')) {
+  syncToZoteroProfiles(outPath);
+}

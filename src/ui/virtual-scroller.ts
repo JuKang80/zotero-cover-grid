@@ -567,6 +567,6 @@ export class VirtualGridScroller {
     this.selectionModel.clear();
     this.items = [];
     this.lastAnchorId = null;
-    this.container.innerHTML = '';
+    this.container.textContent = '';
   }
 }

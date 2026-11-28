@@ -44,7 +44,16 @@ function patchFileGetContentsIfNeeded() {
     try {
       return orig.call(this, url);
     } catch (e) {
-      if (typeof Services !== 'undefined' && Services.io && typeof Cc !== 'undefined' && typeof Ci !== 'undefined') {
+      const isLocalAddonResource =
+        typeof url === 'string' &&
+        /^(?:jar:(?:file|chrome|resource):|chrome:|resource:)/i.test(url);
+      if (
+        isLocalAddonResource &&
+        typeof Services !== 'undefined' &&
+        Services.io &&
+        typeof Cc !== 'undefined' &&
+        typeof Ci !== 'undefined'
+      ) {
         try {
           const uri = Services.io.newURI(url);
           const channel = Services.io.newChannelFromURI(
@@ -213,6 +222,15 @@ function destroyWindow(win: any) {
  * Automatically check for updates via Zotero's AddonManager and updates.json
  */
 function checkForPluginUpdates(pluginID: string) {
+  if (typeof Services !== 'undefined' && Services.prefs?.getBoolPref) {
+    try {
+      if (Services.prefs.getBoolPref('extensions.update.autoUpdateDefault', true) === false) {
+        return;
+      }
+    } catch {
+      // Proceed if preference key is unset
+    }
+  }
   if (typeof (globalThis as any).ChromeUtils !== 'undefined') {
     try {
       const { AddonManager } = (globalThis as any).ChromeUtils.importESModule(

@@ -182,5 +182,33 @@ describe('P0/P1/P2 UX & Layout Stability', () => {
     );
     expect(releaseYml).toContain('branches:\n      - main');
     expect(releaseYml).toContain('Resolve or Auto-Bump Version');
+    expect(releaseYml).not.toContain('softprops/action-gh-release');
+  });
+
+  it('enforces zero innerHTML/eval in src/ and sha256 update_hash on all updates.json entries', () => {
+    const collectTsFiles = (dir: string): string[] => {
+      const out: string[] = [];
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) out.push(...collectTsFiles(full));
+        else if (entry.name.endsWith('.ts')) out.push(full);
+      }
+      return out;
+    };
+
+    for (const file of collectTsFiles(path.resolve(process.cwd(), 'src'))) {
+      const code = fs.readFileSync(file, 'utf8');
+      expect(code).not.toMatch(/\.innerHTML\b/);
+      expect(code).not.toMatch(/\.eval\s*\(/);
+    }
+
+    const updatesJson = JSON.parse(
+      fs.readFileSync(path.resolve(process.cwd(), 'addon/updates.json'), 'utf8')
+    );
+    const updates = updatesJson?.addons?.['zotero-cover-grid@antigravity.user']?.updates || [];
+    expect(updates.length).toBeGreaterThan(0);
+    for (const entry of updates) {
+      expect(entry.update_hash).toMatch(/^sha256:[a-f0-9]{64}$/);
+    }
   });
 });
