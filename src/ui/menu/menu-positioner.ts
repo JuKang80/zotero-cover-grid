@@ -111,13 +111,26 @@ export function attachMenuDismissListeners(options: DismissListenersOptions): ()
     }
   };
 
+  const handleScroll = (e: Event) => {
+    if (e.target && menuEl.contains(e.target as Node)) return;
+    onClose();
+  };
+
+  const handleResize = () => {
+    onClose();
+  };
+
   win?.addEventListener?.('mousedown', handleOutsideMouseDown, true);
   win?.addEventListener?.('click', handleOutsideClick, true);
   win?.addEventListener?.('keydown', handleKeyDown, true);
+  win?.addEventListener?.('scroll', handleScroll, true);
+  win?.addEventListener?.('resize', handleResize);
 
   return () => {
     win?.removeEventListener?.('mousedown', handleOutsideMouseDown, true);
     win?.removeEventListener?.('click', handleOutsideClick, true);
     win?.removeEventListener?.('keydown', handleKeyDown, true);
+    win?.removeEventListener?.('scroll', handleScroll, true);
+    win?.removeEventListener?.('resize', handleResize);
   };
 }

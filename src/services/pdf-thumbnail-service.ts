@@ -122,9 +122,9 @@ function createPdfDocumentHelper(baseDoc: any) {
     }
   }
 
-  return (bytes: Uint8Array, disableFontFace = false): any => {
+  return (bytes: Uint8Array, disableFontFace = false, reuseBytes = false): any => {
     const opts: any = {
-      data: bytes.slice ? bytes.slice(0) : new Uint8Array(bytes),
+      data: reuseBytes ? bytes : (bytes.slice ? bytes.slice(0) : new Uint8Array(bytes)),
       cMapUrl: 'resource://zotero/reader/pdf/web/cmaps/',
       cMapPacked: true,
       standardFontDataUrl: 'resource://zotero/reader/pdf/web/standard_fonts/',
@@ -170,6 +170,10 @@ async function renderPdfPageToCanvas(
     ctx.fillRect(0, 0, viewport.width, viewport.height);
   }
   await page.render({ canvasContext: ctx, viewport }).promise;
+  // Skip expensive full-canvas GPU readback trimming for high-res Quick Look renders
+  if (maxWidth > MAX_CANVAS_WIDTH || maxHeight > MAX_CANVAS_HEIGHT) {
+    return canvas;
+  }
   return trimCanvasArtifacts(canvas);
 }
 
@@ -545,8 +549,8 @@ export async function renderPdfThumbnail(
       return canvas;
     };
 
-    // Pass raw byte array directly to avoid file URI resolution and permission issues
-    loadingTask = pdfjs.getDocument(buildDocOptions(bytes, false));
+    // Pass raw byte array directly without duplicating memory; re-read only on rare font-fallback retry
+    loadingTask = pdfjs.getDocument(buildDocOptions(bytes, false, true));
     pdfDoc = await loadingTask.promise;
     if (!pdfDoc || pdfDoc.numPages < 1) {
       return generateTypographyFallbackCover(cardData, 'Empty PDF');
@@ -563,19 +567,19 @@ export async function renderPdfThumbnail(
       // Retry with disableFontFace=true for legacy PDFs with broken Type1/Type3/OCR fonts
       // rejected by the browser OpenType Sanitizer (FontFace.loaded)
       try {
-        renderedCanvas = await renderPageToCanvas(targetPage);
-      } catch {
-        try {
-          await pdfDoc.destroy?.();
-        } catch {}
-        try {
-          await loadingTask.destroy?.();
-        } catch {}
-        loadingTask = pdfjs.getDocument(buildDocOptions(bytes, true));
-        pdfDoc = await loadingTask.promise;
-        targetPage = await resolveTargetPage(pdfDoc);
-        renderedCanvas = await renderPageToCanvas(targetPage);
+        await pdfDoc.destroy?.();
+      } catch {}
+      try {
+        await loadingTask.destroy?.();
+      } catch {}
+      const retryBytes = bytes.byteLength > 0 ? bytes : (await readPdfBytes(pdfPath)).bytes;
+      if (!retryBytes || retryBytes.byteLength === 0) {
+        throw firstRenderErr;
       }
+      loadingTask = pdfjs.getDocument(buildDocOptions(retryBytes, true, true));
+      pdfDoc = await loadingTask.promise;
+      targetPage = await resolveTargetPage(pdfDoc);
+      renderedCanvas = await renderPageToCanvas(targetPage);
     }
 
     const finalCanvas = trimCanvasArtifacts(renderedCanvas);
