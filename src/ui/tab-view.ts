@@ -218,7 +218,7 @@ export function openCoverGridTab(win: any) {
       inspector.style.display = 'none';
       return;
     }
-    inspector.innerHTML = '';
+    inspector.textContent = '';
     inspector.style.display = 'flex';
 
     // Header (Type badge + Close btn)

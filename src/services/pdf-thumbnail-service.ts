@@ -29,6 +29,8 @@ declare const ChromeUtils: any;
 declare const IOUtils: any;
 declare const Zotero: any;
 
+const MAX_PDF_FILE_BYTES = 150 * 1024 * 1024; // 150 MB safeguard against OOM on huge/corrupt files
+
 async function readPdfBytes(pdfPath: string): Promise<{ bytes?: Uint8Array; errorReason?: string }> {
   try {
     if (typeof IOUtils === 'undefined') {
@@ -37,6 +39,16 @@ async function readPdfBytes(pdfPath: string): Promise<{ bytes?: Uint8Array; erro
     const exists = await IOUtils.exists(pdfPath);
     if (!exists) {
       return { errorReason: 'File Not Found' };
+    }
+    if (typeof IOUtils.stat === 'function') {
+      try {
+        const info = await IOUtils.stat(pdfPath);
+        if (info && typeof info.size === 'number' && info.size > MAX_PDF_FILE_BYTES) {
+          return { errorReason: 'PDF Too Large' };
+        }
+      } catch {
+        // Proceed to read if stat is unsupported in mock/test environments
+      }
     }
     const bytes = await IOUtils.read(pdfPath);
     if (!bytes || bytes.length === 0) {
@@ -48,7 +60,7 @@ async function readPdfBytes(pdfPath: string): Promise<{ bytes?: Uint8Array; erro
   }
 }
 
-async function loadPdfJs(hostWin: any): Promise<any> {
+async function loadPdfJs(_hostWin?: any): Promise<any> {
   let pdfjs: any;
   try {
     if (typeof ChromeUtils !== 'undefined' && ChromeUtils.importESModule) {
@@ -58,15 +70,8 @@ async function loadPdfJs(hostWin: any): Promise<any> {
         try {
           pdfjs = await ChromeUtils.importESModule('resource://pdf.js/build/pdf.mjs');
         } catch {
-          // Fall through to hostWin dynamic import
+          // Ignore if unavailable
         }
-      }
-    }
-    if (!pdfjs && hostWin && typeof hostWin.eval === 'function') {
-      try {
-        pdfjs = await hostWin.eval('import("resource://zotero/reader/pdf/build/pdf.mjs")');
-      } catch {
-        pdfjs = await hostWin.eval('import("resource://pdf.js/build/pdf.mjs")');
       }
     }
   } catch {
